@@ -147,6 +147,10 @@ function act(action, arg = "", pressedAt) {
       "breathForge",
       "temper",
     ].includes(action);
+    const forgeOutcome = result.ok && forgeAction ? Feedback.forgeOutcome(
+      gearBefore, state[arg === "armor" ? "armor" : "weapon"].level,
+      state.breaks > breaksBefore, result.kind,
+    ) : null;
     if (result.ok && forgeAction) {
       animationStart = performance.now();
       navigator.vibrate?.(result.kind === "win" ? 18 : 36);
@@ -196,7 +200,7 @@ function act(action, arg = "", pressedAt) {
       } else if (action === "huntStart" || action === "flee") Impacts.clear();
     }
     if (action !== "temperStart" && !(result.ok && ["openChest", "openTowerChests"].includes(action)) && !result.battle && !result.impact && result.message)
-      notify(result.message, result.ok ? result.kind : "loss");
+      notify(result.message, forgeOutcome ? "forge-" + forgeOutcome : result.ok ? result.kind : "loss");
     if (result.ok && action !== "temperStart") {
       const stage = document.querySelector("#screen .scene");
       const chest = ["openChest", "openTowerChests"].includes(action);
@@ -206,10 +210,10 @@ function act(action, arg = "", pressedAt) {
       if (forgeAction) {
         const level = state[arg === "armor" ? "armor" : "weapon"].level;
         const label = action === "temper" ? (state.heat === 5 ? "정밀 타격" : "담금질 완료") :
-          state.breaks > breaksBefore ? "장비 파괴" : level > gearBefore ? "+" + level + " 강화 성공" : level < gearBefore ? "+" + level + " · 손상" :
+          state.breaks > breaksBefore ? "장비 파괴" : level > gearBefore ? "+" + level + " 강화 성공" : level < gearBefore ? "+" + level + " · 하락" :
           result.kind === "win" ? "단조 완료" : "+" + level + " · 유지";
-        if (animate) Feedback.play("forge", stage, label, result.kind);
-        sound("forge-" + result.kind, animate ? Feedback.strikeMs / 1000 : 0);
+        if (animate) Feedback.play("forge", stage, label, forgeOutcome);
+        sound("forge-" + forgeOutcome, animate ? Feedback.strikeMs / 1000 : 0);
       } else if (chest) {
         if (animate) Feedback.play("chest", document.querySelector(".chest-reveal .chest-art"), "+" + fmt(state.lastChest.gold) + " G");
         sound("chest", animate ? Feedback.chestMs / 1000 : 0);

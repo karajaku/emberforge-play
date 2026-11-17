@@ -3,6 +3,13 @@ const Feedback = (() => {
   const strikeMs = 180, chestMs = 360;
   let node, timer;
   function clear() { clearTimeout(timer); node?.remove(); node = null; }
+  // Resolve the applied result, including protection, rather than the generic win/loss tone.
+  function forgeOutcome(before, after, destroyed, kind) {
+    if (destroyed) return "destroy";
+    if (after > before) return "success";
+    if (after < before) return "drop";
+    return kind === "win" ? "success" : "hold";
+  }
   function play(kind, host, label = "", outcome = "win") {
     clear();
     const bounds = document.body.getBoundingClientRect();
@@ -22,7 +29,8 @@ const Feedback = (() => {
     ring.className = "feedback-ring";
     node.append(ring);
     const coins = kind === "chest" || kind === "coins";
-    const count = kind === "chest" ? 26 : kind === "forge" ? 14 : 16;
+    const count = kind === "chest" ? 26 : kind === "forge" ?
+      ({ success: 18, hold: 6, drop: 10, destroy: 24 }[outcome] || 14) : 16;
     for (let i = 0; i < count; i++) {
       const bit = document.createElement("i");
       bit.className = coins ? "feedback-coin" : "feedback-spark";
@@ -39,5 +47,5 @@ const Feedback = (() => {
     document.body.append(node);
     timer = setTimeout(clear, 1550);
   }
-  return { play, clear, strikeMs, chestMs };
+  return { play, clear, forgeOutcome, strikeMs, chestMs };
 })();

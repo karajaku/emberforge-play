@@ -1,6 +1,21 @@
 /* Small, bounded transient layers; never intercept touch or change layout. */
 .feedback { position: fixed; width: 240px; height: 160px; margin: -80px 0 0 -120px; z-index: 40; pointer-events: none; contain: layout style; --fx: #ffe3a1; }
 .feedback[data-outcome="loss"] { --fx: #ff927d; }
+.feedback[data-outcome="success"], #toast.forge-success { --fx: var(--forge-success); }
+.feedback[data-outcome="hold"], #toast.forge-hold { --fx: var(--forge-hold); }
+.feedback[data-outcome="drop"], #toast.forge-drop { --fx: var(--forge-drop); }
+.feedback[data-outcome="destroy"], #toast.forge-destroy { --fx: var(--forge-destroy); }
+#toast[class*="forge-"] { color: var(--fx); }
+.feedback-forge .feedback-spark { box-shadow: 0 0 6px var(--fx); }
+.feedback-forge[data-outcome="success"] .feedback-spark { animation-name: forge-rise; }
+.feedback-forge[data-outcome="hold"] .feedback-ring { animation-name: forge-hold; animation-duration: 900ms; }
+.feedback-forge[data-outcome="hold"] .feedback-spark { border-radius: 50%; animation-name: forge-settle; }
+.feedback-forge[data-outcome="drop"] .feedback-ring { animation-name: forge-drop; }
+.feedback-forge[data-outcome="drop"] .forge-anvil { animation: forge-shake 450ms var(--hit-delay) both; }
+.feedback-forge[data-outcome="drop"] > b { animation-name: forge-drop-label; }
+.feedback-forge[data-outcome="destroy"] .feedback-ring { border-radius: 0; border-style: dashed; animation-name: forge-shatter; }
+.feedback-forge[data-outcome="destroy"] .feedback-spark { width: 9px; height: 12px; clip-path: polygon(0 0,100% 25%,40% 100%); }
+.feedback-forge[data-outcome="destroy"] .forge-anvil { animation: forge-break 650ms var(--hit-delay) both; }
 .feedback-ascend { --fx: #bdefff; }
 .feedback > i { position: absolute; display: block; }
 .feedback-ring { left: 90px; top: 60px; width: 60px; height: 28px; border: 3px solid var(--fx); border-radius: 50%; box-shadow: 0 0 15px var(--fx); animation: feedback-ring .5s var(--hit-delay) ease-out both; }
@@ -16,4 +31,12 @@
 @keyframes feedback-ring { from { opacity: .9; transform: scale(.3); } to { opacity: 0; transform: scale(3); } }
 @keyframes feedback-particle { 0% { opacity: 0; transform: translate(0,0) scale(.4); } 8% { opacity: 1; } 48% { opacity: 1; transform: translate(var(--x),var(--y)) rotate(var(--spin)); } 100% { opacity: 0; transform: translate(var(--x),var(--fall)) rotate(var(--spin)) scale(.6); } }
 @keyframes feedback-label { 0% { opacity: 0; transform: translateY(8px); } 15%,65% { opacity: 1; } 100% { opacity: 0; transform: translateY(-12px); } }
+@keyframes forge-rise { 0% { opacity: 0; transform: scale(.3); } 10%,55% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--x),calc(var(--y) - 90px)) scale(.2); } }
+@keyframes forge-hold { 0% { opacity: 0; transform: scale(.7); } 20%,60% { opacity: .9; transform: scale(1.5); } 40% { opacity: .4; transform: scale(1.2); } 100% { opacity: 0; transform: scale(1.7); } }
+@keyframes forge-settle { 0% { opacity: 0; } 20%,60% { opacity: .8; transform: translate(calc(var(--x) * .55),-15px); } 100% { opacity: 0; transform: translate(calc(var(--x) * .55),0); } }
+@keyframes forge-drop { from { opacity: .9; transform: scale(1); } to { opacity: 0; transform: translateY(45px) scale(1.7,.4); } }
+@keyframes forge-shake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-7px); } 40%,80% { transform: translateX(7px); } }
+@keyframes forge-drop-label { 0% { opacity: 0; transform: translateY(-12px); } 15%,65% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(18px); } }
+@keyframes forge-shatter { from { opacity: 1; transform: scale(.6) rotate(0); } to { opacity: 0; transform: scale(3.2) rotate(35deg); } }
+@keyframes forge-break { 0% { opacity: 1; transform: translateX(0); } 15%,45% { transform: translateX(-8px) rotate(-6deg); } 30% { transform: translateX(8px) rotate(6deg); } 100% { opacity: 0; transform: translateY(35px) rotate(14deg) scale(.7); } }
 @media (prefers-reduced-motion: reduce) { .feedback { display: none; } }

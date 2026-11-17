@@ -7,6 +7,10 @@
   --text: #eeeede;
   --gold: #f4c578;
   --mint: #94c7ac;
+  --forge-success: #8ce2bf;
+  --forge-hold: #83abd1;
+  --forge-drop: #e6ae60;
+  --forge-destroy: #e77768;
   --serif: Georgia, "Batang", "Noto Serif CJK KR", serif;
   --sans: Inter, "Malgun Gothic", "Apple SD Gothic Neo", Roboto, sans-serif;
 }

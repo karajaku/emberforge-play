@@ -67,9 +67,20 @@ const GameSound = (() => {
     try {
       const at = context.currentTime + delay;
       if (kind.startsWith("forge")) {
-        hit(at);
-        if (kind === "forge-win") [587, 880, 1175].forEach((hz, i) => tone(hz, at + .12 + i * .065, .28, .045));
-        if (kind === "forge-loss") [310, 207].forEach((hz, i) => tone(hz, at + .14 + i * .1, .22, .065, "triangle"));
+        if (kind === "forge-success" || kind === "forge-win") {
+          hit(at, 1.15, .85);
+          [587, 784, 1175, 1568].forEach((hz, i) => tone(hz, at + .12 + i * .08, .38, .055));
+        } else if (kind === "forge-hold" || kind === "forge-info") {
+          hit(at, .85, .45);
+          [660, 660].forEach((hz, i) => tone(hz, at + .12 + i * .18, .16, .055));
+        } else if (kind === "forge-drop" || kind === "forge-loss") {
+          hit(at, .7, .75);
+          [392, 294, 196].forEach((hz, i) => tone(hz, at + .1 + i * .12, .22, .08, "triangle"));
+        } else if (kind === "forge-destroy") {
+          hit(at, .45, 1);
+          [.06, .14, .23].forEach((offset, i) => hit(at + offset, 1.8 + i * .5, .35 - i * .08));
+          tone(65, at + .08, .65, .13, "triangle");
+        } else hit(at);
       } else if (kind === "chest") { hit(at, 0.55, 0.35); coins(at + .035, 17); }
       else if (kind === "coins") coins(at, 8);
       else if (["block", "parry", "counter", "mine"].includes(kind)) hit(at, kind === "parry" ? 1.35 : .8, .65);

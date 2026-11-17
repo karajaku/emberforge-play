@@ -193,10 +193,10 @@ body:is([data-place="bag"],[data-place="growth"]) .titlebar {
 .forge-odds { grid-column: 1/-1; padding: 4px 0; }
 .forge-odds > b { font-size: 13px; color: var(--text); }
 .odds-bar { display: flex; overflow: hidden; height: 6px; margin: 6px 0; border-radius: 3px; background: #343438; }
-.odds-success { background: #8ce2bf; }
-.odds-hold { background: #83abd1; }
-.odds-drop { background: #e6ae60; }
-.odds-destroy { background: #e77768; }
+.odds-success { background: var(--forge-success); }
+.odds-hold { background: var(--forge-hold); }
+.odds-drop { background: var(--forge-drop); }
+.odds-destroy { background: var(--forge-destroy); }
 .odds-labels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
 .odds-labels span { font-size: 12px; white-space: nowrap; }
 .odds-labels i { display: inline-block; width: 5px; height: 5px; margin-right: 3px; border-radius: 50%; vertical-align: middle; }
