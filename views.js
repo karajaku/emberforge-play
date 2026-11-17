@@ -400,7 +400,8 @@ function forestView(s, health) {
   const page = phonePage("forest");
   if (page === "field") return fieldView(s);
   const h = s.hunt,
-    next = Math.min(60, (s.huntBest || 0) + 1);
+    next = Math.min(60, (s.huntBest || 0) + 1),
+    pendingChest = s.chests?.find(c => c.id === s.lastHunt?.chestId);
   const enemy = Game.huntEnemy(h || s.lastHunt || next);
   const hud = health ? combatHud(health.hp, health.maxHp, health.enemyHp, health.enemyMax, enemy.name) : "";
   const fight = h
@@ -411,16 +412,18 @@ function forestView(s, health) {
         btn("block", icon("shield") + "방어", "", Game.huntCharge(h) ? "action guard-ready" : "action") +
         btn("flee", "퇴각", "", "mini") + "</div>") + "</div>"
     : huntResult(s.lastHunt, s.chests) + (page ? "" : storyChat(s, "forest")) +
-      (s.chests?.some(c => c.id === s.lastHunt?.chestId) ? "" : desc(
+      (pendingChest ? "" : desc(
         next === 1 ? "돌진을 방어하면 다음 베기가 2.5배 반격이 됩니다. 반격을 맞히고 이기면 골드가 25% 늘어납니다." :
           "기세 2칸을 모으면 강공을 쓸 수 있습니다. 적을 먼저 쓰러뜨리면 피해를 받지 않고, 돌진을 막고 반격하면 골드를 25% 더 받습니다.",
       )) +
-      forestEncounter(next, true) +
-      '<div class="battle-controls">' + hud + btn("huntStart", icon("swords") + next + "구역 사냥", next, "primary") + "</div>" +
-      (s.huntBest ? btn("huntStart", "이전 구역 재도전", Math.min(s.huntBest, 60), "mini") : "");
+      (pendingChest ? "" : forestEncounter(next, true)) +
+      '<div class="battle-controls">' + hud + (pendingChest
+        ? btn("openChest", icon("gift") + "보물 획득", pendingChest.id, "primary")
+        : btn("huntStart", icon("swords") + next + "구역 사냥", next, "primary")) + "</div>" +
+      (!pendingChest && s.huntBest ? btn("huntStart", "이전 구역 재도전", Math.min(s.huntBest, 60), "mini") : "");
   const task = Game.routeTask(s);
   const training =
-    !h && s.weapon.route?.trait === "edge" && task?.open
+    !h && !pendingChest && s.weapon.route?.trait === "edge" && task?.open
       ? task.ready
         ? go(page ? "forge/training" : "forge", "수련 마감 · +" + task.target, "action")
         : task.needed <= next
@@ -467,7 +470,7 @@ function huntResult(last, chests) {
     "회" +
     bonus +
     "</small>" +
-    (chest ? chestButton(chest) : recovery) +
+    (chest ? desc("보물상자를 발견했습니다. 아래에서 보물을 획득하세요.") : recovery) +
     "</div>"
   );
 }
