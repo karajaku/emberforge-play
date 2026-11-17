@@ -1,0 +1,228 @@
+/* Each painted frame keeps its corner hardware at a fixed size as the HUD resizes. */
+:root {
+  --iron: url("assets/hud/iron.webp");
+  --wood: url("assets/hud/wood.webp");
+  --leather: url("assets/hud/leather.webp");
+  --steel: url("assets/hud/steel.webp");
+  --gilt: url("assets/hud/gold.webp");
+  --red: url("assets/hud/red.webp");
+  --text: #fff1d9;
+  --muted: #d2c9bb;
+  --gold: #ffd48c;
+  --mint: #abe9cf;
+  --line: #77654677;
+}
+body { --place-art: url("assets/hud/workshop.webp"); background: #121719; }
+body[data-place="world"] { --place-art: url("assets/hud/map.webp"); }
+body[data-place="bag"] { --place-art: url("assets/hud/armory.webp"); }
+body[data-place="growth"] { --place-art: url("assets/hud/sanctuary.webp"); }
+body[data-place="forest"] { --place-art: url("assets/forest.png"); }
+body[data-place="mine"] { --place-art: url("assets/mine.png"); }
+body[data-place="tower"] { --place-art: url("assets/tower.png"); }
+body[data-place="altar"] { --place-art: url("assets/altar.png"); }
+body::before {
+  content: ""; position: fixed; z-index: -1; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, #09121be3, #13191ce8 60%, #100f10f5),
+    var(--place-art) center / cover;
+}
+header, #mobileNav {
+  background: linear-gradient(#1d140f66,#100f0faa), url("assets/hud/grain.webp") center / 400px auto;
+  border-image: var(--wood) 48 / 7px;
+}
+header { box-shadow: 0 3px 12px #0008; }
+.headwrap { height: 70px; }
+.brand { color: #ffe3ae; text-shadow: 0 2px 3px #000; }
+.brand small { color: #eee1cd; }
+.sigil { background: none; clip-path: none; width: 46px; height: 46px; }
+.item-art {
+  display: inline-block; flex: none; width: 1.55em; height: 1.55em; vertical-align: middle;
+  background: url("assets/hud/items.webp") 0 0 / 400% 400% no-repeat;
+}
+.sigil .item-art { width: 100%; height: 100%; }
+.wallet .item-art { width: 25px; height: 25px; }
+.headwrap nav { align-items: center; gap: 4px; }
+.navitem { min-height: 43px; color: #e7d8bf; }
+.navitem .item-art { width: 30px; height: 30px; }
+.navitem.active { border-image: var(--leather) 48 fill / 8px; color: #fff0c8; }
+.headwrap .navitem.active:after { display: none; }
+.titlebar { padding-block: 18px 14px; }
+.titlebar h1, .caption b, .panel h2, .dialog h2, .card h3, .sectiontitle h2 {
+  color: #fff0d5; text-shadow: 0 2px 3px #090805;
+}
+.titlebar h1 { font-size: clamp(28px, 3vw, 41px); }
+.sectiontitle { gap: 14px; }
+.sectiontitle:after { content: ""; height: 1px; flex: 1; background: linear-gradient(90deg,#a77c43,transparent); }
+.sectiontitle button, .sectiontitle > small { order: 1; }
+.stage-side { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.stage-side .scene { flex: 1; min-height: 310px; max-height: 580px; }
+.scene, .tile, .modal-scene, .adventure-map, body:is([data-place="bag"],[data-place="growth"]) .titlebar {
+  border: 0; border-radius: 2px; position: relative; isolation: isolate;
+}
+.scene:after, .tile:after, .modal-scene:after, .adventure-map:after,
+body:is([data-place="bag"],[data-place="growth"]) .titlebar:after {
+  content: ""; position: absolute; inset: 0; border-image: var(--iron) 48 / 15px;
+  z-index: 2; pointer-events: none;
+}
+.scene:before { pointer-events: none; background: linear-gradient(0deg,#081015da,transparent 36%); }
+.scene .location { border-image: var(--leather) 48 fill / 6px; border-radius: 0; color: #fff0db; padding: 5px 11px; }
+.panel, .card, .dialog {
+  border: 0; border-radius: 2px;
+  background: linear-gradient(125deg,#101921a8,#0d161ce0), url("assets/hud/metal.webp") center / 360px auto;
+  border-image: var(--iron) 48 / 12px; box-shadow: 0 3px 8px #07090b77;
+}
+.panel { gap: 13px; }
+.card h3 { font-family: var(--serif); font-size: 18px; }
+.segment { background: #080f14a6; border-radius: 0; border-color: #756441; gap: 4px; }
+.segment button { color: #e6dfce; }
+.segment button.sel, .mini.active, .action.active { border-image: var(--leather) 48 fill / 7px; color: #ffe3ae; }
+.ghost, .action, .mini, .round, .craft-choice, .map-pin {
+  background: #1a272c; border: 0; border-image: var(--steel) 48 fill / 7px;
+  border-radius: 1px; color: #fff0d9; text-shadow: 0 1px 3px #000;
+}
+.round { border-image: var(--iron) 48 fill / 7px; }
+.primary {
+  border: 0; border-radius: 1px; background: #d99a35;
+  border-image: var(--gilt) 48 fill / 10px; color: #33200e; box-shadow: 0 2px 4px #0007;
+}
+.primary:disabled, .action:disabled, .mini:disabled { opacity: .63; filter: saturate(.32); }
+.primary small { opacity: 1; }
+.gearicon, .metric, .order .ordericon {
+  border-radius: 0; border: 0; border-image: var(--leather) 48 fill / 6px;
+}
+.gear-portrait { display: inline-block; width: 42px; height: 47px; flex: none;
+  background: no-repeat 0 center / 1200% 100%; image-rendering: pixelated; }
+.gearicon .gear-portrait { width: 90%; height: 100%; }
+.listrow .grow { min-width: 0; overflow-wrap: anywhere; }
+.listrow .mini { flex-shrink: 0; }
+.track { height: 7px; border-radius: 0; background: #080e12; border: 1px solid #867858; }
+.track i { border-radius: 0; background: linear-gradient(#afe3ca,#58a488); }
+.order, #apprentice, .forge-notebook, .craft-entry, .legacy-card, .hunt-result {
+  border: 0; border-radius: 1px; border-image: var(--wood) 48 / 9px;
+  background: linear-gradient(105deg,#1e160f81,#140e0cbc),url("assets/hud/grain.webp") center / 400px auto;
+}
+.adventure-map {
+  width: 100%; height: clamp(315px, 38vw, 475px); margin-bottom: 12px;
+  background: #20454c url("assets/hud/map.webp") center / 100% 100% no-repeat;
+}
+.map-pin { position: absolute; transform: translate(-50%,-50%); display: inline-flex;
+  align-items: center; justify-content: center; gap: 6px; padding: 7px 14px; min-height: 42px;
+  white-space: nowrap; font-weight: 700; border-image-source: var(--leather); }
+.map-pin:active:enabled { transform: translate(-50%,-48%); }
+.pin-forest { left: 22%; top: 32%; }
+.pin-mine { left: 17%; top: 73%; }
+.pin-tower { left: 79%; top: 28%; }
+.pin-altar { left: 83%; top: 73%; }
+.map-pin small { display: block; font: 500 12px/1.3 var(--sans); color: #eadbc0; }
+.map-pin > span:last-child { text-align: left; }
+.map-pin.pin-mine { left: 23%; }
+.map-pin.pin-altar { left: 77%; }
+.settings-links { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; margin-block: 12px; }
+.settings-links .action { margin: 0; min-height: 44px; }
+.settings-links .action:last-child { grid-column: 1 / -1; }
+.pref-switch { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 4px 7px; color: var(--text); }
+.pref-switch i { display: flex; align-items: center; width: 32px; height: 18px; padding: 2px; border: 1px solid #958c79; background: #152026; }
+.pref-switch i::after { content: ""; display: block; width: 12px; height: 12px; background: #a7a69b; }
+.pref-switch[aria-checked="true"] i { justify-content: flex-end; background: #285950; border-color: #86b7a1; }
+.pref-switch[aria-checked="true"] i::after { background: #bfeacf; }
+.dialog .action.danger { border-image-source: var(--red); color: #ffdfcf; }
+.segment [aria-pressed="true"], .tabrow [aria-pressed="true"], nav [aria-current="page"] {
+  box-shadow: inset 0 -3px #e6b667;
+}
+body:is([data-place="bag"],[data-place="growth"]) .titlebar {
+  margin: 15px 0 12px; padding: clamp(18px,3vw,35px);
+  min-height: clamp(128px,16vw,208px);
+  background: linear-gradient(90deg,#0a121cbb,transparent 65%), var(--place-art) center 52% / cover;
+}
+.dialog { padding-top: 16px; }
+.dialog-head {
+  margin: -7px -12px 15px; padding: 14px 14px 12px; min-height: 68px;
+  background: linear-gradient(90deg,#0b1019db, #10172566), var(--place-art) center 45% / cover;
+  border-bottom: 1px solid #a88351;
+}
+.illustrated-card h3 {
+  display: flex; align-items: center; gap: 10px; margin: -9px -9px 10px; padding: 12px;
+  background: linear-gradient(90deg,#0b121ce3 5%,#10192444),var(--card-art) center / cover;
+  border-bottom: 1px solid #987749;
+}
+.illustrated-card h3 .item-art { width: 32px; height: 32px; }
+.card-flame, .card-sparkles { --card-art: url("assets/hud/sanctuary.webp"); }
+.card-anvil { --card-art: url("assets/hud/workshop.webp"); }
+.card-castle { --card-art: url("assets/tower.png"); }
+.card-gift, .card-coins { --card-art: url("assets/hud/armory.webp"); }
+.equipment-rack .card {
+  background: linear-gradient(90deg,#0a1019d9,#151a1bbf),url("assets/hud/armory.webp") center 65% / cover;
+}
+.equipment-rack .gear-portrait { width: 76px; height: 85px; }
+.equipment-rack .listrow { padding: 2px 0 8px; }
+.equipment-rack .actions button { flex: 1; }
+#shade:is([data-modal="rebirth"],[data-modal="fusion"]) { --place-art: url("assets/hud/sanctuary.webp"); }
+#shade:is([data-modal="shop"],[data-modal="daily"],[data-modal="guards"]) { --place-art: url("assets/hud/armory.webp"); }
+.craft-scene:not(.sparring), .final-scene { background-image: url("assets/hud/workshop.webp"); }
+.inheritance select, input { border-color: #97815a; border-radius: 1px; background-color: #172027; }
+#toast { border-image: var(--leather) 48 fill / 7px; border-radius: 0; }
+#toast.loss { border-image-source: var(--red); }
+@media (max-width: 910px) and (min-width: 701px) {
+  .headwrap { gap: 12px; padding-inline: 16px; }
+  .headwrap .navitem { padding-inline: 8px; gap: 4px; }
+}
+@media all {
+  main { padding-inline: 10px; }
+  .headwrap { height: 54px; }
+  .sigil { width: 33px; height: 33px; }
+  .titlebar { padding: 11px 2px; }
+  .titlebar h1 { font-size: 26px; }
+  .stage-side { gap: 7px; }
+  .stage-side .scene { flex: none; min-height: 0; height: clamp(155px,46vw,255px); }
+  .scene:after, .tile:after { border-image-width: 10px; }
+  .panel { padding: 14px; gap: 9px; }
+  #mobileNav { padding-top: 5px; gap: 3px; }
+  .navitem .item-art { width: 25px; height: 25px; }
+  .map-pin { font-size: 12px; padding: 6px 9px; gap: 3px; }
+  .map-pin .item-art { width: 20px; height: 20px; }
+  .adventure-map { height: auto; aspect-ratio: 1.35; }
+  .dialog-head { margin: -6px -8px 12px; min-height: 56px; padding: 8px 10px; }
+}
+
+#apprentice:not([hidden]) {
+  display: flex; align-items: center; gap: 12px; padding: 5px 12px;
+}
+.lesson-copy { flex: 1; min-width: 0; min-height: 44px; text-align: left; padding: 2px 0; }
+.lesson-copy strong { display: flex; align-items: center; gap: 4px; color: var(--gold); font-size: 14px; }
+.lesson-copy strong svg { width: 13px; height: 13px; }
+.grind-options { display: grid; gap: 6px; margin: 8px 0; }
+.forge-odds { grid-column: 1/-1; padding: 4px 0; }
+.forge-odds > b { font-size: 13px; color: var(--text); }
+.odds-bar { display: flex; overflow: hidden; height: 6px; margin: 6px 0; border-radius: 3px; background: #343438; }
+.odds-success { background: #8ce2bf; }
+.odds-hold { background: #83abd1; }
+.odds-drop { background: #e6ae60; }
+.odds-destroy { background: #e77768; }
+.odds-labels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
+.odds-labels span { font-size: 12px; white-space: nowrap; }
+.odds-labels i { display: inline-block; width: 5px; height: 5px; margin-right: 3px; border-radius: 50%; vertical-align: middle; }
+.odds-table summary { cursor: pointer; padding: 10px 0; color: var(--gold); }
+.odds-table table { width: 100%; border-collapse: collapse; text-align: right; font-variant-numeric: tabular-nums; }
+.odds-table td, .odds-table th { padding: 4px; }
+.odds-table th:first-child { text-align: left; }
+.odds-table tr[aria-current] { background: #51432c; }
+.grind-zone, .chest-find { display: flex; align-items: center; width: 100%; min-height: 48px; gap: 10px; text-align: left; padding: 6px 12px; }
+.grind-zone span small, .chest-find span small { display: block; color: var(--text); font-size: 12px; }
+.grind-zone strong { margin-left: auto; color: var(--gold); white-space: nowrap; }
+.chest-find { justify-content: center; color: #ffda93; border: 1px solid #ad8144; background-color: #392b1c; }
+.chest-art { display: inline-block; width: 54px; aspect-ratio: 1; flex-shrink: 0; background: url("assets/treasure.png") 0 50% / 400% 100% no-repeat; image-rendering: pixelated; }
+.chest-reveal { --glow: #7e562d; display: grid; justify-items: center; padding: 8px; background: radial-gradient(ellipse at center, var(--glow), transparent 70%); }
+.chest-reveal.tier-1 { --glow: #40657b; }
+.chest-reveal.tier-2 { --glow: #ac7226; }
+.chest-reveal .chest-art { width: 112px; background-position-x: 100%; }
+.chest-reveal b { color: var(--gold); }
+.chest-loot { margin: 10px 0; }
+.chest-loot .item-art { margin-right: 6px; vertical-align: middle; }
+@media (prefers-reduced-motion: no-preference) {
+  body[data-story-motion="on"] .chest-reveal .chest-art { animation: unseal .54s steps(3, end) both; }
+  body[data-story-motion="on"] .chest-loot { animation: chest-loot-in .28s .4s both; }
+}
+@keyframes unseal { from { background-position-x: 0; } to { background-position-x: 100%; } }
+@keyframes chest-loot-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+#lesson-action-hint { display: block; color: var(--text); font-size: 13px; line-height: 1.4; }
+#apprentice > .mini { min-height: 44px; flex: none; }
+#apprentice > .mini svg { width: 15px; height: 15px; }

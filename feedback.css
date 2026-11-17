@@ -1,0 +1,19 @@
+/* Small, bounded transient layers; never intercept touch or change layout. */
+.feedback { position: fixed; width: 240px; height: 160px; margin: -80px 0 0 -120px; z-index: 40; pointer-events: none; contain: layout style; --fx: #ffe3a1; }
+.feedback[data-outcome="loss"] { --fx: #ff927d; }
+.feedback-ascend { --fx: #bdefff; }
+.feedback > i { position: absolute; display: block; }
+.feedback-ring { left: 90px; top: 60px; width: 60px; height: 28px; border: 3px solid var(--fx); border-radius: 50%; box-shadow: 0 0 15px var(--fx); animation: feedback-ring .5s var(--hit-delay) ease-out both; }
+.forge-anvil { left: 76px; top: 91px; width: 88px; height: 36px; background: linear-gradient(#ced4c9 0 16%,#738383 16% 35%,#394d53 35% 70%,#1d3039 70%); clip-path: polygon(0 0,100% 0,88% 30%,62% 38%,59% 70%,80% 80%,80% 100%,20% 100%,20% 80%,40% 70%,37% 38%,12% 30%); }
+.forge-hammer { z-index: 2; left: 170px; top: 10px; width: 20px; height: 80px; transform-origin: 50% 100%; animation: hammer-strike 600ms ease-in both; }
+.forge-hammer::before { content: ""; position: absolute; left: 6px; top: 13px; width: 12px; height: 66px; background: linear-gradient(90deg,#563420 25%,#bd8b4c 25% 65%,#704721 65%); border: 2px solid #271f1a; }
+.forge-hammer > i { position: absolute; top: 0; left: -18px; width: 58px; height: 30px; background: linear-gradient(#e0e6dc 0 15%,#859ba0 15% 55%,#3e5863 55% 85%,#21333e 85%); border: 3px solid #1c2b30; box-shadow: inset 5px 0 #a6b5b4, inset -5px 0 #526975; }
+.feedback-spark,.feedback-coin { left: 116px; top: 78px; width: 5px; height: 5px; background: var(--fx); box-shadow: 0 0 5px #f99c42; animation: feedback-particle 950ms calc(var(--hit-delay) + var(--delay)) ease-out both; }
+.feedback-coin { width: 16px; height: 19px; left: 112px; top: 65px; border-radius: 50%; border: 2px solid #fff3b0; background: linear-gradient(110deg,#fff5ab,#ffc64e 45%,#b46a1a 75%); box-shadow: 2px 1px 0 #83501d, inset 0 0 0 2px #d38c29; }
+.feedback-coin::after { content: ""; position: absolute; top: 4px; left: 5px; height: 8px; border-left: 2px solid #fff2ad; }
+.feedback > b { position: absolute; left: -20px; right: -20px; top: 125px; text-align: center; color: var(--fx); font-size: 21px; text-shadow: 0 2px 2px #000,0 0 8px #000,2px 0 #000; animation: feedback-label 1.1s var(--hit-delay) both; }
+@keyframes hammer-strike { 0% { transform: translate(25px,-22px) rotate(48deg); opacity: 0; } 12% { opacity: 1; } 30% { transform: translate(4px,8px) rotate(-82deg); } 43% { transform: translate(4px,-12px) rotate(-50deg); } 68% { opacity: 1; } 100% { transform: translate(15px,-28px) rotate(10deg); opacity: 0; } }
+@keyframes feedback-ring { from { opacity: .9; transform: scale(.3); } to { opacity: 0; transform: scale(3); } }
+@keyframes feedback-particle { 0% { opacity: 0; transform: translate(0,0) scale(.4); } 8% { opacity: 1; } 48% { opacity: 1; transform: translate(var(--x),var(--y)) rotate(var(--spin)); } 100% { opacity: 0; transform: translate(var(--x),var(--fall)) rotate(var(--spin)) scale(.6); } }
+@keyframes feedback-label { 0% { opacity: 0; transform: translateY(8px); } 15%,65% { opacity: 1; } 100% { opacity: 0; transform: translateY(-12px); } }
+@media (prefers-reduced-motion: reduce) { .feedback { display: none; } }

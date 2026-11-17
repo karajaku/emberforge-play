@@ -1,0 +1,78 @@
+.title-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.title-actions .ghost { white-space: nowrap; }
+.story-chat {
+  border-image: var(--leather) 48 fill / 9px;
+  background-color: #132a2d; padding: 12px 16px;
+}
+#screen > .story-chat { margin-bottom: 12px; }
+.speech { display: flex; align-items: flex-start; gap: 13px; }
+.speech > img {
+  display: block; width: 54px; height: 54px; flex: none; object-fit: cover;
+  border: 1px solid #a58456; box-shadow: 0 0 0 2px #142024;
+}
+.speech b { color: #f6cf84; font-size: 13px; }
+.speech p { font-size: 14px; line-height: 1.6; color: #fff3dd; word-break: keep-all; overflow-wrap: anywhere; }
+.speech .mini { margin-top: 5px; }
+.story-leaf {
+  display: flex; align-items: center; width: 100%; text-align: left; gap: 14px;
+  border-bottom: 1px solid #79684a; padding: 9px 0;
+}
+.story-leaf img { width: 84px; height: 55px; object-fit: cover; border: 1px solid #917146; }
+.story-leaf:disabled img { filter: grayscale(.95); }
+.story-leaf b, .story-leaf small { display: block; }
+.volume-title { color: var(--gold); font: bold 16px var(--serif); padding: 8px 0; }
+.story-leaf + .volume-title { margin-top: 14px; }
+.story-leaf small { color: var(--gold); }
+[data-story="quiet"] { margin-top: 12px; }
+#shade[data-modal="storyScene"] { background: #070d13ed; }
+#shade[data-modal="storyScene"] .dialog {
+  position: relative; isolation: isolate; width: min(710px, 100%); padding: 0;
+  overflow: auto; border: 1px solid #a48351; background: #111e23; border-radius: 2px;
+}
+#shade[data-modal="storyScene"] .dialog-head {
+  position: absolute; inset: 0 0 auto; z-index: 1; margin: 0; padding: 14px 19px 31px;
+  min-height: 0; background: linear-gradient(#091015de, transparent); border: 0;
+}
+#shade[data-modal="storyScene"] .dialog-head h2 { font-size: clamp(20px, 3vw, 30px); }
+#shade[data-modal="storyScene"] .dialog-head .round { width: 35px; height: 35px; }
+.story-art { overflow: hidden; background: #142523; }
+.story-art img {
+  display: block; width: 100%; height: clamp(170px, 43dvh, 390px); object-fit: cover;
+  object-position: center 44%;
+}
+.story-script {
+  padding: 18px clamp(14px,3vw,27px) 12px; border-top: 2px solid #a98048;
+  background: linear-gradient(110deg,#102127dd,#101920ed), url("assets/hud/grain.webp") center / 420px auto;
+}
+.story-script .speech { min-height: 87px; }
+.dialog .story-perspective { margin: 0 0 14px; color: #ddd2bd; font-family: var(--serif); line-height: 1.55; word-break: keep-all; }
+.reply-label { margin-top: 12px; color: var(--gold); font-size: 13px; }
+.reply-label + .story-actions { margin-top: 5px; }
+.story-script .speech img { width: 76px; height: 76px; }
+.story-script .speech b { font: bold 17px var(--serif); }
+.story-script .speech p { margin-top: 5px; font-size: 16px; line-height: 1.65; color: #fff1d9; }
+.story-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 15px; }
+.story-actions button { min-height: 42px; }
+.story-actions .primary { margin: 0; width: auto; min-width: 132px; padding: 6px 18px; }
+.story-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; color: #d1c5ae; }
+.story-foot .textbtn { font-size: 12px; text-decoration: underline; min-height: 34px; }
+body:has(#shade[data-modal="storyScene"]:not([hidden])) #toast { visibility: hidden; }
+@media (prefers-reduced-motion: no-preference) {
+  body[data-story-motion="on"] .story-art img { animation: story-reveal .65s ease-out both; }
+  @keyframes story-reveal { from { opacity: .5; transform: scale(1.025); } }
+}
+@media all {
+  .title-actions .ghost { font-size: 11px; gap: 4px; padding: 5px 8px; }
+  .title-actions .ghost svg, .title-actions .item-art { width: 15px; }
+  .story-chat { padding: 9px 11px; }
+  .story-chat .speech { gap: 9px; }
+  .story-chat .speech img { width: 40px; height: 40px; }
+  .story-chat .speech p { font-size: 12px; }
+  .story-script .speech { min-height: 86px; gap: 10px; }
+  .story-script .speech img { width: 52px; height: 52px; }
+  .story-script .speech p { font-size: 14px; }
+  .story-actions { flex-wrap: wrap; }
+  .story-actions button { flex: 1; }
+  .story-art img { height: auto; aspect-ratio: 1.5; }
+  #shade[data-modal="storyScene"] { padding: 9px; }
+}

@@ -1,0 +1,128 @@
+@media all {
+  html { height: 100%; }
+  body {
+    height: 100vh; height: 100dvh; min-height: 0; overflow: hidden;
+    display: grid; grid-template-rows: auto minmax(0,1fr) auto auto;
+    padding-top: env(safe-area-inset-top);
+    padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+  }
+  header .headwrap { height: 46px; padding-inline: 12px; }
+  .headwrap nav { display: none; }
+  main {
+    width: 100%; min-height: 0; padding: 0 9px 5px; display: flex;
+    flex-direction: column; gap: 5px; overflow: hidden;
+  }
+  #title { flex: none; }
+  .titlebar, body:is([data-place="bag"],[data-place="growth"]) .titlebar {
+    margin: 0; min-height: 46px; padding: 2px 4px; gap: 4px;
+  }
+  .titlebar h1 { font-size: 22px; margin: 0; letter-spacing: -1px; }
+  body:is([data-place="bag"],[data-place="growth"]) .titlebar { background: none; }
+  body:is([data-place="bag"],[data-place="growth"]) .titlebar:after { content: none; }
+  .titlebar .eyebrow { display: none; }
+  .title-actions { flex-wrap: nowrap; align-items: center; gap: 3px; }
+  .title-actions button, #settingsIcon { min-height: 42px; min-width: 42px; }
+  .title-actions .ghost { padding-inline: 8px; }
+  .title-actions [data-open="journal"], .title-actions [data-open="daily"] { font-size: 0; gap: 0; }
+  .title-actions .item-art { width: 22px; height: 22px; }
+  .companion-button { display: flex; align-items: center; gap: 5px; color: var(--gold); font-size: 12px; }
+  .companion-button img { width: 30px; height: 32px; object-fit: cover; border: 1px solid #947344; }
+  #pageNav:not([hidden]) {
+    display: flex; flex: none; border: 1px solid #615744; background: #0d191be8; padding: 2px;
+  }
+  #pageNav button { flex: 1; min-height: 40px; color: var(--muted); font-size: 14px; }
+  #pageNav [aria-current] { color: #ffe6ab; font-weight: bold; border-image: var(--leather) 48 fill / 7px; }
+  #screen {
+    flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain;
+    scrollbar-width: thin; display: flex; flex-direction: column; gap: 7px;
+    padding: 3px;
+  }
+  #screen > * { flex: none; }
+  #screen > .columns {
+    flex: 1 0 auto; min-height: 0; display: flex; flex-direction: column; gap: 6px;
+  }
+  .stage-side { flex: 1 0 auto; }
+  .stage-side .scene {
+    flex: 1 0 auto; height: auto; min-height: clamp(75px,15dvh,160px); max-height: none;
+  }
+  .scene .caption { bottom: 8px; left: 14px; }
+  .scene .caption b { font-size: 20px; }
+  .scene .caption .eyebrow { display: none; }
+  .scene canvas { top: 50%; height: 85%; }
+  #screen .panel { padding: 12px; gap: 7px; flex: none; }
+  body[data-place="forge"] .panel { position: relative; }
+  body[data-place="forge"] .panel > .flex { position: absolute; top: 12px; right: 12px; }
+  body[data-place="forge"] .panel > .flex h2, body[data-place="forge"] .gearhead { display: none; }
+  body[data-place="forge"] .inlinehelp { width: 42px; height: 42px; }
+  body[data-place="forge"] .segment { margin-right: 46px; }
+  .segment button { min-height: 38px; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
+  .stats .track { grid-column: 1 / -1; }
+  body[data-place="forge"] .stats .line { border-left: 2px solid #73644b; padding-left: 6px; }
+  #screen .primary, #screen .action, #screen .mini, .page-turn button { min-height: 44px; }
+  #apprentice:not([hidden]) { margin: 0 10px 3px; padding: 2px 8px; gap: 6px; }
+  #mobileNav {
+    grid-row: 4; position: static; display: flex; flex-wrap: nowrap; align-items: stretch; gap: 3px;
+    padding: 4px 5px calc(3px + env(safe-area-inset-bottom));
+  }
+  #mobileNav .navitem { flex: 1; flex-direction: column; min-height: 46px; gap: 1px; padding: 1px; font-size: 11px; }
+  #mobileNav .item-art { width: 23px; height: 23px; }
+  #screen > .adventure-map { margin: auto auto 0; width: min(100%, 84dvh); height: auto; aspect-ratio: 1.5; flex: none; }
+  #screen > .adventure-map + .metrics { width: min(100%, 84dvh); margin: 0 auto auto; }
+  .equipment-rack, .baggrid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .equipment-rack .gear-portrait { width: 48px; height: 54px; }
+  .page-turn { display: flex; gap: 14px; justify-content: center; align-items: center; padding: 7px 0; }
+  .page-turn span { font-variant-numeric: tabular-nums; }
+  #screen .sectiontitle, #screen .order { margin: 0; }
+  #screen .hunt-result { padding: 6px 10px; }
+  #screen .stack { gap: 7px; }
+  .companion-button:focus-visible, #pageNav button:focus-visible { outline-offset: -3px; }
+  #shade { padding: max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom)); }
+  .dialog { max-height: 100%; overscroll-behavior: contain; }
+  #shade .dialog-head { margin-bottom: 9px; }
+  #shade[data-modal="storyScene"] .story-art img { max-height: 35dvh; }
+  #modalBody .actions button, .story-actions button, .story-foot .textbtn { min-height: 44px; }
+  #toast { bottom: auto; top: calc(4px + env(safe-area-inset-top)); }
+}
+@media (max-width: 370px) {
+  #apprentice [data-lesson="locate"] { min-width: 44px; padding-inline: 6px; }
+  #apprentice .lesson-cta-label { display: none; }
+  .companion-button { font-size: 0; justify-content: center; }
+  .titlebar h1 { font-size: 20px; }
+}
+@media (min-height: 711px) {
+  body[data-place="forge"] .stats .line { display: grid; gap: 2px; font-size: 12px; }
+  body[data-place="forge"] .stats .line strong { font-size: 16px; }
+}
+@media (max-height: 620px) {
+  main { gap: 2px; }
+  #screen { padding-block: 1px; }
+  #screen .panel:has([data-act="strike"]) h2 { display: none; }
+  #screen .panel:has([data-act="strike"]) .stack { gap: 3px; }
+}
+@media (max-height: 710px) {
+  #screen .card, #screen .panel { padding: 8px 10px; gap: 5px; }
+  #screen .listrow { padding-block: 4px; gap: 6px; }
+  #screen .card h3, #screen .panel h2 { margin-block: 0 4px; font-size: 16px; }
+  #screen .card .actions, #screen .card .action { margin-top: 3px; }
+  #screen .desc { margin: 0; }
+  #screen .illustrated-card > h3 { min-height: 0; padding-block: 3px; }
+  #screen .tabrow { margin-bottom: 0; }
+  #screen .metric { padding: 4px 6px; }
+  #screen .stage-side .scene {
+    height: auto; min-height: 63px;
+  }
+  .stage-side .location { top: 5px; left: 9px; }
+  .scene .caption { bottom: 4px; left: 10px; }
+  .scene .caption b { font-size: 17px; }
+  .equipment-rack .gear-portrait { height: 39px; width: 35px; }
+  #lesson-action-hint { font-size: 12px; }
+}
+
+/* One portrait game shell on phones, tablets, and desktop. */
+body { width: min(100%, 480px); margin-inline: auto; box-shadow: 0 0 60px #0009; }
+header .headwrap { width: 100%; gap: 10px; }
+#shade { left: max(0px, calc((100vw - 480px) / 2)); right: max(0px, calc((100vw - 480px) / 2)); }
+#shade .dialog { width: 100%; min-width: 0; }
+#toast { width: min(calc(100% - 24px), 456px); }
+#screen, #modalBody { overflow-wrap: anywhere; }
