@@ -5,21 +5,17 @@
 .feedback[data-outcome="hold"], #toast.forge-hold { --fx: var(--forge-hold); }
 .feedback[data-outcome="drop"], #toast.forge-drop { --fx: var(--forge-drop); }
 .feedback[data-outcome="destroy"], #toast.forge-destroy { --fx: var(--forge-destroy); }
-#toast[class*="forge-"] { color: var(--fx); }
 .feedback-forge .feedback-spark { box-shadow: 0 0 6px var(--fx); }
 .feedback-forge[data-outcome="success"] .feedback-spark { animation-name: forge-rise; }
 .feedback-forge[data-outcome="hold"] .feedback-ring { animation-name: forge-hold; animation-duration: 900ms; }
 .feedback-forge[data-outcome="hold"] .feedback-spark { border-radius: 50%; animation-name: forge-settle; }
 .feedback-forge[data-outcome="drop"] .feedback-ring { animation-name: forge-drop; }
-.feedback-forge[data-outcome="drop"] .forge-anvil { animation: forge-shake 450ms var(--hit-delay) both; }
 .feedback-forge[data-outcome="drop"] > b { animation-name: forge-drop-label; }
 .feedback-forge[data-outcome="destroy"] .feedback-ring { border-radius: 0; border-style: dashed; animation-name: forge-shatter; }
 .feedback-forge[data-outcome="destroy"] .feedback-spark { width: 9px; height: 12px; clip-path: polygon(0 0,100% 25%,40% 100%); }
-.feedback-forge[data-outcome="destroy"] .forge-anvil { animation: forge-break 650ms var(--hit-delay) both; }
 .feedback-ascend { --fx: #bdefff; }
 .feedback > i { position: absolute; display: block; }
 .feedback-ring { left: 90px; top: 60px; width: 60px; height: 28px; border: 3px solid var(--fx); border-radius: 50%; box-shadow: 0 0 15px var(--fx); animation: feedback-ring .5s var(--hit-delay) ease-out both; }
-.forge-anvil { left: 76px; top: 91px; width: 88px; height: 36px; background: linear-gradient(#ced4c9 0 16%,#738383 16% 35%,#394d53 35% 70%,#1d3039 70%); clip-path: polygon(0 0,100% 0,88% 30%,62% 38%,59% 70%,80% 80%,80% 100%,20% 100%,20% 80%,40% 70%,37% 38%,12% 30%); }
 .forge-hammer { z-index: 2; left: 170px; top: 10px; width: 20px; height: 80px; transform-origin: 50% 100%; animation: hammer-strike 600ms ease-in both; }
 .forge-hammer::before { content: ""; position: absolute; left: 6px; top: 13px; width: 12px; height: 66px; background: linear-gradient(90deg,#563420 25%,#bd8b4c 25% 65%,#704721 65%); border: 2px solid #271f1a; }
 .forge-hammer > i { position: absolute; top: 0; left: -18px; width: 58px; height: 30px; background: linear-gradient(#e0e6dc 0 15%,#859ba0 15% 55%,#3e5863 55% 85%,#21333e 85%); border: 3px solid #1c2b30; box-shadow: inset 5px 0 #a6b5b4, inset -5px 0 #526975; }
@@ -35,8 +31,6 @@
 @keyframes forge-hold { 0% { opacity: 0; transform: scale(.7); } 20%,60% { opacity: .9; transform: scale(1.5); } 40% { opacity: .4; transform: scale(1.2); } 100% { opacity: 0; transform: scale(1.7); } }
 @keyframes forge-settle { 0% { opacity: 0; } 20%,60% { opacity: .8; transform: translate(calc(var(--x) * .55),-15px); } 100% { opacity: 0; transform: translate(calc(var(--x) * .55),0); } }
 @keyframes forge-drop { from { opacity: .9; transform: scale(1); } to { opacity: 0; transform: translateY(45px) scale(1.7,.4); } }
-@keyframes forge-shake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-7px); } 40%,80% { transform: translateX(7px); } }
 @keyframes forge-drop-label { 0% { opacity: 0; transform: translateY(-12px); } 15%,65% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(18px); } }
 @keyframes forge-shatter { from { opacity: 1; transform: scale(.6) rotate(0); } to { opacity: 0; transform: scale(3.2) rotate(35deg); } }
-@keyframes forge-break { 0% { opacity: 1; transform: translateX(0); } 15%,45% { transform: translateX(-8px) rotate(-6deg); } 30% { transform: translateX(8px) rotate(6deg); } 100% { opacity: 0; transform: translateY(35px) rotate(14deg) scale(.7); } }
 @media (prefers-reduced-motion: reduce) { .feedback { display: none; } }

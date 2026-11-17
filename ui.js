@@ -111,9 +111,13 @@ function startNewGame() {
 function notify(msg, kind = "info") {
   if (!msg) return;
   clearTimeout(toastTimer);
-  el("toast").textContent = msg;
+  const titles = { "forge-success": "강화 성공", "forge-hold": "강화 유지",
+    "forge-drop": "강화 하락", "forge-destroy": "장비 파괴", loss: "주의", win: "획득 · 완료" };
+  el("noticeTitle").textContent = titles[kind] || "알림";
+  el("noticeMessage").textContent = msg;
+  el("noticeMessage").scrollTop = 0;
   el("toast").className = "on " + kind;
-  toastTimer = setTimeout(() => (el("toast").className = ""), 2700);
+  toastTimer = setTimeout(() => el("toast").classList.remove("on"), 4500);
 }
 function sound(kind, delay = 0) {
   if (prefs.sound && !document.hidden) GameSound.play(kind, delay);

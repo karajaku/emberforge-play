@@ -24,7 +24,7 @@ const Feedback = (() => {
     node.style.left = Math.max(bounds.left + 120, Math.min(bounds.right - 120, x)) + "px";
     node.style.top = Math.max(105, Math.min(innerHeight - 130, y)) + "px";
     node.style.setProperty("--hit-delay", (kind === "forge" ? strikeMs : kind === "chest" ? chestMs : 0) + "ms");
-    if (kind === "forge") node.innerHTML = '<i class="forge-hammer"><i></i></i><i class="forge-anvil"></i>';
+    if (kind === "forge") node.innerHTML = '<i class="forge-hammer"><i></i></i>';
     const ring = document.createElement("i");
     ring.className = "feedback-ring";
     node.append(ring);
