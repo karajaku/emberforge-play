@@ -99,9 +99,9 @@ const tier = (g, type) => Game.grades[g.grade] + " " + (type === "armor" ? "방�
 function creature(f) {
   return ["scarecrow", "sentinel", "golem", "dragon"][Math.min(3, Math.floor((f - 1) / 5))];
 }
-function scene(id, heading, english, loc, sprite = "", grade = 0) {
+function scene(id, heading, english, loc, sprite = "", grade = 0, enemy = null) {
   return (
-    '<div class="scene" style="--image:url(assets/' +
+    '<div class="scene"' + (enemy ? ' data-enemy="' + enemy.kind + '" data-depth="' + Math.min(3, Math.floor((enemy.rank - 1) / 15)) + '"' : "") + ' style="--image:url(assets/' +
     (id === "forge" ? "hud/workshop.webp" : id + ".png") +
     ')"><span class="location">' + icon("map-pin") + loc + "</span>" +
     (sprite
@@ -115,6 +115,7 @@ function scene(id, heading, english, loc, sprite = "", grade = 0) {
         heading +
         ' 애니메이션"></canvas>'
       : "") +
+    (enemy ? '<span class="forest-rank">' + (enemy.elite ? "우두머리 · " : "") + "Lv." + enemy.rank + '</span>' : "") +
     '<div class="caption"><span class="eyebrow">' +
     english +
     "</span><b>" +
@@ -394,19 +395,21 @@ function forestView(s, health) {
   if (page === "field") return fieldView(s);
   const h = s.hunt,
     next = Math.min(60, (s.huntBest || 0) + 1);
-  const hud = health ? combatHud(health.hp, health.maxHp, health.enemyHp, health.enemyMax, "이끼등 멧돼지") : "";
+  const enemy = Game.huntEnemy(h || s.lastHunt || next);
+  const hud = health ? combatHud(health.hp, health.maxHp, health.enemyHp, health.enemyMax, enemy.name) : "";
   const fight = h
-    ? huntIntent(h) + '<div class="hunt-feedback">' + desc(h.last) + (h.rank >= 2 ? huntTools(h) : "") + "</div>" +
+    ? forestEncounter(h) + huntIntent(h) + '<div class="hunt-feedback">' + desc(h.last) + (h.rank >= 2 ? huntTools(h) : "") + "</div>" +
       (page ? "" : storyChat(s, "forest")) +
       '<div class="battle-controls">' + hud + (h.rank >= 2 ? huntChoices(h) : '<div class="actions">' +
         btn("strike", icon("sword") + (h.counter ? "반격 ×2.5" : "베기"), "", h.counter ? "primary grow counter-ready" : "primary grow") +
-        btn("block", icon("shield") + "방어", "", Game.huntCharge(h.turn) ? "action guard-ready" : "action") +
+        btn("block", icon("shield") + "방어", "", Game.huntCharge(h) ? "action guard-ready" : "action") +
         btn("flee", "퇴각", "", "mini") + "</div>") + "</div>"
     : huntResult(s.lastHunt, s.chests) + (page ? "" : storyChat(s, "forest")) +
       (s.chests?.some(c => c.id === s.lastHunt?.chestId) ? "" : desc(
         next === 1 ? "돌진을 방어하면 다음 베기가 2.5배 반격이 됩니다. 반격을 맞히고 이기면 골드가 25% 늘어납니다." :
           "기세 2칸을 모으면 강공을 쓸 수 있습니다. 적을 먼저 쓰러뜨리면 피해를 받지 않고, 돌진을 막고 반격하면 골드를 25% 더 받습니다.",
       )) +
+      forestEncounter(next, true) +
       '<div class="battle-controls">' + hud + btn("huntStart", icon("swords") + next + "구역 사냥", next, "primary") + "</div>" +
       (s.huntBest ? btn("huntStart", "이전 구역 재도전", Math.min(s.huntBest, 60), "mini") : "");
   const task = Game.routeTask(s);
@@ -463,10 +466,17 @@ function huntResult(last, chests) {
   );
 }
 function huntIntent(h) {
-  const charge = Game.huntCharge(h.turn);
+  const charge = Game.huntCharge(h), enemy = Game.huntEnemy(h);
   return '<div class="hunt-intent ' + (charge ? "charging" : "") + '">' +
-    icon(charge ? "shield" : "sword") + '<b>' + (charge ? "돌진 예고 · 3배 피해" : "적의 일반 공격") +
+    icon(charge ? "shield" : "sword") + '<b>' + (charge ? "돌진 예고 · " + enemy.power + "배 피해" : "적의 일반 공격") +
     '</b><span>' + (h.counter ? "반격 가능 · " : "") + h.turn + "턴</span></div>";
+}
+function forestEncounter(huntOrRank, preview = false) {
+  const e = Game.huntEnemy(huntOrRank);
+  return '<div class="forest-encounter" data-enemy="' + e.kind + '">' +
+    (preview ? '<canvas width="144" height="144" data-sprite="boar" aria-hidden="true"></canvas>' : "") + '<div><small>' +
+    (preview ? "다음 사냥 · " : "") + e.rank + '구역</small><b>' + e.name + '</b><span>' + e.trait +
+    '</span></div><p>' + e.hint + '</p></div>';
 }
 function huntTools(h) {
   const momentum = h.momentum ?? 1;
@@ -654,18 +664,21 @@ function zoneView(s, id) {
     return '<section class="panel">' + fieldView(s) + "</section>";
   const last = s.lastHunt?.health;
   const health = id === "forest" && (s.hunt || (last && last.number === s.huntNumber && last));
+  const enemy = id === "forest" ? Game.huntEnemy(s.hunt || (health && s.lastHunt) || Math.min(60, (s.huntBest || 0) + 1)) : null;
   return (
     '<div class="columns"><div class="stage-side">' +
     scene(
       id,
-      health
-        ? "이끼숲 · " + (s.hunt || s.lastHunt).rank + "구역"
+      enemy
+        ? enemy.name
         : id === "tower"
           ? Game.bosses[Math.min(19, Math.floor((f - 1) / 5))]
           : z[3],
       z[1],
-      z[0],
-      id === "forest" && s.hunt ? "boar" : id === "tower" ? creature(f) : "",
+      enemy ? enemy.habitat + " · " + enemy.rank + "구역" : z[0],
+      enemy ? "boar" : id === "tower" ? creature(f) : "",
+      0,
+      enemy,
     ) +
     '</div><section class="panel"><h2>' +
     {

@@ -333,8 +333,27 @@ const Game = (() => {
       restoreGold: active ? price({ level: peak - 1, grade: g.grade }) : 0,
     };
   }
-  function huntCharge(turn) {
-    return turn % 3 === 2;
+  const forestEnemies = [
+    { kind: "moss", name: "이끼등 멧돼지", trait: "이끼 가죽", hint: "2턴부터 3턴마다 돌진 · 방어 후 반격", first: 2, interval: 3, power: 3 },
+    { kind: "red", name: "붉은갈기 멧돼지", trait: "붉은 갈기", hint: "2턴부터 3턴마다 돌진 · 강공으로 먼저 끝내거나 방어", first: 2, interval: 3, power: 3 },
+    { kind: "stone", name: "바위등 멧돼지", trait: "단단한 가죽", hint: "베기 피해 20% 감소 · 강공은 가죽을 뚫음", first: 2, interval: 3, power: 3 },
+    { kind: "swift", name: "잿빛 질주멧돼지", trait: "빠른 돌진", hint: "2턴부터 2턴마다 2배 돌진 · 방어와 반격을 자주 교대", first: 2, interval: 2, power: 2 },
+    { kind: "crown", name: "황금엄니 우두머리", trait: "우두머리", hint: "3턴부터 4턴마다 4배 돌진 · 돌진 전 기세를 모으세요", first: 3, interval: 4, power: 4 },
+  ];
+  function huntEnemy(huntOrRank) {
+    const rank = Math.max(1, Math.min(60, Number(typeof huntOrRank === "number" ? huntOrRank : huntOrRank?.rank) || 1));
+    // An already-running legacy hunt keeps its original moves until it ends.
+    const enemy = typeof huntOrRank === "number" ? forestEnemies[(rank - 1) % 5]
+      : forestEnemies.find(e => e.kind === huntOrRank?.enemyKind) || forestEnemies[0];
+    const depth = Math.floor((rank - 1) / 5);
+    const habitat = ["이끼숲 초입", "붉은 낙엽길", "안개 바위골", "고목의 심장"][Math.min(3, Math.floor(depth / 3))];
+    const prefix = depth >= 9 ? "태고의 " : depth >= 6 ? "심연의 " : depth >= 3 ? "고목의 " : depth >= 1 ? "깊은숲 " : "";
+    return { ...enemy, rank, habitat, name: prefix + enemy.name, elite: enemy.kind === "crown" };
+  }
+  function huntCharge(turnOrHunt) {
+    const h = typeof turnOrHunt === "number" ? { turn: turnOrHunt } : turnOrHunt;
+    const enemy = huntEnemy(h);
+    return h.turn >= enemy.first && (h.turn - enemy.first) % enemy.interval === 0;
   }
   function canStoreWeapon(w) {
     return Boolean(w.level || w.grade || w.route || w.seal || w.pattern);
@@ -347,11 +366,12 @@ const Game = (() => {
   }
   function huntMove(h, action) {
     const heavy = action === "heavyStrike", block = action === "block";
-    const charge = huntCharge(h.turn);
+    const charge = huntCharge(h), enemy = huntEnemy(h);
     const momentum = h.momentum ?? 1;
-    const damage = block ? 0 : Math.min(h.enemyHp, Math.round(h.attack * (h.counter ? 2.5 : 1) * (heavy ? 2 : 1)));
+    const hide = enemy.kind === "stone" && !heavy ? 0.8 : 1;
+    const damage = block ? 0 : Math.min(h.enemyHp, Math.round(h.attack * (h.counter ? 2.5 : 1) * (heavy ? 2 : 1) * hide));
     const exposure = block ? 0.15 * (1 - (h.guardReduction || 0) / 100) : heavy ? 1.5 : 1;
-    const retaliation = Math.max(1, Math.round(h.enemyAttack * (charge ? 3 : 1) * exposure));
+    const retaliation = Math.max(1, Math.round(h.enemyAttack * (charge ? enemy.power : 1) * exposure));
     return {
       available: !heavy || (h.rank >= 2 && momentum >= 2),
       damage, taken: damage >= h.enemyHp ? 0 : Math.min(h.hp, retaliation),
@@ -899,6 +919,7 @@ const Game = (() => {
           return fail("먼저 이전 지역을 토벌하세요.");
         const st = stats(s),
           enemyHp = 90 + Math.round(36 * (rank - 1) ** 1.65);
+        const enemy = huntEnemy(rank);
         const task = routeTask(s);
         s.huntNumber = (s.huntNumber || 0) + 1;
         if (s.weapon.route?.trait === "edge" && task?.open && rank >= task.needed)
@@ -906,6 +927,7 @@ const Game = (() => {
         s.hunt = {
           number: s.huntNumber,
           rank,
+          enemyKind: enemy.kind,
           turn: 1,
           hp: st.hp,
           maxHp: st.hp,
@@ -917,7 +939,7 @@ const Game = (() => {
           counter: false,
           momentum: 1,
           ripostes: 0,
-          last: "멧돼지가 숲길을 가로막았습니다.",
+          last: enemy.name + " 출현 · " + enemy.trait,
         };
         return success("이끼숲 " + rank + "구역 사냥 시작");
       }
@@ -930,7 +952,7 @@ const Game = (() => {
       case "block": {
         const h = s.hunt;
         if (!h) return fail("먼저 사냥을 시작하세요.");
-        const charge = huntCharge(h.turn),
+        const charge = huntCharge(h),
           block = act === "block";
         const move = huntMove(h, act);
         if (!move.available) return fail("2구역부터 기세 2칸으로 강공을 사용할 수 있습니다.");
@@ -950,6 +972,7 @@ const Game = (() => {
           s.lastHunt = {
             health: huntHealth(h),
             rank: h.rank,
+            enemyKind: huntEnemy(h).kind,
             turns: h.turn,
             damageTaken: h.maxHp - h.hp,
             ripostes: h.ripostes || 0,
@@ -979,6 +1002,7 @@ const Game = (() => {
           s.lastHunt = {
             health: huntHealth(h),
             rank: h.rank,
+            enemyKind: huntEnemy(h).kind,
             turns: h.turn,
             damageTaken: h.maxHp,
             ripostes: h.ripostes || 0,
@@ -1316,6 +1340,7 @@ const Game = (() => {
     enhancementNotebook,
     midRecovery,
     huntCharge,
+    huntEnemy,
     canStoreWeapon,
     canDive,
     mining,

@@ -100,7 +100,7 @@ const Apprentice = (() => {
           "strike",
           "반격",
         );
-      if (Game.huntCharge(h.turn))
+      if (Game.huntCharge(h))
         return forest(
           "멧돼지가 돌진을 준비합니다. 이번 턴에 방어하면 다음 베기가 반격으로 바뀝니다.",
           "block",
