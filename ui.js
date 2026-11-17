@@ -26,7 +26,7 @@ try {
   state = Game.fresh();
   storageError = true;
 }
-let prefs = { sound: true, motion: !matchMedia("(prefers-reduced-motion: reduce)").matches };
+let prefs = { sound: true, music: true, musicVolume: .35, motion: !matchMedia("(prefers-reduced-motion: reduce)").matches };
 try {
   Object.assign(prefs, JSON.parse(localStorage.getItem(settingsKey) || "{}"));
 } catch {}
@@ -117,6 +117,11 @@ function notify(msg, kind = "info") {
 }
 function sound(kind, delay = 0) {
   if (prefs.sound && !document.hidden) GameSound.play(kind, delay);
+}
+function syncMusic() {
+  const route = current();
+  GameMusic.update(GameMusic.resolve({ route, modal, story: storyScene, state, page: phonePage(route), towerMode }),
+    { enabled: prefs.music, volume: prefs.musicVolume, hidden: document.hidden });
 }
 function act(action, arg = "", pressedAt) {
   return locked(() => {
@@ -317,6 +322,7 @@ function render() {
   const screen = el("screen");
   screen.innerHTML = view;
   renderLesson();
+  syncMusic();
 }
 function renderLesson() {
   const host = el("apprentice");
@@ -512,6 +518,15 @@ function modalData() {
       return [
         "환경 설정",
         row(
+          "배경음",
+          "장소와 상황에 따라 바뀌는 12곡",
+          preferenceSwitch("music", "배경음"),
+        ) + row(
+          "배경음 크기",
+          "효과음과 별도로 조절합니다",
+          '<input type="range" id="musicVolume" aria-label="배경음 크기" min="0" max="100" step="5" value="' +
+          Math.round((Number.isFinite(prefs.musicVolume) ? prefs.musicVolume : .35) * 100) + '" style="width:100px">',
+        ) + row(
           "효과음",
           "망치·동전·전투·성장 효과음",
           preferenceSwitch("sound", "효과음"),
@@ -697,6 +712,7 @@ function displayModal() {
   el("modalBody").innerHTML = html;
   el("shade").hidden = false;
   document.body.style.overflow = "hidden";
+  syncMusic();
 }
 function showModal(key) {
   if (!modal) lastFocus = document.activeElement;
@@ -716,6 +732,7 @@ function closeModal(focus = true) {
   battle = null;
   el("shade").hidden = true;
   document.body.style.overflow = "";
+  syncMusic();
   if (focus && lastFocus?.isConnected) lastFocus.focus({ preventScroll: true });
 }
 function dismissModal() {
@@ -743,6 +760,7 @@ function back() {
 }
 window.gameBack = back;
 document.addEventListener("keydown", (e) => {
+  if (!e.repeat) GameMusic.unlock();
   if (e.key === "Escape" && modal) {
     dismissModal();
     e.preventDefault();
@@ -764,6 +782,7 @@ document.addEventListener("keydown", (e) => {
 let cutPress = null;
 document.addEventListener("pointerdown", (e) => {
   if (prefs.sound) GameSound.unlock();
+  GameMusic.unlock();
   const button = e.target.closest("[data-act=finalMove]");
   const needle = el("finalNeedle");
   cutPress = button && needle ? { button, time: needle.frameAt || Date.now() } : null;
@@ -773,6 +792,7 @@ document.addEventListener("pointercancel", () => {
 });
 document.addEventListener("click", (e) => {
   if (prefs.sound) GameSound.unlock();
+  GameMusic.unlock();
   const press = cutPress;
   cutPress = null;
   if (e.target === el("shade")) {
@@ -813,6 +833,7 @@ document.addEventListener("click", (e) => {
   if (d.bag) bagTab = d.bag;
   if (d.pref) {
     prefs[d.pref] = !prefs[d.pref];
+    if (d.pref === "music") { syncMusic(); if (prefs.music) GameMusic.unlock(); }
     if (d.pref === "motion" && !prefs.motion) { Impacts.clear(); Feedback.clear(); }
     if (d.pref === "sound") { if (prefs.sound) sound("coins"); else GameSound.stop(); }
     try {
@@ -823,6 +844,13 @@ document.addEventListener("click", (e) => {
     return;
   }
   render();
+});
+document.addEventListener("input", (e) => {
+  if (e.target.id !== "musicVolume") return;
+  prefs.musicVolume = Number(e.target.value) / 100;
+  syncMusic();
+  GameMusic.unlock();
+  try { localStorage.setItem(settingsKey, JSON.stringify(prefs)); } catch {}
 });
 addEventListener("hashchange", () => {
   Impacts.clear();
@@ -872,6 +900,7 @@ function flush() {
   });
 }
 document.addEventListener("visibilitychange", () => {
+  syncMusic();
   if (document.hidden) {
     Feedback.clear();
     Impacts.clear();
@@ -881,6 +910,8 @@ document.addEventListener("visibilitychange", () => {
   }
   tickTime = Date.now();
 });
+addEventListener("pagehide", () => GameMusic.update("forge", { hidden: true }));
+addEventListener("pageshow", () => syncMusic());
 setInterval(() => {
   if (document.hidden) return;
   accrue();
