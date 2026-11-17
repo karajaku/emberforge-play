@@ -308,7 +308,13 @@ function forgeView(s) {
     '<div class="actions">' +
     openBtn("guards", icon("shield") + "가호" + (s.enabled.some(Boolean) ? " 장착됨" : " 설정")) +
     openBtn("temper", icon("flame") + (s.heat ? "담금질 +" + s.heat + "%p" : "담금질")) +
-    "</div></section></div>" +
+    "</div>" +
+    Game.blessings.map((name, i) =>
+      s.enabled[i] && s.charms[i] > 0
+        ? line(name, fmt(s.charms[i]) + "개 남음")
+        : "",
+    ).join("") +
+    "</section></div>" +
     (page ? "" : orderView(s) +
     section("모험 지역", go("world", "지도 보기 " + icon("chevron-right"), "textbtn")) +
     portals())
