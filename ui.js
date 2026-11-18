@@ -424,6 +424,7 @@ function render() {
     title +
     '</h1></div><div class="title-actions">' +
     openBtn("storyBook", icon("book-open") + "이야기", "ghost") +
+    openBtn("lessons", icon("circle-help") + "튜토리얼", "ghost") +
     (id === "forge"
       ? openBtn("journal", icon("scroll-text") + "강화 기록", "ghost")
       : zones[id]
@@ -478,10 +479,9 @@ function renderLesson() {
   const tip = step >= 0 ? Apprentice.guidance(state, step) : null;
   const title = step < 0 ? "수업 완료" : Apprentice.lessons[step][1];
   const target = tip && current() === tip.route ? el("screen").querySelector(tip.selector) : null;
-  const progress = step < 0 ? 6 : step + 1;
-  host.innerHTML = '<button class="lesson-copy" data-lesson="menu" aria-label="수업 ' + progress + '/6 · ' +
-    title + ' · 수업 관리" aria-describedby="lesson-action-hint">' +
-    '<strong>' + icon("circle-help") + ' 수업</strong>' +
+  const progress = step < 0 ? Apprentice.lessons.length : step + 1;
+  host.innerHTML = '<button class="lesson-copy" data-lesson="menu" aria-labelledby="lesson-title" aria-describedby="lesson-action-hint">' +
+    '<strong id="lesson-title">' + icon("circle-help") + ' 튜토리얼 ' + progress + '/' + Apprentice.lessons.length + ' · ' + title + '</strong>' +
     '<span id="lesson-action-hint">' + (tip ? tip.text : "첫 사냥터를 운영했습니다. 이제 새 검을 벼리거나 탑에 도전해 보세요.") +
     '</span></button>';
   if (target) {
@@ -523,7 +523,7 @@ function lessonMenu() {
     "사냥터에서 모인 골드를 수령하세요. 회수한 검은 보관함에 있습니다.",
   ];
   return [
-    "대장장이 수업",
+    "대장장이 수업 · 튜토리얼",
     Apprentice.lessons
       .map((lesson, i) => row(lesson[1], notes[i], done[i] ? icon("check") : ""))
       .join("") +
@@ -693,7 +693,7 @@ function modalData() {
           ) +
           row("게임 버전", UpdateNotice.version(), "") +
           '<div class="settings-links">' + openBtn("daily", icon("gift") + "오늘의 출석 보상") +
-          openBtn("lessons", icon("hammer") + "대장장이 수업") +
+          openBtn("lessons", icon("hammer") + "대장장이 수업 · 튜토리얼") +
           openBtn("help", icon("book-open") + "플레이 안내") + "</div>" +
           row("게임 진행", "새 게임으로 돌아갑니다.", openBtn("confirmNewGame", "처음부터 시작", "action danger")),
       ];

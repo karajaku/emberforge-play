@@ -68,7 +68,6 @@ const GameUI = (() => {
     const content=tools.querySelector('.ui-utility-content');
     const titleActions=document.querySelector('#title .title-actions');
     content.querySelector('.title-actions')?.remove();if(titleActions)content.prepend(titleActions);
-    content.append(el('apprentice'));
     if(current()==='forge'&&phonePage('forge')==='work') {
       const rail=document.createElement('nav');rail.className='ui-forge-rail';rail.setAttribute('aria-label','대장간 작업');
       rail.innerHTML=[['craft','anvil','제작'],['training','hammer','수련'],['orders','scroll-text','의뢰']].map(([page,ic,label])=>'<button data-go="forge/'+page+'">'+icon(ic)+'<span>'+label+'</span></button>').join('');

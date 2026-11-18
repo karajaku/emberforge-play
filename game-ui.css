@@ -52,8 +52,15 @@ body.ui-game { --text:#f4ead4;--muted:#c1b69e;--gold:#e4be79;--mint:#91d9b6; }
 .ui-utility-content { position:absolute;right:0;top:51px;width:220px;padding:12px;background:#202b2b;border:1px solid #a88b59;border-radius:12px;box-shadow:0 8px 24px #0009; }
 .ui-game .ui-utility-content .title-actions { display:grid;gap:8px; }
 .ui-game .ui-utility-content .title-actions button { font-size:13px;justify-content:flex-start; }
-.ui-game .ui-utility-content #apprentice:not([hidden]) { position:static;width:auto;margin:10px 0 0;padding:8px;color:#ecd5a6;background:#34413a;border-radius:8px; }
-.ui-game .ui-utility-content #apprentice strong { color:#ecd5a6; }
+body.ui-game { grid-template-rows:auto minmax(0,1fr) auto auto; }
+.ui-game #mobileNav { grid-row:4; }
+.ui-game #apprentice:not([hidden]) {
+  grid-row:3; position:static; width:auto; margin:0 12px 5px; padding:0 10px;
+  background:#26332f; border:1px solid #947c55; border-radius:10px;
+}
+.ui-game #apprentice .lesson-copy { padding:5px 0; }
+.ui-game #apprentice strong { color:#ecd5a6; font-size:13px; white-space:normal; }
+.ui-game #lesson-action-hint { position:static; width:auto; height:auto; clip-path:none; color:#f4ead4; }
 .ui-game main { gap:7px;padding:0 12px 7px; }
 .ui-game .titlebar { min-height:28px; }
 .ui-game .titlebar h1 { font-size:18px;letter-spacing:0; }
