@@ -1,31 +1,10 @@
 "use strict";
-const saveKey = "emberforge.save.v1",
+const saveKey = SaveStore.keys.current,
   settingsKey = "emberforge.preferences.v1";
-function readState() {
-  const raw = localStorage.getItem(saveKey);
-  if (!raw) return Game.fresh();
-  const data = JSON.parse(raw);
-  if (data.version !== 1 || !data.weapon || !Array.isArray(data.field))
-    throw new Error("지원되지 않는 저장 형식");
-  const defaults = Game.fresh(data.created);
-  const restored = {
-    ...defaults,
-    ...data,
-    fieldIncomeVersion: data.fieldIncomeVersion ?? 1,
-    apprentice: Apprentice.restore(data, defaults.apprentice),
-  };
-  restored.story = CharcoalStory.restore({ ...restored, story: data.story });
-  Game.migrateTraining(restored);
-  return restored;
-}
-let state,
-  storageError = false;
-try {
-  state = readState();
-} catch (e) {
-  state = Game.fresh();
-  storageError = true;
-}
+const store = SaveStore.create(() => localStorage);
+const saveLock = SaveStore.createLock({ get locks() { return navigator.locks; }, get indexedDB() { return window.indexedDB; } });
+let state = null, storageError = null, ready = false;
+function readState() { return store.load(); }
 let prefs = { sound: true, music: true, musicVolume: .35, motion: !matchMedia("(prefers-reduced-motion: reduce)").matches };
 try {
   Object.assign(prefs, JSON.parse(localStorage.getItem(settingsKey) || "{}"));
@@ -61,34 +40,29 @@ for (const id of [
   im.src = "assets/" + id + "-sheet.png";
   images[id] = im;
 }
-function save() {
-  if (storageError) return;
-  try {
-    localStorage.setItem(saveKey, JSON.stringify(state));
-  } catch {
-    storageError = true;
-    notify("이 기기에서 저장할 수 없습니다. 현재 플레이는 계속할 수 있습니다.", "loss");
-  }
+function save(mode = "normal") {
+  state = store.commit(state, mode);
 }
 function sync() {
-  if (!storageError) {
-    try {
-      state = readState();
-    } catch {
-      storageError = true;
-    }
-  }
   const completed = state.autoMine?.completed;
   Game.settle(state);
   return completed !== state.autoMine?.completed;
 }
 let queue = Promise.resolve();
 let restarting = false;
-function locked(fn) {
-  const run = () => { if (!restarting) return fn(); };
-  queue = queue
-    .catch(() => {})
-    .then(() => (navigator.locks ? navigator.locks.request(saveKey, run) : run()));
+function failSave(error) {
+  storageError = error.code || "write";
+  Feedback.clear();
+  GameSound.stop();
+  showSaveGuard();
+}
+function locked(fn, maintenance = false) {
+  const run = () => {
+    if (restarting || (!maintenance && (!ready || storageError))) return;
+    if (!maintenance) store.check();
+    return fn();
+  };
+  queue = queue.catch(() => {}).then(() => saveLock(run)).catch(failSave);
   return queue;
 }
 function reloadAtForge() {
@@ -99,14 +73,67 @@ function reloadAtForge() {
 function startNewGame() {
   return locked(() => {
     if (modal !== "confirmNewGame") return;
-    try {
-      localStorage.setItem(saveKey, JSON.stringify(Game.fresh()));
-    } catch {
-      notify("새 진행을 저장하지 못했습니다. 다시 시도해 주세요.", "loss");
-      return;
-    }
+    state = Game.fresh();
+    save("reset");
     reloadAtForge();
   });
+}
+function showSaveGuard() {
+  const messages = {
+    corrupt: "저장 데이터가 손상되었습니다. 원본은 그대로 보존되어 있습니다.",
+    missing: "최신 저장을 찾을 수 없습니다. 남아 있는 정상본을 확인해 주세요.",
+    future: "더 최신 버전에서 만든 저장입니다. 게임을 업데이트한 뒤 다시 열어 주세요. 이전 저장으로 되돌리지 않습니다.",
+    quota: "기기의 저장 공간이 부족합니다. 공간을 확보한 뒤 재시도해 주세요. 정상본을 지우지 않았습니다.",
+    access: "브라우저가 저장 접근을 허용하지 않습니다. 이 사이트의 저장 권한을 확인해 주세요.",
+    write: "이 기기에 저장하지 못했습니다. 저장 기능을 확인하고 재시도해 주세요.",
+    conflict: "다른 탭에서 진행이 바뀌었습니다. 이 탭의 진행으로 덮어쓰지 않았습니다.",
+    locking: "안전한 저장 잠금을 사용할 수 없어 읽기 전용으로 대기합니다. 다른 탭을 닫고 저장이 허용된 최신 브라우저에서 다시 열어 주세요.",
+    "no-backup": "복구 가능한 직전 정상본을 찾지 못했습니다. 원본은 보존되어 있습니다.",
+  };
+  let backup = null;
+  try { backup = store.backup(); } catch {}
+  const time = value => value ? new Date(value).toLocaleString("ko-KR") : "아직 없음";
+  el("saveGuardMessage").textContent = messages[storageError] || messages.write;
+  el("saveGuardPending").textContent = store.pending
+    ? "미저장 진행을 이 탭에 보관하고 있습니다. 재시도 전까지 추가 진행을 멈췄습니다. 이 탭을 닫으면 미저장 진행은 사라집니다."
+    : "진행 변경과 자동 진행을 멈췄습니다. 임시 새 게임으로 전환하지 않습니다.";
+  el("saveGuardTime").textContent = "마지막 정상 저장: " + time(store.lastSavedAt);
+  el("saveBackupInfo").textContent = backup ? "직전 정상본: " + time(backup._save?.savedAt || backup.last) +
+    " · 무기 +" + backup.weapon.level + " · " + fmt(backup.gold) + " G · 환생 " + backup.rebirths + "회" : "복구 가능한 직전 정상본 없음";
+  el("saveRetry").hidden = storageError === "future" || storageError === "conflict";
+  el("saveRecover").hidden = !backup || storageError === "future" || store.pending || storageError === "conflict";
+  el("saveReset").hidden = !["corrupt", "missing", "no-backup"].includes(storageError) || store.pending;
+  el("saveReload").textContent = store.pending ? "미저장 진행을 포기하고 최신 저장 읽기" : "최신 저장 다시 읽기";
+  el("saveGuard").hidden = false;
+  for (const node of document.querySelectorAll("body > header, body > main, #apprentice, #mobileNav, #shade")) node.inert = true;
+  el("saveGuardTitle").focus();
+}
+function resumeSaved() {
+  storageError = null;
+  ready = true;
+  active = 0;
+  tickTime = Date.now();
+  el("saveGuard").hidden = true;
+  for (const node of document.querySelectorAll("[inert]")) node.inert = false;
+  closeModal(false);
+  render();
+  autoStory();
+}
+function storageAction(action) {
+  if (action === "reload") {
+    if (!store.pending || confirm("이 탭의 미저장 진행을 포기하고 기기의 최신 저장을 읽을까요?")) location.reload();
+    return;
+  }
+  if (action === "reset" && !confirm("손상된 원본을 별도로 보존하고 새 게임을 시작할까요? 기존 진행은 새 게임에 합쳐지지 않습니다.")) return;
+  if (action === "recover" && !confirm("표시된 직전 정상본으로 복구할까요? 현재 원본도 별도로 보존합니다.")) return;
+  return locked(() => {
+    if (!storageError) return; // Ignore already queued recovery/retry double-clicks.
+    if (action === "recover") state = store.recover();
+    else if (action === "reset") { state = Game.fresh(); save("reset"); }
+    else if (store.pending) save();
+    else { state = readState(); if (!state) { state = Game.fresh(); save(); } }
+    resumeSaved();
+  }, true);
 }
 function notify(msg, kind = "info") {
   if (!msg) return;
@@ -123,6 +150,7 @@ function sound(kind, delay = 0) {
   if (prefs.sound && !document.hidden) GameSound.play(kind, delay);
 }
 function syncMusic() {
+  if (!state) return;
   const route = current();
   GameMusic.update(GameMusic.resolve({ route, modal, story: storyScene, state, page: phonePage(route), towerMode }),
     { enabled: prefs.music, volume: prefs.musicVolume, hidden: document.hidden });
@@ -249,6 +277,7 @@ function nav(id) {
   } else location.hash = id;
 }
 function render() {
+  if (!state) return;
   const id = current(),
     parent = zones[id] ? "world" : id;
   document.body.dataset.place = id;
@@ -542,7 +571,7 @@ function modalData() {
           ) +
           row(
             "저장 방식",
-            storageError ? "현재 저장 불가" : "이 기기에 자동 저장",
+            storageError ? "현재 저장 불가" : "이 기기에 자동 저장 · 정상본 2개 보관",
             icon("archive"),
           ) +
           '<div class="settings-links">' + openBtn("daily", icon("gift") + "오늘의 출석 보상") +
@@ -553,7 +582,7 @@ function modalData() {
     case "confirmNewGame":
       return [
         "처음부터 시작할까요?",
-        desc("장비, 골드, 환생과 이야기 기록을 모두 지우고 첫 장면부터 시작합니다. 지운 진행은 복구할 수 없습니다.") +
+        desc("장비, 골드, 환생과 이야기 기록을 초기화하고 첫 장면부터 시작합니다. 현재 원본을 별도로 보존한 뒤 새 진행 저장이 성공해야 시작합니다.") +
           '<div class="actions">' + openBtn("settings", "취소") +
           '<button class="action danger" data-new-game>진행을 지우고 시작</button></div>',
       ];
@@ -719,6 +748,7 @@ function displayModal() {
   syncMusic();
 }
 function showModal(key) {
+  if (!ready || storageError) return;
   if (!modal) lastFocus = document.activeElement;
   if (key === "temper") {
     act("temperStart");
@@ -764,6 +794,7 @@ function back() {
 }
 window.gameBack = back;
 document.addEventListener("keydown", (e) => {
+  if (storageError || !ready) return;
   if (!e.repeat) GameMusic.unlock();
   if (e.key === "Escape" && modal) {
     dismissModal();
@@ -806,6 +837,8 @@ document.addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (!b || b.disabled) return;
   const d = b.dataset;
+  if (d.storage) return storageAction(d.storage);
+  if (storageError || !ready) return;
   if ("newGame" in d) return startNewGame();
   if (d.story) return storyInput(d.story);
   if (d.lesson === "locate") return focusLesson();
@@ -871,27 +904,19 @@ addEventListener("hashchange", () => {
   }
 });
 addEventListener("storage", (e) => {
-  if (e.key === saveKey) {
-    const previousGame = state.created;
-    sync();
-    if (e.oldValue && !storageError && state.created !== previousGame) return reloadAtForge();
-    render();
-    if (modal === "storyScene") {
-      if (!storyScene.replay && state.story[storyScene.id] !== storyScene.page) {
-        closeModal(false);
-        autoStory();
-      }
-    } else if (modal) displayModal();
-  }
+  if ((e.key === saveKey || e.key === null) && ready && !storageError)
+    locked(() => {}); // The queued baseline check also covers resets and storage.clear().
 });
 let tickTime = Date.now(),
   active = 0;
 function accrue() {
+  if (!ready || storageError) { tickTime = Date.now(); return; }
   const now = Date.now();
   active += Math.max(0, Math.min(5000, now - tickTime));
   tickTime = now;
 }
 function flush() {
+  if (!ready || storageError) return;
   const ms = active;
   active = 0;
   return locked(() => {
@@ -917,7 +942,7 @@ document.addEventListener("visibilitychange", () => {
 addEventListener("pagehide", () => GameMusic.update("forge", { hidden: true }));
 addEventListener("pageshow", () => syncMusic());
 setInterval(() => {
-  if (document.hidden) return;
+  if (document.hidden || !ready || storageError) return;
   accrue();
   if (state.autoMine) {
     locked(() => {
@@ -933,7 +958,7 @@ setInterval(() => {
         el("tankRemaining").textContent = miningTime(job.started + (job.completed + 1) * job.tankMs - Date.now()) + " 남음";
       }
     });
-  } else Game.settle(state);
+  } else locked(() => { sync(); });
   if (state.towerRun) locked(() => {
     sync();
     const result = Game.perform(state, "fastTowerStep");
@@ -961,7 +986,7 @@ setInterval(() => {
     );
 }, 1000);
 function animate(now) {
-  if (!document.hidden) {
+  if (!document.hidden && ready && !storageError) {
     const needle = el("finalNeedle");
     if (modal === "final" && state.weapon.finalTrial?.key === "edge" && needle) {
       needle.frameAt = Date.now();
@@ -1021,8 +1046,9 @@ function animate(now) {
 el("brandIcon").innerHTML = icon("anvil");
 el("coinIcon").innerHTML = icon("coins");
 el("settingsIcon").innerHTML = icon("settings");
-Game.settle(state);
-render();
-autoStory();
+locked(() => {
+  state = readState();
+  if (!state) { state = Game.fresh(); save(); }
+  resumeSaved();
+}, true);
 requestAnimationFrame(animate);
-if (storageError) notify("저장 데이터를 읽을 수 없어 이번 플레이는 임시로 진행됩니다.", "loss");

@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="mobile.css?v=1.25" />
     <link rel="stylesheet" href="combat.css?v=1.22" />
     <link rel="stylesheet" href="feedback.css?v=1.25" />
+    <link rel="stylesheet" href="save.css?v=1.26" />
   </head>
   <body>
     <header>
@@ -56,6 +57,22 @@
         <div id="modalBody"></div>
       </section>
     </div>
+    <section id="saveGuard" hidden role="alertdialog" aria-modal="true" aria-labelledby="saveGuardTitle" aria-describedby="saveGuardMessage saveGuardPending">
+      <div class="save-card">
+        <h2 id="saveGuardTitle" tabindex="-1">저장 보호 · 진행 일시 중지</h2>
+        <p id="saveGuardMessage"></p>
+        <p id="saveGuardPending"></p>
+        <p id="saveGuardTime"></p>
+        <p id="saveBackupInfo"></p>
+        <div class="save-actions">
+          <button id="saveRetry" data-storage="retry" class="primary">저장 재시도</button>
+          <button id="saveRecover" data-storage="recover">직전 정상본 복구</button>
+          <button id="saveReload" data-storage="reload">최신 저장 다시 읽기</button>
+          <button id="saveReset" data-storage="reset" class="danger">원본 보존 후 새 게임</button>
+        </div>
+        <details><summary>복구 도움말</summary><p>브라우저의 사이트 데이터나 정상본을 삭제하지 마세요. 저장 공간과 사이트 저장 권한을 확인한 뒤 재시도하세요. 미래 버전은 최신 게임으로 열어야 합니다. 문제가 계속되면 이 화면의 오류와 마지막 저장 시각을 개발자에게 전달해 주세요. 현재 시험판에는 연결된 문의 접수 기능이 없습니다.</p></details>
+      </div>
+    </section>
     <script src="icons.js?v=1.22"></script>
     <script src="swordcraft.js?v=1.22"></script>
     <script src="breakthrough.js?v=1.22"></script>
@@ -70,8 +87,9 @@
     <script src="music.js?v=1.23"></script>
     <script src="feedback.js?v=1.25"></script>
     <script src="combat-hud.js?v=1.22"></script>
-    <script src="story-view.js?v=1.22"></script>
+    <script src="story-view.js?v=1.26"></script>
     <script src="mobile.js?v=1.22"></script>
-    <script src="ui.js?v=1.25"></script>
+    <script src="save-store.js?v=1.26"></script>
+    <script src="ui.js?v=1.26"></script>
   </body>
 </html>

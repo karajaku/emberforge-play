@@ -105,7 +105,7 @@ function focusStoryPage() {
   el("modalBody").querySelector(".story-actions button")?.focus({ preventScroll: true });
 }
 function autoStory() {
-  if (modal || state.story.quiet) return;
+  if (!ready || storageError || modal || state.story.quiet) return;
   for (const id of Object.keys(CharcoalStory.chapters)) {
     if ((id === "bridge" || id === "bundle") && !state.story[id]) continue;
     if (id === "light" && !state.story.light &&

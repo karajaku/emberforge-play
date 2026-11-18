@@ -1,0 +1,9 @@
+#saveGuard[hidden], #saveGuard [hidden] { display: none; }
+#saveGuard { position: fixed; inset: 0; z-index: 10000; overflow: auto; display: grid; place-items: center; padding: 20px; background: rgba(12, 15, 20, .96); }
+.save-card { width: min(100%, 560px); padding: 24px; border: 1px solid #c89857; border-radius: 16px; background: #20252c; color: #f6ecd9; box-sizing: border-box; }
+.save-card h2 { font-size: 1.25rem; margin-top: 0; }
+.save-card p { line-height: 1.65; }
+#saveGuardPending { color: #ffd48b; }
+.save-actions { display: grid; gap: 10px; margin: 20px 0; }
+.save-actions button { min-height: 48px; white-space: normal; }
+.save-card details { font-size: .9rem; }
