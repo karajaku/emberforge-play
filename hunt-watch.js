@@ -25,10 +25,21 @@ const HuntWatch=(()=>{
   function skills(h){
     if(!h||h.diceVersion!==1)return '';
     return '<div class="watch-skills" aria-label="자동 전투 스킬">'+Object.entries(DiceCombat.skills).map(([key,def])=>{
-      const s=DiceCombat.skillStatus(h,key),condition=key==='counter'?'돌진 방어 후 준비':'2스테이지 · 기세 2칸';
-      const label=def.name+' · '+(s.cooldown?s.cooldown+'턴 후 재사용':s.ready?'발동 준비':condition);
-      return '<span class="watch-skill" data-skill="'+key+'" data-ready="'+s.ready+'" title="'+label+'" aria-label="'+label+'">'+icon(def.icon)+'<b>'+(s.cooldown?s.cooldown:s.ready?'✓':'·')+'</b></span>';
+      const s=DiceCombat.skillStatus(h,key);
+      // Cooldowns tick at the next turn's start; one remaining turn can already fire on its attack face.
+      const next=DiceCombat.skillStatus({...h,skillCooldowns:{...h.skillCooldowns,[key]:Math.max(0,s.cooldown-1)}},key);
+      const locked=key==='heavyStrike'&&h.rank<2,ready=!locked&&next.ready;
+      const status=locked?'잠김':ready?'준비 완료':s.cooldown>1?s.cooldown+'턴':'조건 대기';
+      const condition=locked?'2스테이지 해금':ready?'공격 주사위에 자동':key==='counter'?(h.counter?'돌진 방어 완료':'돌진 방어 필요'):'기세 '+(h.momentum??1)+' / 2';
+      const filled=locked?0:s.cooldown>1?Math.max(0,def.cooldown-s.cooldown):def.cooldown;
+      const label=def.name+' · '+status+' · '+condition;
+      return '<span class="watch-skill" data-skill="'+key+'" data-ready="'+ready+'" data-state="'+(locked?'locked':ready?'ready':s.cooldown>1?'cooldown':'condition')+'" title="'+label+'" aria-label="'+label+'"><span class="watch-skill-heading">'+icon(def.icon)+'<b>'+def.name+'</b><em>'+status+'</em></span><span class="watch-skill-condition">'+condition+'</span><span class="watch-skill-clock" aria-hidden="true">'+Array.from({length:def.cooldown},(_,i)=>'<i'+(i<filled?' class="filled"':'')+'></i>').join('')+'</span></span>';
     }).join('')+'</div>';
+  }
+  function enemySkill(h){
+    if(!h?.enemySkillState)return '';
+    const s=h.enemySkillState,ready=s.cooldown<=1,status=ready?'다음 공격':s.cooldown+'턴';
+    return '<span class="watch-enemy-skill" data-ready="'+ready+'" title="돌진 · '+s.power+'배 · '+status+'" aria-label="적 돌진 · '+status+'"><span>'+icon('chevrons-up')+'<b>돌진</b><em>'+status+'</em></span><span class="watch-skill-clock" aria-hidden="true">'+Array.from({length:s.interval},(_,i)=>'<i'+(i<(ready?s.interval:s.interval-s.cooldown)?' class="filled"':'')+'></i>').join('')+'</span></span>';
   }
   function view(s) {
     const h=s.hunt,rank=h?.rank||(reward?reward.rank:pending()?.rank)||nextRank();
@@ -41,14 +52,14 @@ const HuntWatch=(()=>{
     const fighter=(side,label,asset,width,current,maxHp)=>'<div class="watch-fighter '+side+'" data-action="'+(roll?.[side==='player'?'player':'enemy']||'')+'">'+healthMeter(side,label,current,maxHp)+
       '<div class="watch-actor"'+(current<=0?' data-defeated="true"':'')+'><canvas width="'+width+'" height="144" data-sprite="'+asset+'" aria-hidden="true"></canvas><div class="watch-ward" aria-hidden="true">'+icon('shield')+'</div></div>'+
       (useDice?die(roll?.[side==='player'?'playerFace':'enemyFace'],roll?.[side==='player'?'player':'enemy'],side):'')+
-      (side==='enemy'&&h?.enemySkillState?'<span class="watch-enemy-skill" data-ready="'+(h.enemySkillState.cooldown<=1)+'" title="돌진 · '+h.enemySkillState.power+'배 · '+(h.enemySkillState.cooldown<=1?'다음 공격에 발동':h.enemySkillState.cooldown+'턴 후 재사용')+'" aria-label="돌진 '+h.enemySkillState.cooldown+'턴">'+icon('chevrons-up')+'<b>'+(h.enemySkillState.cooldown<=1?'!':h.enemySkillState.cooldown)+'</b></span>':'')+'</div>';
+      (side==='enemy'?enemySkill(h):'')+'</div>';
     const w=Game.huntingStatus(s),empty=!w.free&&!w.purchased&&!h&&!pending();
     const finished=s.huntBest>=60&&!h&&!pending();
     const label=active?'사냥 중단':finished?'모든 스테이지 완료':h?'사냥 계속':empty?'사냥권 충전 보기':'사냥';
     return '<section class="watch-view"><div class="watch-stage">STAGE <b>'+rank+'</b></div>'+
       '<div class="scene watch-arena combat-hud">'+fighter('player','나',sprite,128,hp,max)+fighter('enemy',enemy.name,'boar',144,enemyHp,total)+'</div>'+
       '<div class="watch-reward" role="status">'+skills(h)+(reward?'<b>'+reward.rank+'스테이지 클리어</b><strong>'+icon('coins')+' +'+fmt(reward.gold)+' G</strong><div class="watch-loot">'+
-        [[reward.shards,'sparkles','별의 파편'],[reward.scrolls,'scroll-text','주문서'],...[0,1,2].map(i=>[reward.charms[i],['leaf','hammer','star'][i],Game.blessings[i]])].filter(([n])=>n).map(([n,ic,title])=>'<span aria-label="'+title+' '+n+'개" title="'+title+'">'+icon(ic)+' +'+n+'</span>').join('')+'</div>':reason?'<b>'+reason+'</b>':'')+'</div>'+
+        [[reward.shards,'sparkles','별의 파편'],[reward.scrolls,'scroll-text','주문서'],...[0,1,2].map(i=>[reward.charms[i],['leaf','hammer','star'][i],Game.blessings[i]])].filter(([n])=>n).map(([n,ic,title])=>'<span aria-label="'+title+' '+n+'개" title="'+title+'">'+icon(ic)+' +'+n+'</span>').join('')+'</div>':reason&&!(h&&reason==='일시 중단')?'<b>'+reason+'</b>':'')+'</div>'+
       (!motionEnabled()?'<div class="watch-motion-hint"><span>'+(reducedMotion.matches&&!prefs.motionOverride?'기기 설정으로 연출 정지':'연출 꺼짐')+'</span><button class="mini" data-motion-policy="full">연출 켜기</button></div>':'')+
       '<button class="primary watch-start" '+(empty&&!active?'data-open="huntWallet"':'data-watch="toggle"')+(finished?' disabled':'')+'><span class="watch-start-label">'+icon(active?'shield':'sword')+label+'</span>'+ticketBar(w)+'</button>'+
       (!active&&reason==='패배 · 장비를 강화해 주세요'?go('forge','장비 강화','action'):'')+'</section>';

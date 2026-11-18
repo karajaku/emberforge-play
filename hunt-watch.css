@@ -49,14 +49,18 @@ body[data-motion="on"] .watch-roll.rolling .watch-die { animation:watch-roll .3s
 .heavy .hunt-cut { height:14px;box-shadow:0 0 20px #ffdf7d,0 12px #ffb13a; }
 .heavy .hunt-cut::after { content:'';position:absolute;inset:-6px 0;background:#fff7cf;border-radius:50%;transform:rotate(85deg);opacity:.8; }
 .counter .hunt-cut { background:#c1ffec;box-shadow:0 0 20px #68efbf,0 10px #36a684;transform:rotate(42deg); }
-.watch-skills { display:flex;justify-content:center;gap:14px; }
-.watch-skill { display:flex;align-items:center;gap:5px;padding:5px 9px;border:1px solid #728779;border-radius:8px;background:#172b26df;color:#a6b4a8; }
-.watch-skill svg { width:24px;height:24px; }.watch-skill b { min-width:12px;font-size:12px; }
-.watch-skill[data-ready="true"] { color:#fff2b4;border-color:#e7c16a;box-shadow:0 0 8px #eac66b55; }
+.watch-skills { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:100%; }
+.watch-skill { display:grid;gap:5px;padding:8px 10px;border:1px solid #849a8a;border-radius:8px;background:#172b26f5;color:#e2eadd;text-align:left; }
+.watch-skill-heading { display:flex;align-items:center;gap:6px; }.watch-skill-heading svg { width:22px;height:22px;flex:none; }.watch-skill-heading b { font-size:16px;white-space:nowrap; }
+.watch-skill em,.watch-enemy-skill em { margin-left:auto;font-style:normal;font-size:13px;font-weight:800;white-space:nowrap; }
+.watch-skill-condition { color:#bfcebf;font-size:12px;line-height:1.2; }
+.watch-skill-clock { display:flex;gap:4px; }.watch-skill-clock i { flex:1;height:4px;border-radius:2px;background:#061b16;box-shadow:inset 0 0 0 1px #87927f55; }.watch-skill-clock .filled { background:#a9c0ab; }
+.watch-skill[data-state="cooldown"] em { color:#c8dfef; }.watch-skill[data-state="condition"] em { color:#c3c6b3; }.watch-skill[data-state="locked"] { opacity:.7; }
+.watch-skill[data-ready="true"] { color:#fff2b4;border:2px solid #e7c16a;padding:7px 9px;background:#363822f5;box-shadow:0 0 12px #eac66b66; }.watch-skill[data-ready="true"] .watch-skill-condition { color:#f5e9bc; }.watch-skill[data-ready="true"] .filled { background:#f0cb72; }
 .watch-skill-flare { position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);display:flex;align-items:center;gap:8px;z-index:10;padding:8px 18px;color:#fff0c6;border:1px solid #e7bd6a;border-radius:8px;background:#372810ef;pointer-events:none;animation:skill-flare .65s ease-out both; }
 .watch-skill-flare.counter { color:#c5ffec;border-color:#68efbf;background:#10382def; }.watch-skill-flare svg { width:27px;height:27px; }
 .watch-skill-flare.enemy { top:27%;color:#ffe1c5;border-color:#ef9768;background:#48271bef; }
-.watch-enemy-skill { position:absolute;right:2%;top:34%;z-index:6;display:flex;align-items:center;gap:3px;background:#35221cdd;border:1px solid #b4866a;border-radius:7px;padding:3px 7px;color:#d5b6a2;font-size:12px; }.watch-enemy-skill svg { width:20px;height:20px; }.watch-enemy-skill[data-ready="true"] { color:#ffdb98;border-color:#ffae69;box-shadow:0 0 10px #ff9b6155; }
+.watch-enemy-skill { position:absolute;right:2%;top:3%;z-index:6;display:grid;gap:4px;width:148px;max-width:46%;background:#35221cf5;border:1px solid #b4866a;border-radius:7px;padding:5px 8px;color:#f1d8c5;font-size:14px; }.watch-enemy-skill>span:first-child { display:flex;align-items:center;gap:5px; }.watch-enemy-skill svg { width:18px;height:18px;flex:none; }.watch-enemy-skill[data-ready="true"] { color:#ffe6ac;border-color:#ffb66f;background:#503322f5;box-shadow:0 0 12px #ff9b6177; }.watch-enemy-skill .filled { background:#edb781; }
 .charge .hunt-cut { left:10%;top:10%;width:80%;height:80%;background:transparent;border:8px solid #ffd5a4;border-radius:50%;box-shadow:0 0 18px #ff8f58,inset 0 0 12px #ff8f58; }
 @keyframes skill-flare { 0%{opacity:0;transform:translate(-50%,-50%) scale(.65)}20%,70%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-80%) scale(1.08)} }
 .guarded .hunt-cut { left:8%;top:10%;width:84%;height:72%;border:5px solid #b5ffe5;background:transparent;box-shadow:0 0 18px #8aefee,inset 0 0 12px #8aefee;border-radius:50%;transform:rotate(0); }
@@ -78,4 +82,4 @@ body[data-motion="on"] .watch-reward:has(strong) { animation:hunt-reward .55s cu
 @keyframes hunt-reward { from{transform:translateY(20px) scale(.75);opacity:0;filter:brightness(1.8)}to{transform:translateY(0) scale(1);opacity:1;filter:brightness(1)} }
 .ui-game[data-place="forest"][data-page="hunt"] .watch-view .action { flex:none; }
 @media(max-height:760px){.ui-game .watch-arena{min-height:310px}.player .watch-actor{width:43%;bottom:23%}.enemy .watch-actor{width:35%;top:16%}.watch-die{width:48px;height:48px;padding:7px;gap:4px}.watch-reward{min-height:48px}.watch-view{gap:6px}.watch-roll>span{font-size:12px}}
-@media(max-height:760px){.watch-roll .watch-die svg{width:30px;height:30px}.watch-skill{padding:3px 8px}.watch-skill svg{width:20px;height:20px}}
+@media(max-height:760px){.watch-roll .watch-die svg{width:30px;height:30px}.watch-skill{padding:5px 8px;gap:3px}.watch-skill[data-ready="true"]{padding:4px 7px}.watch-skill-heading{gap:4px}.watch-skill-heading b{font-size:14px}.watch-skill-heading svg{width:18px;height:18px}.watch-skill-condition{font-size:11px}.watch-skill-clock i{height:3px}}
