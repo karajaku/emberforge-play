@@ -210,6 +210,8 @@ function forgeView(s) {
       desc("검 +17부터 단조 수첩 · 첫 환생 이후 전승 수련"), "anvil");
   }
   const stat = Game.stats(s), next = Game.stats({ ...s, [gear]: { ...g, level:g.level + 1 } });
+  const equipped = Game.blessings.flatMap((name, i) => s.enabled[i] && s.charms[i] > 0
+    ? ['<span>' + name + ' <b>' + fmt(s.charms[i]) + '개 남음</b></span>'] : []);
   const finalChoice = weapon && g.level === 19 && Breakthrough.choices(g, Game.price).length > 0;
   const switcher = '<div class="segment gear-switch">' + [["weapon","sword","무기"],["armor","shield","방어구"]].map(([id,ic,label]) =>
     '<button data-gear="' + id + '" aria-pressed="' + (gear === id) + '" class="' + (gear === id ? 'sel' : '') + '">' + icon(ic) + label + '</button>').join('') + '</div>';
@@ -217,12 +219,13 @@ function forgeView(s) {
     "", tier(g, gear), weapon ? "blade" + (Game.bladeStage(g) || "") : "cuirass", g.grade) + '</div><section class="panel">' +
     '<div class="stats">' + line(weapon ? "공격력" : "체력", fmt(weapon ? stat.attack : stat.hp) + (g.level >= 20 ? "" : ' <span class="mint">→ ' + fmt(weapon ? next.attack : next.hp) + '</span>')) +
     forgeChances(s, g) + '</div>' +
+    (equipped.length ? '<div class="forge-blessings" role="group" aria-label="장착한 가호">' + equipped.join('') + '</div>' : '') +
     (recovery ? go("forge/training", "+" + recovery.target + " 확정 복구 가능 · 수련", "action") : "") +
     (finalChoice ? openBtn("final", icon("sword") + (g.finalTrial ? Breakthrough.methods[g.finalTrial.key].name + " 계속" : "+20 돌파 방식 선택"), "primary") : "") +
     (g.level >= 20 ? go("growth", "초월 · 환생 확인", "primary") : btn("enhance", icon("hammer") +
       (recovery ? "일반 강화 +15" : finalChoice ? "일반 강화 +20" : "강화하기") + '<small>' + fmt(cost) + ' G</small>', gear, finalChoice || recovery ? "action split" : "primary split", !!g.finalTrial)) +
     '<div class="actions forge-support">' + openBtn("temper", icon("flame") + (s.heat ? "담금질 +" + s.heat + "%p" : "담금질")) +
-    openBtn("guards", icon("shield") + (s.enabled.some(Boolean) ? "가호 장착됨" : "가호")) +
+    openBtn("guards", icon("shield") + (equipped.length ? "가호 장착됨" : "가호")) +
     '<button class="round" data-open="risk" aria-label="강화 확률과 실패 조건">' + icon("circle-help") + '</button></div></section></div>';
 }
 function restoreButton(s, book) {

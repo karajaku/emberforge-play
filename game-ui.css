@@ -1,4 +1,6 @@
 /* One layout owner for the forge controls, independent of generic .panel/.primary. */
+.forge-blessings { display:flex; flex-wrap:wrap; justify-content:center; gap:4px 12px; padding:4px 8px; background:#211b17ed; border-radius:8px; color:#f2e1c4; font-size:12px; }
+.forge-blessings b { color:#a4f5c4; }
 #updateNotice { position:fixed;left:50%;top:62px;transform:translateX(-50%);z-index:70;display:flex;align-items:center;justify-content:space-between;gap:12px;width:min(430px,calc(100% - 28px));padding:8px 12px;border:1px solid #e4be79;border-radius:10px;background:#20362ff5;color:#fff0c8;box-shadow:0 4px 16px #0008;font-size:13px; }
 #updateNotice button { min-height:44px;padding:8px 12px;border:1px solid #d6b579;border-radius:8px;background:#af843e;color:#fff7dd;font-weight:700; }
 #screen > .forge-control-layout .stage-side .scene { min-height:178px; }
