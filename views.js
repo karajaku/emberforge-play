@@ -147,7 +147,7 @@ function portals() {
           id +
           '.png)"><small>' +
           {
-            forest: "직접 사냥 · 자동 배치",
+            forest: "토벌 · 배치 수익",
             mine: "무기 +19 또는 레어",
             tower: "전투 · 층별 보상",
             altar: "장비 옵션 부여",
@@ -411,7 +411,16 @@ function huntingWalletContent(s) {
     '<p class="desc" data-hunting-recharge>' + huntingRechargeText(w) + '</p>' +
     (!w.free && !w.purchased ? desc("사냥권이 부족합니다. 충전을 기다리거나 출석을 확인하세요. 제작·담금질·보관함 정리·배치 수익 수령은 계속할 수 있습니다.") +
       '<div class="actions">' + openBtn("daily", claimed ? "출석 수령 완료" : "출석 +10 받기", "mini") + go("forge", "대장간으로", "mini") + '</div>' : "") +
-    desc("무료 로컬 시험 · 실제 구매 미지원 · 기기 시각과 저장 기준") + '</div>';
+    '<details class="hunt-wallet-help"><summary>무료 로컬 시험 안내</summary>' +
+    desc("실제 구매 미지원 · 기기 시각과 저장 기준. 배치 수익은 전투와 별도로 쌓이며 사냥권을 쓰지 않습니다.") + '</details></div>';
+}
+function huntModeControls(s) {
+  const mode = typeof autoCombat === "undefined" ? "manual" : autoCombat.mode;
+  return '<div class="hunt-mode" data-hunt-mode-controls><div class="segment" role="group" aria-label="전투 방식">' +
+    [["manual", "수동"], ["auto", "자동"]].map(([key, label]) => '<button data-hunt-mode="' + key +
+      '" aria-pressed="' + (mode === key) + '" class="' + (mode === key ? "active" : "") + '">' + label + '</button>').join("") +
+    '</div><small>' + (s.hunt ? (mode === "auto" ? "자동 진행 · 행동 버튼을 누르면 수동 전환" : "수동 대기 · 돌아온 전투도 여기서 이어가세요") :
+      "선택 후 사냥 시작 · 자동도 한 판만 진행") + '</small></div>';
 }
 function forestView(s, health) {
   const page = phonePage("forest");
@@ -422,19 +431,23 @@ function forestView(s, health) {
   const enemy = Game.huntEnemy(h || s.lastHunt || next);
   const hud = health ? combatHud(health.hp, health.maxHp, health.enemyHp, health.enemyMax, enemy.name) : "";
   const fight = h
-    ? desc("진행 중인 전투 · 이어서 플레이해도 추가 차감 없음 · 퇴각 시 사냥권 반환 없음") + forestEncounter(h) + huntIntent(h) + '<div class="hunt-feedback">' + desc(h.last) + (h.rank >= 2 ? huntTools(h) : "") + "</div>" +
-      (page ? "" : storyChat(s, "forest")) +
-      '<div class="battle-controls">' + hud + (h.rank >= 2 ? huntChoices(h) : '<div class="actions">' +
+    ? huntIntent(h) + '<div class="battle-controls">' + hud + huntModeControls(s) +
+      (h.rank >= 2 ? huntTools(h) + huntChoices(h) : '<div class="actions">' +
         btn("strike", icon("sword") + (h.counter ? "반격 ×2.5" : "베기"), "", h.counter ? "primary grow counter-ready" : "primary grow") +
         btn("block", icon("shield") + "방어", "", Game.huntCharge(h) ? "action guard-ready" : "action") +
-        btn("flee", "퇴각", "", "mini") + "</div>") + "</div>"
+        btn("flee", "퇴각", "", "mini") + "</div>") + "</div>" +
+      '<div class="hunt-feedback">' + desc(h.last) + '</div>' +
+      desc("이어하기 추가 차감 없음 · 퇴각 시 사냥권 반환 없음") +
+      '<details class="hunt-enemy-help"><summary>적 특성과 전투 안내</summary>' + forestEncounter(h) +
+      desc("자동은 약 1초마다 행동하며 한 판이 끝나면 멈춥니다. 화면을 숨기거나 종료하면 수동 대기로 돌아옵니다.") + '</details>' +
+      (page ? "" : storyChat(s, "forest"))
     : huntResult(s.lastHunt, s.chests) + (page ? "" : storyChat(s, "forest")) +
       (pendingChest ? "" : desc(
         next === 1 ? "돌진을 방어하면 다음 베기가 2.5배 반격이 됩니다. 반격을 맞히고 이기면 골드가 25% 늘어납니다." :
           "기세 2칸을 모으면 강공을 쓸 수 있습니다. 적을 먼저 쓰러뜨리면 피해를 받지 않고, 돌진을 막고 반격하면 골드를 25% 더 받습니다.",
       )) +
       (pendingChest ? "" : forestEncounter(next, true)) +
-      '<div class="battle-controls">' + hud + (pendingChest
+      '<div class="battle-controls">' + hud + (pendingChest ? "" : huntModeControls(s)) + (pendingChest
         ? btn("openChest", icon("gift") + "보물 획득", pendingChest.id, "primary")
         : btn("huntStart", icon("swords") + next + "구역 사냥 · 사냥권 1", next, "primary")) + "</div>" +
       (!pendingChest && s.huntBest ? btn("huntStart", "이전 구역 재도전 · 사냥권 1", Math.min(s.huntBest, 60), "mini") : "");
@@ -447,7 +460,8 @@ function forestView(s, health) {
           ? btn("huntStart", "전승 수련 · " + task.needed + "구역 · 사냥권 1", task.needed, "action")
           : ""
       : "";
-  return '<div class="stack"><section class="card" id="huntingWallet">' + huntingWalletContent(s) + '</section>' + fight + training + "</div>" + (page ? "" : section("자동 사냥") + fieldView(s));
+  const wallet = '<section class="card" id="huntingWallet">' + huntingWalletContent(s) + '</section>';
+  return '<div class="stack hunt-stack">' + (h ? fight + wallet : wallet + fight) + training + "</div>" + (page ? "" : section("배치 수익") + fieldView(s));
 }
 function chestOrigin(c) {
   return c.source === "tower" ? "무한의 탑 " + c.rank + (c.rankEnd && c.rankEnd !== c.rank ? "~" + c.rankEnd : "") + "층" : "이끼숲 " + c.rank + "구역";

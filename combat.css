@@ -33,6 +33,12 @@
 .hunt-intent span { margin-left: auto; font-size: 12px; white-space: nowrap; }
 .guard-ready, .counter-ready { outline: 2px solid #fbd286; outline-offset: -3px; }
 .hunt-moves { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 5px; }
+.hunt-mode { display: grid; gap: 3px; }
+.hunt-mode .segment { margin: 0; }
+.hunt-mode .segment button { min-height: 44px; }
+.hunt-mode small { color: #d6ccae; font-size: 11px; line-height: 1.4; }
+.hunt-wallet-help, .hunt-enemy-help { color: #c9c7b6; font-size: 12px; }
+.hunt-wallet-help summary, .hunt-enemy-help summary { cursor: pointer; padding-block: 5px; }
 .hunt-moves .action { display: grid; justify-items: center; gap: 1px; padding: 7px 2px; }
 .hunt-moves .action b { display: inline-flex; align-items: center; gap: 3px; }
 .hunt-moves small { font-size: 11px; line-height: 1.3; }

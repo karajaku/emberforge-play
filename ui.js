@@ -50,7 +50,13 @@ function sync() {
 }
 let queue = Promise.resolve();
 let restarting = false;
+const autoCombat = AutoCombat.create({
+  game: Game, hunt: () => state?.hunt,
+  allowed: () => ready && !storageError && !restarting && !document.hidden,
+  execute: guard => act(null, "", undefined, guard),
+});
 function failSave(error) {
+  autoCombat.stop();
   storageError = error.code || "write";
   Feedback.clear();
   GameSound.stop();
@@ -66,11 +72,13 @@ function locked(fn, maintenance = false) {
   return queue;
 }
 function reloadAtForge() {
+  autoCombat.stop();
   restarting = true;
   history.replaceState(null, "", "#forge");
   location.reload();
 }
 function startNewGame() {
+  autoCombat.stop();
   return locked(() => {
     if (modal !== "confirmNewGame") return;
     state = Game.resetProgress(state);
@@ -110,6 +118,7 @@ function showSaveGuard() {
   el("saveGuardTitle").focus();
 }
 function resumeSaved() {
+  autoCombat.stop();
   storageError = null;
   ready = true;
   active = 0;
@@ -155,11 +164,26 @@ function syncMusic() {
   GameMusic.update(GameMusic.resolve({ route, modal, story: storyScene, state, page: phonePage(route), towerMode }),
     { enabled: prefs.music, volume: prefs.musicVolume, hidden: document.hidden });
 }
-function act(action, arg = "", pressedAt) {
+function act(action, arg = "", pressedAt, automaticGuard) {
+  const manualBattle = !automaticGuard && ["strike", "heavyStrike", "block", "flee"].includes(action);
+  const manualId = manualBattle ? state?.hunt?.id : null;
+  if (manualBattle) {
+    autoCombat.stop(); // Invalidate even callbacks already waiting for the save lock.
+    renderHuntMode();
+  }
   // Capture the request before queueing: rapid clicks share one start sequence.
   if (action === "huntStart" && typeof arg !== "object" && state)
     arg = { rank: arg, request: state.hunting.serial + 1 };
   return locked(() => {
+    if (automaticGuard) {
+      action = automaticGuard();
+      if (!action) return;
+    } else if (manualBattle) {
+      if (!manualId || state.hunt?.id !== manualId) return;
+      // A manual move may itself wait for the lock while another mode is selected.
+      // Its eventual execution still owns exactly one manual turn.
+      autoCombat.stop();
+    }
     sync();
     Feedback.clear();
     GameSound.stop();
@@ -171,6 +195,8 @@ function act(action, arg = "", pressedAt) {
     const strong = sparring && Swordcraft.heavy(state.weapon.work);
     const result = Game.perform(state, action, arg, undefined, undefined, pressedAt);
     save();
+    // A completed/retreated battle must clear intent before rendering the result.
+    autoCombat.refresh(false);
     if (result.ok && action === "craftMove") animationStart = performance.now();
     if (result.impact) huntStart = performance.now();
     const forgeAction = [
@@ -266,7 +292,16 @@ function act(action, arg = "", pressedAt) {
       } else sound(result.impact?.kind || (sparring ? (arg === "parry" ? "parry" : "slash") : action === "mine" ? "mine" : result.kind));
     }
     if (result.ok && CharcoalStory.unlocked(state, "home")) autoStory();
+    autoCombat.refresh();
   });
+}
+function renderHuntMode() {
+  const host = document.querySelector("[data-hunt-mode-controls]");
+  const focusedMode = document.activeElement?.dataset.huntMode;
+  if (host) {
+    host.outerHTML = huntModeControls(state);
+    if (focusedMode) document.querySelector('[data-hunt-mode="' + focusedMode + '"]')?.focus({ preventScroll: true });
+  }
 }
 function nav(id) {
   Impacts.clear();
@@ -843,6 +878,11 @@ document.addEventListener("click", (e) => {
   const d = b.dataset;
   if (d.storage) return storageAction(d.storage);
   if (storageError || !ready) return;
+  if (d.huntMode) {
+    autoCombat.select(d.huntMode);
+    renderHuntMode();
+    return;
+  }
   if ("newGame" in d) return startNewGame();
   if (d.story) return storyInput(d.story);
   if (d.lesson === "locate") return focusLesson();
@@ -908,8 +948,11 @@ addEventListener("hashchange", () => {
   }
 });
 addEventListener("storage", (e) => {
-  if ((e.key === saveKey || e.key === null) && ready && !storageError)
+  if ((e.key === saveKey || e.key === null) && ready && !storageError) {
+    autoCombat.stop();
+    renderHuntMode();
     locked(() => {}); // The queued baseline check also covers resets and storage.clear().
+  }
 });
 let tickTime = Date.now(),
   active = 0;
@@ -935,6 +978,8 @@ function flush() {
 document.addEventListener("visibilitychange", () => {
   syncMusic();
   if (document.hidden) {
+    autoCombat.stop();
+    renderHuntMode();
     Feedback.clear();
     Impacts.clear();
     GameSound.stop();
@@ -943,7 +988,11 @@ document.addEventListener("visibilitychange", () => {
   }
   tickTime = Date.now();
 });
-addEventListener("pagehide", () => GameMusic.update("forge", { hidden: true }));
+addEventListener("pagehide", () => {
+  autoCombat.stop();
+  renderHuntMode();
+  GameMusic.update("forge", { hidden: true });
+});
 addEventListener("pageshow", () => syncMusic());
 setInterval(() => {
   if (document.hidden || !ready || storageError) return;
