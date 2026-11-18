@@ -1006,7 +1006,10 @@ const Game = (() => {
           last: enemy.name + " 출현 · " + enemy.trait,
         };
         // Explicit per-battle model: old saves and untagged legacy callers retain their rules.
-        if (arg?.combat === "dice-v1") s.hunt.diceVersion = 1;
+        if (arg?.combat === "dice-v1") {
+          s.hunt.diceVersion=1;s.hunt.skillVersion=1;s.hunt.skillCooldowns={heavyStrike:0,counter:0};
+          s.hunt.enemySkillState={cooldown:enemy.first,interval:enemy.interval,power:enemy.power};
+        }
         return { ...success("이끼숲 " + rank + "구역 사냥 시작 · 사냥권 1개 사용"), receipt: { ...w.lastStart } };
       }
       case "flee":
@@ -1018,20 +1021,25 @@ const Game = (() => {
       case "block": {
         const h = s.hunt;
         if (!h) return fail("먼저 사냥을 시작하세요.");
+        // Existing dice saves acquire optional skill state on their next committed turn.
+        if(h.diceVersion===1){
+          h.skillVersion=1;
+          if(!h.enemySkillState){const enemy=huntEnemy(h);h.enemySkillState={cooldown:Math.max(0,enemy.first-h.turn+1),interval:enemy.interval,power:enemy.power};}
+        }
         const roll = h.diceVersion === 1 ? dice.turn(h, dice.face(random), dice.face(random)) : null;
         const charge = !roll && huntCharge(h),
           block = roll ? roll.player === "block" : act === "block";
-        const move = roll ? {...roll, available:true, momentum:h.momentum} : huntMove(h, act);
-        if (roll) {h.lastDice = roll; h.counter = false; h.ripostes = 0;}
+        const move = roll ? {...roll, available:true} : huntMove(h, act);
+        if (roll) {h.lastDice=roll;h.skillCooldowns=roll.skillCooldowns;h.enemySkillState=roll.enemySkillState;}
         if (!move.available) return fail("2구역부터 기세 2칸으로 강공을 사용할 수 있습니다.");
         const { damage, taken } = move;
         h.momentum = move.momentum;
         const impact = {
-          kind: block ? (charge ? "parry" : "block") : h.counter ? "counter" : "slash",
+          kind: block ? (charge ? "parry" : "block") : (roll?roll.skill==='counter':h.counter) ? "counter" : "slash",
           damage: Math.min(h.enemyHp, damage),
           taken: 0,
         };
-        if (!block && h.counter) h.ripostes = (h.ripostes || 0) + 1;
+        if (roll?roll.skill==='counter':!block&&h.counter) h.ripostes = (h.ripostes || 0) + 1;
         h.enemyHp = Math.max(0, h.enemyHp - damage);
         if (!h.enemyHp) {
           const base = 800 * h.rank * h.rank;
@@ -1068,7 +1076,7 @@ const Game = (() => {
         impact.taken = Math.min(taken, h.hp);
         h.hp = Math.max(0, h.hp - taken);
         if (roll && h.turn >= 40) h.hp = 0;
-        h.counter = block && charge;
+        h.counter = roll?roll.counter:block && charge;
         if (!h.hp) {
           s.lastHunt = {
             id: h.id, ticketSource: h.ticketSource,

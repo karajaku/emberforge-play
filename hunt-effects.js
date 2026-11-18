@@ -1,7 +1,6 @@
 /* Presentation only: saved combat results are never delayed, rolled again or mutated. */
 const HuntEffects=(()=>{
   let timers=[],animations=[],nodes=[],resolve=null,completion=Promise.resolve();
-  const points={1:[5],2:[1,9],3:[1,5,9],4:[1,3,7,9],5:[1,3,5,7,9],6:[1,3,4,6,7,9]};
   function cancel(){
     timers.forEach(clearTimeout);timers=[];
     animations.forEach(a=>a.cancel());animations=[];nodes.forEach(n=>n.remove());nodes=[];
@@ -13,7 +12,7 @@ const HuntEffects=(()=>{
   const later=(fn,ms)=>timers.push(setTimeout(fn,ms));
   function animate(node,frames,options){if(node&&motionEnabled())animations.push(node.animate(frames,options));}
   const names={strike:'공격',block:'방어',heavyStrike:'강공'},icons={strike:'sword',block:'shield',heavyStrike:'hammer'};
-  function pips(die,face){die.querySelectorAll('i').forEach((pip,n)=>pip.classList.toggle('pip',points[face].includes(n+1)));}
+  function faceIcon(die,face){const action=DiceCombat.actions[face-1];die.innerHTML=icon(icons[action]);die.dataset.action=action;}
   function burst(actor,kind,damage){
     if(!actor||!motionEnabled())return;
     const node=document.createElement('div');node.className='hunt-burst '+kind;node.setAttribute('aria-hidden','true');
@@ -38,23 +37,33 @@ const HuntEffects=(()=>{
       later(()=>{
         arena.dataset.phase=side+'-roll';host.classList.remove('waiting');host.classList.add('rolling');host.querySelector('span').textContent=side==='player'?'내 주사위':'적 주사위';
         sound('dice');
-        for(let i=0;i<8;i++)later(()=>pips(die,1+(i*5+(side==='player'?0:3))%6),i*75);
+        for(let i=0;i<8;i++)later(()=>faceIcon(die,1+(i*5+(side==='player'?0:3))%6),i*75);
         later(()=>{
-          const face=roll[side+'Face'],action=roll[side];host.classList.remove('rolling');host.classList.add('chosen');pips(die,face);
-          host.querySelector('span').innerHTML=icon(icons[action])+names[action];die.setAttribute('aria-label',face+' · '+names[action]);
+          const face=roll[side+'Face'],action=roll[side];host.classList.remove('rolling');host.classList.add('chosen');faceIcon(die,face);
+          host.querySelector('span').textContent=names[action];die.setAttribute('aria-label',names[action]+' 주사위');
           animate(die,[{transform:'scale(1.25) rotate(-8deg)'},{transform:'scale(.94)'},{transform:'scale(1)'}],{duration:230});
         },600);
       },at);
     }
     if(roll){diceTurn('player',0);diceTurn('enemy',800);}else arena.dataset.phase='reveal';
     later(()=>{arena.dataset.phase='reveal';},lead);
+    function skillFlare(side,key,at){if(!key)return;later(()=>{
+      const def=(side==='player'?DiceCombat.skills:DiceCombat.enemySkills)[key],banner=document.createElement('div');
+      banner.className='watch-skill-flare '+key+' '+side;banner.dataset.skillSide=side;banner.innerHTML=icon(def.icon)+'<b>'+def.name+'</b>';
+      // Timer callbacks may arrive late on busy devices; never overlap action callouts.
+      arena.querySelectorAll('.watch-skill-flare').forEach(node=>node.remove());
+      arena.append(banner);nodes.push(banner);later(()=>banner.remove(),650);
+      animate(actors[side],[{filter:'brightness(1)'},{filter:'brightness(1.8) drop-shadow(0 0 14px '+(key==='counter'?'#73eac7':side==='enemy'?'#ff986d':'#ffd67a')+')',offset:.4},{filter:'brightness(1)'}],{duration:700});
+    },at);}
+    skillFlare('player',roll?.skill,lead+100);
+    if(end.enemy>0)skillFlare('enemy',roll?.enemySkill,lead+760);
     function guard(side){
       const ward=actors[side].querySelector('.watch-ward');
       animate(ward,[{opacity:0,transform:'scale(.5)'},{opacity:1,transform:'scale(1.1)',offset:.2},{opacity:.8,transform:'scale(1)',offset:.85},{opacity:0}],{duration:1200,fill:'forwards'});
     }
     for(const side of ['player','enemy'])if(actions[side]==='block')later(()=>guard(side),lead+150);
     function strike(side,at){
-      const target=side==='player'?'enemy':'player',heavy=actions[side]==='heavyStrike';
+      const target=side==='player'?'enemy':'player',charge=side==='enemy'&&roll?.enemySkill==='charge',heavy=actions[side]==='heavyStrike'||(side==='player'&&!!roll?.skill)||charge;
       if(actions[side]==='block')return;
       const dir=side==='player'?1:-1;
       const own=actors[side].getBoundingClientRect(),other=actors[target].getBoundingClientRect();
@@ -63,7 +72,7 @@ const HuntEffects=(()=>{
         arena.dataset.phase=side+'-windup';
         actors[side].dataset.attackAt=String(performance.now());
         actors[side].dataset.attacking='true';
-        const contact=`translate(${dx}px,${dy}px) rotate(${dir*20}deg) scale(${heavy?1.16:1.04})`;
+        const contact=`translate(${dx}px,${dy}px) rotate(${charge?0:dir*20}deg) scale(${charge?1.22:heavy?1.16:1.04})`;
         animate(actors[side],[{transform:'translate(0,0) rotate(0)',easing:'ease-in'},{transform:`translate(${-dx*.16}px,${-dy*.16}px) rotate(${-dir*(heavy?26:14)}deg)`,offset:.30,easing:'cubic-bezier(.15,.8,.2,1)'},{transform:contact,offset:.5},{transform:contact,offset:heavy?.66:.60,easing:'ease-out'},{transform:'translate(0,0) rotate(0)'}],{duration:600});
         later(()=>delete actors[side].dataset.attacking,600);
       },at);
@@ -71,7 +80,7 @@ const HuntEffects=(()=>{
         arena.dataset.phase=side+'-hit';
         const damage=side==='player'?hit.damage:hit.taken;
         updateHealthMeter(meters[target],end[target],start[target],motionEnabled());
-        burst(actors[target],actions[target]==='block'?'guarded':heavy?'heavy':'slash',damage);
+        burst(actors[target],actions[target]==='block'?'guarded':charge?'charge':side==='player'&&roll?.skill==='counter'?'counter':heavy?'heavy':'slash',damage);
         const recoil=`translate(${dir*(heavy?28:16)}px,${-dir*(heavy?16:9)}px)`;
         animate(actors[target],[{transform:'translate(0,0)',filter:'brightness(1)'},{transform:recoil,filter:'brightness(1.9)',offset:.15},{transform:recoil,filter:'brightness(1.3)',offset:.38},{transform:'translate(0,0)',filter:'brightness(1)'}],{duration:360});
         if(heavy)animate(arena,[{transform:'translate(0,0)'},{transform:'translate(-4px,2px)'},{transform:'translate(4px,-2px)'},{transform:'translate(0,0)'}],{duration:160});

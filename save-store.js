@@ -16,6 +16,10 @@ const SaveStore = (() => {
     if (data?.version > 1 || data?._save?.format > 1 || data?.hunting?.version > 1) throw fault("future");
     for (const h of [data?.hunt, data?.lastHunt]) {
       if (h?.diceVersion > 1) throw fault("future");
+      if (h?.skillVersion > 1) throw fault("future");
+      if (h?.skillVersion !== undefined && h.skillVersion !== 1) throw fault("corrupt");
+      if(h?.skillCooldowns!==undefined&&(!object(h.skillCooldowns)||Object.entries(h.skillCooldowns).some(([key,n])=>!['heavyStrike','counter'].includes(key)||!Number.isInteger(n)||n<0||n>(key==='counter'?2:3))))throw fault("corrupt");
+      if(h?.enemySkillState!==undefined&&(!object(h.enemySkillState)||!Number.isInteger(h.enemySkillState.cooldown)||h.enemySkillState.cooldown<0||h.enemySkillState.cooldown>4||![2,3,4].includes(h.enemySkillState.interval)||![2,3,4].includes(h.enemySkillState.power)))throw fault("corrupt");
       if (h?.diceVersion !== undefined && h.diceVersion !== 1) throw fault("corrupt");
       if (h?.lastDice && (!object(h.lastDice) ||
           ![h.lastDice.playerFace, h.lastDice.enemyFace].every(n => Number.isInteger(n) && n >= 1 && n <= 6))) throw fault("corrupt");
