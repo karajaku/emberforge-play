@@ -10,7 +10,7 @@ const Feedback = (() => {
     if (after < before) return "drop";
     return kind === "win" ? "success" : "hold";
   }
-  function play(kind, host, label = "", outcome = "win") {
+  function play(kind, host, label = "", outcome = "win", repeating = false) {
     clear();
     const bounds = document.body.getBoundingClientRect();
     const rect = host?.getBoundingClientRect();
@@ -20,6 +20,7 @@ const Feedback = (() => {
     node = document.createElement("div");
     node.className = "feedback feedback-" + kind;
     node.dataset.outcome = outcome;
+    if (repeating) node.dataset.repeat = "true";
     node.setAttribute("aria-hidden", "true");
     node.style.left = Math.max(bounds.left + 120, Math.min(bounds.right - 120, x)) + "px";
     node.style.top = Math.max(105, Math.min(innerHeight - 130, y)) + "px";

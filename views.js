@@ -199,14 +199,14 @@ function swordOddsTable(level) {
 function forgeView(s) {
   const g = s[gear], weapon = gear === "weapon", page = phonePage("forge");
   const recovery = weapon ? Game.midRecovery(g) : null;
-  const cost = s.enabled[2] && s.charms[2] ? 0 : Game.price(g);
+  const cost = Game.enhancementCost(s, g);
   if (page === "orders") return orderView(s);
   if (page === "craft") return scene("forge", Game.name(s.weapon) + " +" + s.weapon.level, "", "검 제작", "blade" + (Game.bladeStage(s.weapon) || "")) + card("검 제작", patternView(s) + craftEntry(s) ||
     desc("검 +7부터 칼날 연마를 시작할 수 있습니다."), "anvil");
   if (page === "training") {
     const w = s.weapon, recover = Game.midRecovery(w);
     return card("단조 수첩 · 전승 수련", [recover ? recoveryView(s, recover) : "",
-      notebookView(s, s.enabled[2] && s.charms[2] ? 0 : Game.price(w), recover), legacyView(s)].filter(Boolean).join("") ||
+      notebookView(s, Game.enhancementCost(s, w), recover), legacyView(s)].filter(Boolean).join("") ||
       desc("검 +17부터 단조 수첩 · 첫 환생 이후 전승 수련"), "anvil");
   }
   const stat = Game.stats(s), next = Game.stats({ ...s, [gear]: { ...g, level:g.level + 1 } });
@@ -223,7 +223,7 @@ function forgeView(s) {
     (recovery ? go("forge/training", "+" + recovery.target + " 확정 복구 가능 · 수련", "action") : "") +
     (finalChoice ? openBtn("final", icon("sword") + (g.finalTrial ? Breakthrough.methods[g.finalTrial.key].name + " 계속" : "+20 돌파 방식 선택"), "primary") : "") +
     (g.level >= 20 ? go("growth", "초월 · 환생 확인", "primary") : btn("enhance", icon("hammer") +
-      (recovery ? "일반 강화 +15" : finalChoice ? "일반 강화 +20" : "강화하기") + '<small>' + fmt(cost) + ' G</small>', gear, finalChoice || recovery ? "action split" : "primary split", !!g.finalTrial)) +
+      (recovery ? "일반 강화 +15" : finalChoice ? "일반 강화 +20" : "강화하기") + '<small>' + fmt(cost) + ' G<span class="forge-hold-hint">꾹 눌러 연속</span></small>', gear, finalChoice || recovery ? "action split" : "primary split", !!g.finalTrial)) +
     '<div class="actions forge-support">' + openBtn("temper", icon("flame") + (s.heat ? "담금질 +" + s.heat + "%p" : "담금질")) +
     openBtn("guards", icon("shield") + (equipped.length ? "가호 장착됨" : "가호")) +
     '<button class="round" data-open="risk" aria-label="강화 확률과 실패 조건">' + icon("circle-help") + '</button></div></section></div>';

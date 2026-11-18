@@ -141,7 +141,7 @@ function legacyView(s) {
             " · " +
             pct(Game.odds(s, w)) +
             " · " +
-            fmt(s.enabled[2] && s.charms[2] ? 0 : Game.price(w)) +
+            fmt(Game.enhancementCost(s, w)) +
             " G",
           "weapon",
         );

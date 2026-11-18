@@ -311,6 +311,9 @@ const Game = (() => {
   function price(g) {
     return Math.round((80 + 40 * g.level ** 1.8) * (1 + g.grade * 0.5));
   }
+  function enhancementCost(s, g) {
+    return s.enabled[2] && s.charms[2] > 0 ? 0 : price(g);
+  }
   function enhancementChances(s, g, focusBonus = 0) {
     const sword = g === s.weapon ? baseSwordChances(g.level) : null;
     const base = sword?.success ?? armorRates[g.level] ?? 0;
@@ -746,7 +749,7 @@ const Game = (() => {
           return fail("집중 강화에는 +17을 달성한 검과 단서 1개가 필요합니다.");
         const protection = enhancementProtection(s, g);
         const guards = protection.active;
-        const cost = guards[2] ? 0 : price(g);
+        const cost = enhancementCost(s, g);
         if (s.gold < cost) return fail("골드가 부족합니다. 장비 판매 또는 출석 보상을 이용하세요.");
         const chances = enhancementChances(s, g, focused ? book.bonus : 0);
         if (double) g.seal.uses++;
@@ -1495,6 +1498,7 @@ const Game = (() => {
     price,
     odds,
     enhancementChances,
+    enhancementCost,
     baseSwordChances,
     nextEnhancementChances,
     perMinute,

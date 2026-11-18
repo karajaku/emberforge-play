@@ -78,6 +78,7 @@ function startAutoHunt(rank) {
   render(); repeatHunting.refresh();
 }
 function failSave(error) {
+  cancelForgePress();
   HuntEffects.cancel();
   HuntWatch.stop('', false);
   repeatHunting.stop(error.code === "conflict" ? "저장 충돌" : "저장 실패");
@@ -253,6 +254,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
   // Capture the request before queueing: rapid clicks share one start sequence.
   if (action === "huntStart" && typeof arg !== "object" && state)
     arg = { rank: arg, request: state.hunting.serial + 1 };
+  const heldEnhance = action === "enhance" && !!automaticGuard;
   return locked(() => {
     if (action === "huntStart" && !repeatGuard && repeatHunting.active) return;
     if (!repeatGuard && action === "openChest" && repeatHunting.active) {
@@ -314,6 +316,9 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
       gearBefore, state[arg === "armor" ? "armor" : "weapon"].level,
       state.breaks > breaksBefore, result.kind,
     ) : null;
+    const retryOutcome = heldEnhance && (forgeOutcome === "hold" || forgeOutcome === "drop");
+    const shortOfGold = retryOutcome && state.gold < Game.enhancementCost(state, state[arg]);
+    const repeatStrike = retryOutcome && !shortOfGold;
     if (result.ok && forgeAction) {
       animationStart = performance.now();
       navigator.vibrate?.(result.kind === "win" ? 18 : 36);
@@ -365,7 +370,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
       } else if (action === "huntStart" || action === "flee") Impacts.clear();
     }
     if (!repeatGuard && action !== "temperStart" && !(result.ok && ["openChest", "openTowerChests"].includes(action)) && !result.battle && !result.impact && result.message)
-      notify(result.message, forgeOutcome ? "forge-" + forgeOutcome : result.ok ? result.kind : "loss");
+      notify(result.message + (shortOfGold ? " · 골드 부족으로 연속 강화 종료" : ""), forgeOutcome ? "forge-" + forgeOutcome : result.ok ? result.kind : "loss");
     if (result.ok && action !== "temperStart") {
       const stage = document.querySelector("#screen .scene");
       const chest = ["openChest", "openTowerChests"].includes(action);
@@ -377,8 +382,8 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
         const label = action === "temper" ? (state.heat === 5 ? "정밀 타격" : "담금질 완료") :
           state.breaks > breaksBefore ? "장비 파괴" : level > gearBefore ? "+" + level + " 강화 성공" : level < gearBefore ? "+" + level + " · 하락" :
           result.kind === "win" ? "단조 완료" : "+" + level + " · 유지";
-        if (animate) Feedback.play("forge", stage, label, forgeOutcome);
-        sound("forge-" + forgeOutcome, animate ? Feedback.strikeMs / 1000 : 0);
+        if (animate) Feedback.play("forge", stage, label, forgeOutcome, repeatStrike);
+        sound(repeatStrike && forgeOutcome === "hold" ? "forge-repeat-hold" : "forge-" + forgeOutcome, animate ? Feedback.strikeMs / 1000 : 0);
       } else if (chest) {
         if (animate) Feedback.play("chest", document.querySelector(".chest-reveal .chest-art"), "+" + fmt(state.lastChest.gold) + " G");
         sound("chest", animate ? Feedback.chestMs / 1000 : 0);
@@ -393,6 +398,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
     if (result.ok && CharcoalStory.unlocked(state, "home")) autoStory();
     autoCombat.refresh();
     repeatHunting.refresh();
+    return repeatStrike;
   });
 }
 function renderHuntMode() {
@@ -406,6 +412,7 @@ function renderHuntMode() {
   }
 }
 function nav(id) {
+  cancelForgePress();
   Impacts.clear();
   Feedback.clear();
   GameSound.stop();
@@ -695,6 +702,7 @@ function modalData() {
           (gear === "weapon" && Swordcraft.wards(g)
             ? line("검등 보강", Swordcraft.wards(g) + "회 보호")
             : "") +
+          desc("강화를 꾹 누르면 유지·하락 뒤에도 계속 두드립니다. 한 단계 오르거나 장비가 파괴되거나 골드가 부족하면 멈춥니다. 손을 떼면 즉시 중단합니다.") +
           desc("대장간의 네 확률에는 현재 보너스와 보호 효과가 적용됩니다. 하락하면 한 단계 내려가고, 파괴되면 +0 장비를 받습니다.") +
           (gear === "weapon" ? swordOddsTable(g.level) : ""),
       ];
@@ -913,6 +921,7 @@ function modalData() {
   }
 }
 function displayModal() {
+  cancelForgePress();
   const selectedSale = el("saleItem")?.value;
   const [title, html] = modalData();
   document.body.dataset.storyMotion = motionEnabled() ? "on" : "off";
@@ -996,6 +1005,7 @@ function back() {
 }
 window.gameBack = back;
 document.addEventListener("keydown", (e) => {
+  cancelForgePress();
   if (storageError || !ready) return;
   if (!e.repeat) GameMusic.unlock();
   if (e.key === "Escape" && modal) {
@@ -1016,10 +1026,55 @@ document.addEventListener("keydown", (e) => {
     }
   }
 });
+// The forge button is replaced on each render. Capture a long press on its stable host.
+let forgePress = null, consumedForgePress = false;
+function cancelForgePress() {
+  clearTimeout(forgePress?.timer);
+  forgePress = null;
+}
+function beginForgePress(event) {
+  if (!event.isPrimary || event.button !== 0) return;
+  cancelForgePress();
+  consumedForgePress = false;
+  const button = event.target.closest('button[data-act="enhance"]:enabled');
+  if (!button || !ready || storageError || modal) return;
+  const press = { id: event.pointerId, gear: button.dataset.arg, rect: button.getBoundingClientRect() };
+  forgePress = press;
+  const valid = () => forgePress === press && !document.hidden && !modal && !storageError &&
+    !restarting && current() === "forge" && phonePage("forge") === "work" && gear === press.gear;
+  async function strike() {
+    // Check inside the save lock too. The player can release while another tab holds it.
+    const again = await act("enhance", press.gear, undefined, () => valid() ? "enhance" : null);
+    if (again && valid()) press.timer = setTimeout(strike, 920);
+    else if (forgePress === press) cancelForgePress();
+  }
+  press.timer = setTimeout(() => {
+    if (!valid()) return;
+    consumedForgePress = true;
+    el("screen").setPointerCapture(press.id);
+    strike();
+  }, 420);
+}
+document.addEventListener("pointermove", event => {
+  if (forgePress?.id !== event.pointerId) return;
+  const { left, right, top, bottom } = forgePress.rect;
+  if (event.clientX < left || event.clientX > right || event.clientY < top || event.clientY > bottom)
+    cancelForgePress();
+});
+for (const type of ["pointerup", "pointercancel", "lostpointercapture"])
+  document.addEventListener(type, event => {
+    if (forgePress?.id === event.pointerId && (type !== "lostpointercapture" || event.target === el("screen")))
+      cancelForgePress();
+  });
+addEventListener("blur", cancelForgePress);
+document.addEventListener("contextmenu", event => {
+  if (forgePress || event.target.closest('[data-act="enhance"]')) event.preventDefault();
+});
 let cutPress = null;
 document.addEventListener("pointerdown", (e) => {
   if (prefs.sound) GameSound.unlock();
   GameMusic.unlock();
+  beginForgePress(e);
   const button = e.target.closest("[data-act=finalMove]");
   const needle = el("finalNeedle");
   cutPress = button && needle ? { button, time: needle.frameAt || Date.now() } : null;
@@ -1030,6 +1085,7 @@ document.addEventListener("pointercancel", () => {
 document.addEventListener("click", (e) => {
   if (prefs.sound) GameSound.unlock();
   GameMusic.unlock();
+  if (consumedForgePress && e.detail > 0 && (e.target === el("screen") || e.target.closest('[data-act="enhance"]'))) return;
   const press = cutPress;
   cutPress = null;
   if (e.target === el("shade")) {
@@ -1128,6 +1184,7 @@ document.addEventListener("input", (e) => {
   try { localStorage.setItem(settingsKey, JSON.stringify(prefs)); } catch {}
 });
 addEventListener("hashchange", () => {
+  cancelForgePress();
   Impacts.clear();
   Feedback.clear();
   GameSound.stop();
@@ -1177,6 +1234,7 @@ document.addEventListener("visibilitychange", () => {
   document.body.dataset.visibility = document.hidden ? "hidden" : "visible";
   syncMusic();
   if (document.hidden) {
+    cancelForgePress();
     repeatHunting.stop("화면 숨김");
     autoCombat.stop();
     renderHuntMode();
@@ -1189,6 +1247,7 @@ document.addEventListener("visibilitychange", () => {
   tickTime = Date.now();
 });
 addEventListener("pagehide", () => {
+  cancelForgePress();
   repeatHunting.stop("페이지 종료");
   autoCombat.stop();
   renderHuntMode();

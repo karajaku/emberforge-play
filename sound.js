@@ -70,6 +70,8 @@ const GameSound = (() => {
         if (kind === "forge-success" || kind === "forge-win") {
           hit(at, 1.15, .85);
           [587, 784, 1175, 1568].forEach((hz, i) => tone(hz, at + .12 + i * .08, .38, .055));
+        } else if (kind === "forge-repeat-hold") {
+          hit(at, .93, .58);
         } else if (kind === "forge-hold" || kind === "forge-info") {
           hit(at, .85, .45);
           [660, 660].forEach((hz, i) => tone(hz, at + .12 + i * .18, .16, .055));

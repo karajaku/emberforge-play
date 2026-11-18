@@ -24,6 +24,8 @@
 .forge-control-layout .forge-strike b { font-size:25px; line-height:1.2; }
 .forge-control-layout .forge-strike:not([data-act="enhance"]) b { font-size:18px; line-height:1.3; }
 .forge-control-layout .forge-actions--secondary { grid-template-columns:1fr 1fr; }
+[data-act="enhance"] { touch-action: manipulation; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.forge-hold-hint { display: block; font-size: 11px; font-weight: 500; }
 .forge-control-layout .forge-strike small { font-size:15px; font-weight:800; }
 .forge-control-layout .forge-strike:hover:enabled { filter:brightness(1.12); }
 .forge-control-layout .forge-strike:active:enabled { transform:translateY(4px); box-shadow:0 1px 0 #573618,inset 0 0 0 4px #633b2055; }
