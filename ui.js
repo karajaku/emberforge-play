@@ -1177,14 +1177,15 @@ function animate(now) {
         im = images[id];
       if (!im?.naturalWidth) continue;
       const equipment = id.startsWith("blade") || id === "cuirass",
-        delta = now - animationStart;
+        actor = canvas.closest('.watch-actor'),
+        delta = now - (actor ? Number(actor.dataset.attackAt ?? -1e6) : animationStart);
       let index = 0;
       if (motionEnabled()) {
         if (equipment)
           index =
             delta >= 0 && delta < 480 ? 6 + Math.floor(delta / 80) : Math.floor(now / 160) % 6;
-        else if (id === "boar" && now - huntStart < 360)
-          index = 4 + (Math.floor((now - huntStart) / 90) % 4);
+        else if (id === "boar" && (actor ? delta : now - huntStart) < 360)
+          index = 4 + (Math.floor((actor ? delta : now - huntStart) / 90) % 4);
         else if (
           id === "sentinel" &&
           modal === "craft" &&

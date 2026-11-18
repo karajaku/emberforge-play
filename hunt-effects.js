@@ -7,6 +7,7 @@ const HuntEffects=(()=>{
     animations.forEach(a=>a.cancel());animations=[];nodes.forEach(n=>n.remove());nodes=[];
     document.querySelector('.watch-arena')?.removeAttribute('data-phase');
     document.querySelectorAll('.watch-roll').forEach(n=>n.classList.remove('rolling','waiting','chosen'));
+    document.querySelectorAll('.watch-actor').forEach(n=>delete n.dataset.attackAt);
     if(resolve){GameSound.stop();const done=resolve;resolve=null;done();}
   }
   const later=(fn,ms)=>timers.push(setTimeout(fn,ms));
@@ -60,6 +61,7 @@ const HuntEffects=(()=>{
       const dx=(other.left+other.width/2-own.left-own.width/2)*.65,dy=(other.top+other.height/2-own.top-own.height/2)*.65;
       later(()=>{
         arena.dataset.phase=side+'-windup';
+        actors[side].dataset.attackAt=String(performance.now());
         animate(actors[side],[{transform:'translate(0,0) rotate(0)'},{transform:`translate(${-dx*.16}px,${-dy*.16}px) rotate(${-dir*(heavy?26:14)}deg)`,offset:.32},{transform:`translate(${dx}px,${dy}px) rotate(${dir*20}deg) scale(${heavy?1.16:1.04})`,offset:.5},{transform:`translate(${dx*.75}px,${dy*.75}px) rotate(${dir*8}deg)`,offset:.65},{transform:'translate(0,0) rotate(0)'}],{duration:600,easing:'ease-in-out'});
       },at);
       later(()=>{
