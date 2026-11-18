@@ -1,8 +1,8 @@
 .watch-view { display:flex;flex-direction:column;flex:1!important;gap:12px;min-height:0; }
 .watch-stage { text-align:center;color:#e7d4a5;letter-spacing:3px;padding:8px;font-size:13px; }
 .watch-stage b { font-size:24px; }
-.ui-game .watch-arena { display:flex;gap:14px;align-items:stretch;flex:1;min-height:280px;padding:0; }
-.watch-fighter { min-width:0;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px; }
+.ui-game .watch-arena { position:relative;display:block;flex:1;min-height:360px;padding:0;isolation:isolate; }
+.watch-fighter { display:contents; }
 .ui-game .watch-fighter .hp-meter { width:100%;padding:6px;background:#1e332be8;border:1px solid #8d815a;color:#eee0bf; }
 .watch-fighter .hp-name { overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:11px; }
 .watch-fighter .hp-count { font-size:11px; }.watch-fighter .hp-count small { display:none; }
@@ -12,17 +12,41 @@
 .enemy .watch-die { background:#c8aaa0;border-color:#e9c5b0; }.enemy .watch-die .pip { background:#652f2b; }
 .watch-roll { display:grid;justify-items:center;gap:13px; }
 .watch-roll>span { display:flex;align-items:center;gap:5px;color:#eee0c1;font-size:13px; }.watch-roll svg { width:18px;height:18px; }
-body[data-motion="on"] .watch-roll.rolling .watch-die { animation:watch-roll .16s linear infinite; }
-@keyframes watch-roll { 0%{transform:translateY(0) rotate(-14deg)}50%{transform:translateY(-9px) rotate(15deg)}100%{transform:translateY(0) rotate(-14deg)} }
+body[data-motion="on"] .watch-roll.rolling .watch-die { animation:watch-roll .3s linear infinite; }
+@keyframes watch-roll { 0%{transform:perspective(300px) translateY(0) rotate(-30deg) rotateY(0)}50%{transform:perspective(300px) translateY(-26px) rotate(140deg) rotateY(55deg)}100%{transform:perspective(300px) translateY(0) rotate(330deg) rotateY(0)} }
 .watch-reward { min-height:80px;display:grid;align-content:center;justify-items:center;gap:8px;color:#eaddb6;text-align:center; }
 .watch-reward strong { display:flex;align-items:center;gap:8px;font-size:25px;color:#f8d58b; }.watch-reward svg { width:26px;height:26px; }
 .watch-start { margin-bottom:8px; }
 .watch-loot { display:flex;gap:12px;justify-content:center; }.watch-loot span { display:flex;align-items:center;gap:3px;font-size:13px; }.watch-loot svg { width:18px;height:18px; }
-.watch-fighter { --watch-lunge:12px; }.watch-fighter.enemy { --watch-lunge:-12px; }
-body[data-motion="on"] .watch-fighter:is([data-action="strike"],[data-action="heavyStrike"]) canvas { animation:watch-hit .3s ease-out; }
-body[data-motion="on"] .watch-fighter[data-action="block"] canvas { animation:watch-guard .4s ease-out; }
-.watch-view:has(.rolling) .watch-fighter canvas { animation:none!important; }
-@keyframes watch-hit { 40%{transform:translateX(var(--watch-lunge));filter:brightness(1.4)} }
-@keyframes watch-guard { 50%{filter:drop-shadow(0 0 12px #93e2c6) brightness(1.4)} }
+.watch-actor { position:absolute;isolation:isolate;transform-origin:50% 75%;z-index:2; }
+.player .watch-actor { left:2%;bottom:19%;width:49%;max-width:190px; }
+.enemy .watch-actor { right:3%;top:13%;width:40%;max-width:154px; }
+.watch-actor::before { content:'';position:absolute;left:3%;right:3%;bottom:0;height:18%;border-radius:50%;background:#112c1b99;box-shadow:0 0 0 2px #b2bf7655,inset 0 0 12px #b2bf7633;z-index:-1; }
+.ui-game .watch-fighter .hp-meter { position:absolute;width:48%;z-index:3; }
+.enemy .hp-meter { left:0;top:3%; }.player .hp-meter { right:0;bottom:6%; }
+.watch-roll { position:absolute;z-index:5;gap:8px; }
+.player .watch-roll { left:12%;bottom:0; }.enemy .watch-roll { right:12%;top:45%; }
+.watch-roll.waiting { opacity:.35; }.watch-roll.waiting .pip { visibility:hidden; }
+.watch-roll.rolling { z-index:7;filter:drop-shadow(0 0 10px #ffe49d); }
+.watch-roll.chosen .watch-die { border-color:#fff5cd; }
+.watch-arena:is([data-phase="player-roll"],[data-phase="player-windup"]) .player .hp-meter,
+.watch-arena:is([data-phase="enemy-roll"],[data-phase="enemy-windup"]) .enemy .hp-meter { border-color:#ffdf8e;box-shadow:0 0 12px #ffe49d77; }
+.watch-actor[data-defeated="true"] { opacity:0; }
+.watch-actor canvas { display:block; }
+.watch-ward { position:absolute;inset:10% 8%;display:grid;place-items:center;border:3px solid #a7efd5;border-radius:50%;background:#4bcfa32b;box-shadow:0 0 22px #6ddfc9,inset 0 0 22px #6ddfc9;opacity:0;pointer-events:none; }
+.watch-ward svg { width:56px;height:56px;color:#e6fff4;filter:drop-shadow(0 0 5px #4ad7ba); }
+.hunt-burst { position:absolute;inset:0;z-index:4;pointer-events:none;color:#fff3be; }
+.hunt-cut { position:absolute;left:0;top:44%;width:100%;height:8px;background:#f5fff5;box-shadow:0 0 12px #b6ffdb,0 8px #66d7aa;border-radius:50%;transform:rotate(-42deg);animation:hunt-cut .34s ease-out both; }
+.heavy .hunt-cut { height:14px;box-shadow:0 0 20px #ffdf7d,0 12px #ffb13a; }
+.guarded .hunt-cut { background:#96ecd9;box-shadow:0 0 15px #8aefee;transform:rotate(42deg); }
+.hunt-chip { position:absolute;left:50%;top:50%;width:6px;height:6px;background:#ffefb5;box-shadow:0 0 6px #fff0bc;animation:hunt-chip .48s ease-out both; }
+.guarded .hunt-chip { background:#9effe6; }
+.hunt-burst b { position:absolute;left:0;top:12%;width:100%;text-align:center;font-size:30px;font-weight:900;color:#fff8d8;text-shadow:2px 2px #332218,-2px -2px #332218;animation:hunt-number .7s ease-out both; }
+.heavy b { color:#ffda79;font-size:36px; }.hunt-burst b svg { width:35px;height:35px; }
+@keyframes hunt-cut { from{opacity:0;scale:.25}25%{opacity:1;scale:1.15}to{opacity:0;scale:1.3} }
+@keyframes hunt-chip { from{transform:translate(0,0);opacity:1}to{transform:translate(var(--dx),var(--dy)) rotate(180deg);opacity:0} }
+@keyframes hunt-number { from{opacity:0;transform:translateY(10px) scale(.6)}20%{opacity:1;transform:translateY(-4px) scale(1.25)}70%{opacity:1}to{opacity:0;transform:translateY(-40px) scale(1)} }
+body[data-motion="on"] .watch-reward:has(strong) { animation:hunt-reward .55s cubic-bezier(.2,1.5,.4,1) both; }
+@keyframes hunt-reward { from{transform:translateY(20px) scale(.75);opacity:0;filter:brightness(1.8)}to{transform:translateY(0) scale(1);opacity:1;filter:brightness(1)} }
 .ui-game[data-place="forest"][data-page="hunt"] .watch-view .action { flex:none; }
-@media(max-height:760px){.ui-game .watch-arena{min-height:220px}.watch-fighter{gap:10px}.watch-die{width:54px;height:54px;padding:8px}.watch-reward{min-height:60px}}
+@media(max-height:760px){.ui-game .watch-arena{min-height:310px}.player .watch-actor{width:43%;bottom:23%}.enemy .watch-actor{width:35%;top:16%}.watch-die{width:48px;height:48px;padding:7px;gap:4px}.watch-reward{min-height:48px}.watch-view{gap:6px}.watch-roll>span{font-size:12px}}

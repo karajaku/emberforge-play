@@ -83,6 +83,7 @@ const GameSound = (() => {
         } else hit(at);
       } else if (kind === "chest") { hit(at, 0.55, 0.35); coins(at + .035, 17); }
       else if (kind === "coins") coins(at, 8);
+      else if (kind === "dice") { [0,.09,.21,.36].forEach(dt=>hit(at+dt,.22,.18)); tone(680,at+.56,.07,.025); }
       else if (["block", "parry", "counter", "mine"].includes(kind)) hit(at, kind === "parry" ? 1.35 : .8, .65);
       else if (kind === "slash") {
         const source = context.createBufferSource(), filter = context.createBiquadFilter();

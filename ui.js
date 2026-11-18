@@ -78,6 +78,7 @@ function startAutoHunt(rank) {
   render(); repeatHunting.refresh();
 }
 function failSave(error) {
+  HuntEffects.cancel();
   HuntWatch.stop('', false);
   repeatHunting.stop(error.code === "conflict" ? "저장 충돌" : "저장 실패");
   autoCombat.stop();
@@ -245,6 +246,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
     const finalKey = action === "finalMove" && state.weapon.finalTrial?.key;
     const strong = sparring && Swordcraft.heavy(state.weapon.work);
     const beforeHunt = state.hunt;
+    const beforeHuntHealth = state.hunt && {...state.hunt};
     const result = Game.perform(state, action, arg, undefined, undefined, pressedAt);
     repeatHunting.stage(action, result, beforeHunt, arg);
     save();
@@ -297,10 +299,12 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
     render();
     if (modal) displayModal();
     else closeModal(false);
-    if (result.impact) showHuntDamage(document.querySelector("#screen .combat-hud"), result.impact, motionEnabled());
+    const stagedHit = result.impact && beforeHuntHealth && HuntEffects.play(result.impact, beforeHuntHealth,
+      beforeHuntHealth.diceVersion === 1 ? (state.hunt?.lastDice || state.lastHunt?.lastDice) : null);
+    if (result.impact && !stagedHit) showHuntDamage(document.querySelector("#screen .combat-hud"), result.impact, motionEnabled());
     if (result.ok && motionEnabled()) {
       const stage = document.querySelector("#screen .scene");
-      if (result.impact) {
+      if (result.impact && !stagedHit) {
         const hit = result.impact;
         const label = hit.damage
           ? (hit.kind === "counter" ? "반격 " : "") + "−" + fmt(hit.damage)
@@ -346,7 +350,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
       } else if (ascension) {
         if (animate) Feedback.play("ascend", modal ? el("modalBody") : stage, action === "rebirth" ? "환생 완료" : "성장 완료");
         sound("ascend");
-      } else sound(result.impact?.kind || (sparring ? (arg === "parry" ? "parry" : "slash") : action === "mine" ? "mine" : result.kind));
+      } else if (!stagedHit) sound(result.impact?.kind || (sparring ? (arg === "parry" ? "parry" : "slash") : action === "mine" ? "mine" : result.kind));
     }
     if (result.ok && CharcoalStory.unlocked(state, "home")) autoStory();
     autoCombat.refresh();
@@ -376,6 +380,7 @@ function nav(id) {
 }
 function render() {
   if (!state) return;
+  HuntEffects.cancel();
   HuntWatch.beforeRender();
   const gridScroll = document.querySelector('.ui-gear-grid')?.scrollTop;
   const id = current(),
