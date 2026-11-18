@@ -415,33 +415,28 @@ function huntingWalletContent(s) {
     desc("실제 구매 미지원 · 기기 시각과 저장 기준. 배치 수익은 전투와 별도로 쌓이며 사냥권을 쓰지 않습니다.") + '</details></div>';
 }
 function huntModeControls(s) {
-  const mode = typeof autoCombat === "undefined" ? "manual" : autoCombat.mode;
-  const repeat = typeof repeatHunting === "undefined" ? null : repeatHunting.summary;
+  const r = typeof repeatHunting === "undefined" ? null : repeatHunting.summary;
+  const active = !!r?.active;
   return '<div class="hunt-mode" data-hunt-mode-controls><div class="segment" role="group" aria-label="전투 방식">' +
-    [["manual", "수동"], ["auto", "자동"]].map(([key, label]) => '<button data-hunt-mode="' + key +
-      '" aria-pressed="' + (mode === key) + '" class="' + (mode === key ? "active" : "") + '">' + label + '</button>').join("") +
-    '</div><small>' + (s.hunt ? (mode === "auto" ? (repeat?.active ? "반복 " + repeat.started + "/" + repeat.total + "판 자동 · " + (repeat.stopping ? "이번 판 후 중단" : "행동 시 수동 전환") : "자동 진행 · 행동 버튼을 누르면 수동 전환") : "수동 대기 · 돌아온 전투도 여기서 이어가세요") :
-      "선택 후 사냥 시작 · 자동도 한 판만 진행") + '</small></div>';
+    [["manual", "수동"], ["auto", "자동 사냥"]].map(([key, label]) => '<button data-hunt-mode="' + key +
+      '" aria-pressed="' + (active === (key === "auto")) + '" class="' + (active === (key === "auto") ? "active" : "") + '">' + label + '</button>').join("") +
+    (active ? '<button data-repeat="stop"' + (r.stopping ? ' disabled' : '') + '>' + (r.stopping ? '중단 예정' : '이번 판 후 중단') + '</button>' : '') +
+    '</div><small>무료 우선 · 구매분 포함 · 소진까지</small></div>';
 }
 function repeatPanel(s) {
   const r = typeof repeatHunting === "undefined" ? null : repeatHunting.summary;
-  let body = "";
-  if (r) body += '<div class="repeat-status"><b>' + r.rank + '구역 반복 · ' +
-    (r.active ? (r.battle ? r.started + '/' + r.total + '판 진행' : '다음 입장 대기 · ' + r.started + '/' + r.total + '판') : '중단 · ' + r.reason) + '</b>' +
-    '<small>완료 ' + r.completed + ' · 승리 ' + r.wins + ' · 상자 ' + r.chests +
-    '개 · 실제 무료 ' + r.usedFree + ' / 구매 ' + r.usedPurchased + '개</small>' +
-    '<small>승인 총 ' + r.total + '판 · 구매 최대 ' + r.purchased + '개 · 남은 입장 ' + (r.total - r.started) + '판</small>' +
-    (r.unconfirmed ? '<small>저장 미확정 ' + (r.unconfirmed === 'start' ? '입장·차감' : '전투 결과·상자') + '은 위 확정 집계에서 제외됩니다. 동일 후보 재시도 성공 후 반영됩니다.</small>' : '') +
-    (r.active ? '<button class="action" data-repeat="stop"' + (r.stopping ? ' disabled' : '') + '>' + (r.stopping ? '이번 전투 후 중단 예정' : '이번 전투 후 중단') + '</button>' : '') + '</div>';
-  if (!r?.active && !s.hunt && s.huntBest) body += '<details class="repeat-setup"><summary>반복 사냥 · 기본 꺼짐</summary>' +
-    '<label>승리한 구역 <select id="repeatRank">' + Array.from({ length: Math.min(60, s.huntBest) }, (_, i) => '<option value="' + (i + 1) + '">' + (i + 1) + '구역</option>').join('') + '</select></label>' +
-    '<label>반복 횟수 <select id="repeatCount"><option value="5">5판</option><option value="10">10판</option></select></label>' +
-    '<button class="action" data-repeat="preview">횟수·사용량 확인</button></details>';
-  return '<section class="repeat-panel" data-repeat-panel>' + body + '</section>';
+  if (!r) return '<section class="repeat-panel" data-repeat-panel></section>';
+  return '<section class="repeat-panel" data-repeat-panel><div class="repeat-status"><b>' + r.rank + '구역 · ' +
+    (r.active ? (r.stopping ? '이번 판 후 중단' : r.chest ? '보물 수령 중' : r.battle ? '자동 사냥 중' : '다음 사냥 준비') : r.reason) + '</b>' +
+    '<small>⚔ ' + r.wins + '승 · 🎟 무료 ' + r.usedFree + ' / 구매 ' + r.usedPurchased + ' · 🎁 ' + r.chests + '</small>' +
+    '<small>🪙 ' + fmt(r.gold) + ' · 조각 ' + r.shards + ' · 주문서 ' + r.scrolls + ' · 부적 ' + r.charms + '</small>' +
+    (r.unconfirmed ? '<small>저장 미확정 · 위 숫자는 저장 완료분</small>' : '') +
+    '</div></section>';
 }
 function forestView(s, health) {
   const page = phonePage("forest");
   if (page === "field") return fieldView(s);
+  const automatic = typeof repeatHunting !== "undefined" && repeatHunting.active;
   const h = s.hunt,
     next = Math.min(60, (s.huntBest || 0) + 1),
     pendingChest = s.chests?.find(c => c.id === s.lastHunt?.chestId);
@@ -456,18 +451,23 @@ function forestView(s, health) {
       repeatPanel(s) + '<div class="hunt-feedback">' + desc(h.last) + '</div>' +
       desc("이어하기 추가 차감 없음 · 퇴각 시 사냥권 반환 없음") +
       '<details class="hunt-enemy-help"><summary>적 특성과 전투 안내</summary>' + forestEncounter(h) +
-      desc("자동은 약 1초마다 행동합니다. 별도 승인한 반복 사냥만 다음 판에 입장합니다. 화면을 숨기거나 종료하면 수동 대기로 돌아옵니다.") + '</details>' +
+      desc("자동은 약 1초마다 행동합니다. 승리 보물을 수령하고 같은 구역을 사냥권 소진까지 반복합니다. 화면을 숨기거나 종료하면 수동 대기로 돌아옵니다.") + '</details>' +
       (page ? "" : storyChat(s, "forest"))
+    : automatic ? '<div class="battle-controls">' + hud + huntModeControls(s) + '</div>'
     : huntResult(s.lastHunt, s.chests) + (page ? "" : storyChat(s, "forest")) +
       (pendingChest ? "" : desc(
         next === 1 ? "돌진을 방어하면 다음 베기가 2.5배 반격이 됩니다. 반격을 맞히고 이기면 골드가 25% 늘어납니다." :
           "기세 2칸을 모으면 강공을 쓸 수 있습니다. 적을 먼저 쓰러뜨리면 피해를 받지 않고, 돌진을 막고 반격하면 골드를 25% 더 받습니다.",
       )) +
       (pendingChest ? "" : forestEncounter(next, true)) +
-      '<div class="battle-controls">' + hud + (pendingChest ? "" : huntModeControls(s)) + (pendingChest
-        ? btn("openChest", icon("gift") + "보물 획득", pendingChest.id, "primary")
-        : btn("huntStart", icon("swords") + next + "구역 사냥 · 사냥권 1", next, "primary")) + "</div>" +
+      '<div class="battle-controls">' + hud + (pendingChest || (typeof repeatHunting !== "undefined" && repeatHunting.active) ? huntModeControls(s) : "") + (pendingChest
+        ? (typeof repeatHunting !== "undefined" && repeatHunting.active ? "" : btn("openChest", icon("gift") + "보물 획득", pendingChest.id, "primary"))
+        : btn("huntStart", icon("swords") + next + "구역 수동 · 사냥권 1", next, "primary")) + "</div>" +
       (!pendingChest && s.huntBest ? btn("huntStart", "이전 구역 재도전 · 사냥권 1", Math.min(s.huntBest, 60), "mini") : "");
+  const autoSetup = !h && !pendingChest && !(typeof repeatHunting !== "undefined" && repeatHunting.active)
+    ? '<div class="auto-start"><label for="repeatRank">구역</label><select id="repeatRank">' +
+      Array.from({ length: next }, (_, i) => '<option value="' + (i + 1) + '"' + (i + 1 === (s.lastHunt?.rank || next) ? ' selected' : '') + '>' + (i + 1) + '구역</option>').join('') +
+      '</select><button class="primary" data-repeat="start"' + (Game.huntingStatus(s).free + Game.huntingStatus(s).purchased ? '' : ' disabled') + '>자동 사냥 시작</button><small>무료 우선 · 구매분 포함 · 소진까지</small></div>' : '';
   const task = Game.routeTask(s);
   const training =
     !h && !pendingChest && s.weapon.route?.trait === "edge" && task?.open
@@ -478,7 +478,7 @@ function forestView(s, health) {
           : ""
       : "";
   const wallet = '<section class="card" id="huntingWallet">' + huntingWalletContent(s) + '</section>';
-  return '<div class="stack hunt-stack">' + (h ? fight + wallet : wallet + repeatPanel(s) + fight) + training + "</div>" + (page ? "" : section("배치 수익") + fieldView(s));
+  return '<div class="stack hunt-stack">' + (h ? fight + wallet : autoSetup + repeatPanel(s) + fight + wallet) + training + "</div>" + (page ? "" : section("배치 수익") + fieldView(s));
 }
 function chestOrigin(c) {
   return c.source === "tower" ? "무한의 탑 " + c.rank + (c.rankEnd && c.rankEnd !== c.rank ? "~" + c.rankEnd : "") + "층" : "이끼숲 " + c.rank + "구역";

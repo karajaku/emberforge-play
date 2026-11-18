@@ -59,9 +59,14 @@ const autoCombat = AutoCombat.create({
 const repeatHunting = RepeatHunting.create({
   game: Game, state: () => state,
   allowed: () => ready && !storageError && !restarting && !document.hidden,
-  execute: guard => act("huntStart", "", undefined, undefined, guard),
+  execute: guard => act(null, "", undefined, undefined, guard),
 });
-let repeatQuote = null;
+function startAutoHunt(rank) {
+  if (!repeatHunting.start(rank)) return;
+  if (state.hunt) autoCombat.select("auto");
+  else autoCombat.stop();
+  render(); repeatHunting.refresh();
+}
 function failSave(error) {
   repeatHunting.stop(error.code === "conflict" ? "저장 충돌" : "저장 실패");
   autoCombat.stop();
@@ -118,7 +123,7 @@ function showSaveGuard() {
     : "진행 변경과 자동 진행을 멈췄습니다. 임시 새 게임으로 전환하지 않습니다.";
   el("saveGuardTime").textContent = "마지막 정상 저장: " + time(store.lastSavedAt);
   if (repeatHunting.summary?.unconfirmed) el("saveGuardPending").textContent +=
-    " 반복 요약은 정상 저장된 소비·결과만 집계합니다. 미확정 입장·결과는 같은 후보의 저장 재시도 성공 후 한 번 반영하며 반복은 재개하지 않습니다.";
+    " 반복 요약은 정상 저장된 소비·결과만 집계합니다. 미확정 입장·결과·보물은 같은 후보의 저장 재시도 성공 후 한 번 반영하며 반복은 재개하지 않습니다.";
   el("saveBackupInfo").textContent = backup ? "직전 정상본: " + time(backup._save?.savedAt || backup.last) +
     " · 무기 +" + backup.weapon.level + " · " + fmt(backup.gold) + " G · 환생 " + backup.rebirths + "회" : "복구 가능한 직전 정상본 없음";
   el("saveRetry").hidden = storageError === "future" || storageError === "conflict";
@@ -179,6 +184,9 @@ function syncMusic() {
     { enabled: prefs.music, volume: prefs.musicVolume, hidden: document.hidden });
 }
 function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
+  if (!repeatGuard && action === "openChest" && repeatHunting.active) {
+    repeatHunting.stop("수동 전환"); autoCombat.stop();
+  }
   const manualBattle = !automaticGuard && ["strike", "heavyStrike", "block", "flee"].includes(action);
   const manualId = manualBattle ? state?.hunt?.id : null;
   if (manualBattle) {
@@ -187,13 +195,16 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
     renderHuntMode();
   }
   if (action === "huntStart" && !repeatGuard && repeatHunting.active) {
-    notify("반복 사냥을 먼저 중단해 주세요."); return;
+    notify("자동 사냥을 먼저 중단해 주세요."); return;
   }
   // Capture the request before queueing: rapid clicks share one start sequence.
   if (action === "huntStart" && typeof arg !== "object" && state)
     arg = { rank: arg, request: state.hunting.serial + 1 };
   return locked(() => {
     if (action === "huntStart" && !repeatGuard && repeatHunting.active) return;
+    if (!repeatGuard && action === "openChest" && repeatHunting.active) {
+      repeatHunting.stop("수동 전환"); autoCombat.stop();
+    }
     if (automaticGuard) {
       action = automaticGuard();
       if (!action) return;
@@ -206,8 +217,9 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
     }
     sync();
     if (repeatGuard) {
-      arg = repeatGuard();
-      if (!arg) { render(); return; }
+      const next = repeatGuard();
+      if (!next) { render(); return; }
+      action = next.action; arg = next.arg;
     }
     Feedback.clear();
     GameSound.stop();
@@ -219,11 +231,11 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
     const strong = sparring && Swordcraft.heavy(state.weapon.work);
     const beforeHunt = state.hunt;
     const result = Game.perform(state, action, arg, undefined, undefined, pressedAt);
-    repeatHunting.stage(action, result, beforeHunt);
+    repeatHunting.stage(action, result, beforeHunt, arg);
     save();
     if (repeatGuard) {
-      if (result.ok && repeatHunting.active) autoCombat.select("auto");
-      else repeatHunting.stop("입장 불가");
+      if (!result.ok) repeatHunting.stop(action === "openChest" ? "보물 수령 실패" : "입장 불가");
+      else if (action === "huntStart" && repeatHunting.active) autoCombat.select("auto");
     }
     // A completed/retreated battle must clear intent before rendering the result.
     autoCombat.refresh(false);
@@ -253,7 +265,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
     }
     if (result.ok && action === "temperStart") modal = "temper";
     if (result.ok && action === "craftStart") modal = "craft";
-    if (result.ok && ["openChest", "openTowerChests"].includes(action)) modal = "treasure";
+    if (!repeatGuard && result.ok && ["openChest", "openTowerChests"].includes(action)) modal = "treasure";
     if (result.ok && action === "stopTower") modal = "towerRun";
     if (result.ok && ["craftFinish", "autoMine"].includes(action)) modal = "";
     if (result.ok && action === "finalStart") modal = "final";
@@ -295,7 +307,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
         Impacts.play(document.querySelector("#modalBody .modal-scene"), kind);
       } else if (action === "huntStart" || action === "flee") Impacts.clear();
     }
-    if (action !== "temperStart" && !(result.ok && ["openChest", "openTowerChests"].includes(action)) && !result.battle && !result.impact && result.message)
+    if (!repeatGuard && action !== "temperStart" && !(result.ok && ["openChest", "openTowerChests"].includes(action)) && !result.battle && !result.impact && result.message)
       notify(result.message, forgeOutcome ? "forge-" + forgeOutcome : result.ok ? result.kind : "loss");
     if (result.ok && action !== "temperStart") {
       const stage = document.querySelector("#screen .scene");
@@ -618,16 +630,6 @@ function modalData() {
           (gear === "weapon" ? swordOddsTable(g.level) : ""),
       ];
     }
-    case "repeatConfirm": {
-      const q = repeatQuote;
-      return ["반복 사냥 시작 확인", q ?
-        line("지정 구역", q.rank + "구역 · 이미 승리한 구역") +
-        line("총 판수", q.total + "판" + (q.total < q.requested ? " · 잔량에 맞춰 " + q.requested + "판에서 단축" : "")) +
-        line("무료 예상 사용량", q.free + "개") + line("구매 최대 사용량", q.purchased + "개") +
-        desc("실제 입장마다 1개씩 무료부터 사용합니다. 도중 충전·출석으로 무료 사용은 늘고 구매 사용은 줄 수 있지만 총 판수와 구매 상한은 늘지 않습니다. 상자는 보관함에 쌓이며 자동으로 열지 않습니다.") +
-        desc("패배·수동 전환·숨김·저장 오류 시 중단합니다. 현재 전투 중에는 새 반복을 시작할 수 없습니다.") +
-        '<button class="primary" data-repeat="confirm">위 사용량으로 총 ' + q.total + '판 시작</button>' : desc("설정을 다시 확인하세요.")];
-    }
     case "settings":
       return [
         "환경 설정",
@@ -921,29 +923,19 @@ document.addEventListener("click", (e) => {
   const d = b.dataset;
   if (d.storage) return storageAction(d.storage);
   if (storageError || !ready) return;
-  if (d.repeat === "preview") {
-    const rank = el("repeatRank")?.value, count = el("repeatCount")?.value;
-    return locked(() => {
-      if (repeatHunting.active) return;
-      repeatQuote = repeatHunting.preview(rank, count);
-      if (!repeatQuote) { notify("전투가 끝난 뒤 승리한 구역과 사냥권을 확인하세요.", "loss"); return; }
-      showModal("repeatConfirm");
-    });
+  if (d.repeat === "start") { startAutoHunt(Number(el("repeatRank")?.value)); return; }
+  if (d.repeat === "stop") {
+    repeatHunting.afterBattle();
+    if (!repeatHunting.active) autoCombat.stop();
+    render(); return;
   }
-  if (d.repeat === "confirm") {
-    const q = repeatQuote; repeatQuote = null;
-    return locked(() => {
-      if (modal !== "repeatConfirm" || !repeatHunting.approve(q)) {
-        closeModal(false); notify("상태가 바뀌었습니다. 반복 횟수와 사용량을 다시 확인하세요.", "loss"); return;
-      }
-      autoCombat.stop(); closeModal(false); render(); repeatHunting.refresh();
-    });
-  }
-  if (d.repeat === "stop") { repeatHunting.afterBattle(); renderHuntMode(); return; }
   if (d.huntMode) {
-    if (d.huntMode === "manual") repeatHunting.stop("수동 전환");
-    autoCombat.select(d.huntMode);
-    renderHuntMode();
+    if (d.huntMode === "auto") {
+      const resultRank = state.chests.some(c => c.id === state.lastHunt?.chestId) ? state.lastHunt.rank : null;
+      startAutoHunt(state.hunt?.rank || resultRank || repeatHunting.summary?.rank || state.lastHunt?.rank || Math.min(60, state.huntBest + 1));
+    } else {
+      repeatHunting.stop("수동 전환"); autoCombat.stop(); render();
+    }
     return;
   }
   if ("newGame" in d) return startNewGame();
@@ -1065,6 +1057,8 @@ setInterval(() => {
   accrue();
   if (el("huntingWallet")) {
     const w = Game.huntingStatus(state);
+    const autoStart = document.querySelector('[data-repeat="start"]');
+    if (autoStart) autoStart.disabled = w.free + w.purchased < 1;
     if (el("huntingWallet").firstElementChild?.dataset.huntingStatus !== huntingWalletKey(state, w))
       el("huntingWallet").innerHTML = huntingWalletContent(state);
     else el("huntingWallet").querySelector("[data-hunting-recharge]").textContent = huntingRechargeText(w);
