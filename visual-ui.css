@@ -152,9 +152,31 @@ body[data-place="forest"] .primary { background:linear-gradient(#99b978,#5c8c59)
 .chest-find { display:flex; align-items:center; width:100%; padding:12px; }
 .chest-reveal { background:radial-gradient(#fff6bd,transparent 65%); }.chest-reveal b { color:#85601f; }
 .chest-loot { color:#66482c; }.chest-loot .line { border-color:#d8bc8b; }
-#noticeSlot { height:0; padding:0; position:relative; }
-#toast,#toast.on { position:absolute; top:7px; left:10px; right:10px; width:auto; height:auto; max-height:110px; border:2px solid #fff5cc; border-radius:16px; background:#fff4d9fa; color:#664726; box-shadow:0 4px 12px #42281655; pointer-events:none; opacity:0; visibility:hidden; transform:translateY(-5px); transition:opacity .2s,transform .2s; }
-#toast.on { opacity:1; visibility:visible; transform:none; }#noticeTitle { color:#8b6327; }#noticeMessage { overflow:hidden; font-size:13px; }#toast.loss { background:#ffe6d9; color:#923f30; }
+#noticeSlot {
+  position: fixed; z-index: 60; top: calc(env(safe-area-inset-top) + 62px);
+  inset-inline: 0; width: min(420px, calc(100% - 24px)); height: auto;
+  padding: 0; margin-inline: auto; pointer-events: none;
+}
+#toast, #toast.on {
+  position: relative; inset: auto; width: 100%; height: auto; min-height: 44px;
+  padding: 8px 14px 13px; border: 2px solid #fff5cc; border-left: 4px solid var(--fx, #c99a4e);
+  border-radius: 14px; background: #fff4d9fa; color: #664726; box-shadow: 0 4px 12px #42281655;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+  pointer-events: none; opacity: 0; visibility: hidden; transform: translateY(calc(-100% - 62px));
+  transition: transform .18s ease-out, opacity .18s ease-out, visibility 0s .18s;
+}
+#toast.on {
+  pointer-events: auto; opacity: 1; visibility: visible;
+  transform: translateY(var(--toast-drag-y, 0px)); transition-delay: 0s;
+}
+#toast.dragging { transition: none; }
+#toast::after {
+  content: ""; position: absolute; bottom: 4px; left: calc(50% - 12px);
+  width: 24px; height: 3px; border-radius: 2px; background: #9e825a85;
+}
+#noticeTitle { color: #8b6327; }
+#noticeMessage { overflow: visible; font-size: 13px; }
+#toast.loss { background: #ffe6d9; color: #923f30; }
 #apprentice:not([hidden]) { background:#fff5dcf0; border:1px solid #fff9e8; border-radius:14px; border-image:none; margin:0 12px 6px; padding:0 8px; gap:4px; min-height:44px; box-shadow:none; }
 #apprentice .lesson-copy { min-height:44px; }#apprentice strong { color:#79582d; font-size:11px; }
 #lesson-action-hint { position:absolute; width:1px;height:1px;overflow:hidden;clip-path:inset(50%); }

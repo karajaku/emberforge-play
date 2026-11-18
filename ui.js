@@ -27,7 +27,6 @@ let gear = "weapon",
   battle = null;
 let huntStart = -1000,
   animationStart = -1000,
-  toastTimer = 0,
   lastFocus = null;
 const allRoutes = ["forge", "world", "bag", "growth", ...Object.keys(zones)];
 const current = () => {
@@ -147,7 +146,7 @@ function showSaveGuard() {
   el("saveReset").hidden = true;
   el("saveReload").textContent = store.pending ? "미저장 진행을 포기하고 최신 저장 읽기" : "최신 저장 다시 읽기";
   el("saveGuard").hidden = false;
-  for (const node of document.querySelectorAll("body > header, body > main, #apprentice, #mobileNav, #shade")) node.inert = true;
+  for (const node of document.querySelectorAll("body > header, body > main, #noticeSlot, #apprentice, #mobileNav, #shade")) node.inert = true;
   el("saveGuardTitle").focus();
 }
 function resumeSaved() {
@@ -179,17 +178,54 @@ function storageAction(action) {
     resumeSaved();
   }, true);
 }
+const toast = el("toast");
+let toastTimer = 0, toastDrag = null;
+
+function scheduleToastDismissal() {
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove("on"), 4500);
+}
+function resetToastDrag() {
+  if (!toastDrag) return;
+  const { id } = toastDrag;
+  toastDrag = null;
+  if (toast.hasPointerCapture(id)) toast.releasePointerCapture(id);
+  toast.classList.remove("dragging");
+  toast.style.removeProperty("--toast-drag-y");
+}
+toast.addEventListener("pointerdown", event => {
+  if (!event.isPrimary || event.button !== 0 || toastDrag || !toast.classList.contains("on")) return;
+  clearTimeout(toastTimer);
+  toastDrag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  toast.setPointerCapture(event.pointerId);
+  toast.classList.add("dragging");
+});
+function trackToastDrag(event) {
+  if (event.pointerId !== toastDrag?.id) return;
+  const rise = toastDrag.y - event.clientY;
+  const tracking = event.type === "pointermove" || event.type === "pointerup";
+  const dismiss = tracking && rise >= 28 && rise > Math.abs(event.clientX - toastDrag.x);
+  if (!dismiss && event.type === "pointermove") {
+    toast.style.setProperty("--toast-drag-y", -Math.max(0, rise) + "px");
+    return;
+  }
+  resetToastDrag();
+  if (dismiss) toast.classList.remove("on");
+  else scheduleToastDismissal();
+}
+for (const type of ["pointermove", "pointerup", "pointercancel", "lostpointercapture"]) {
+  toast.addEventListener(type, trackToastDrag);
+}
 function notify(msg, kind = "info") {
   if (HuntWatch.active && current() === 'forest' && !modal) return;
   if (!msg) return;
-  clearTimeout(toastTimer);
+  resetToastDrag();
   const titles = { "forge-success": "강화 성공", "forge-hold": "강화 유지",
     "forge-drop": "강화 하락", "forge-destroy": "장비 파괴", loss: "주의", win: "획득 · 완료" };
   el("noticeTitle").textContent = titles[kind] || "알림";
   el("noticeMessage").textContent = msg;
-  el("noticeMessage").scrollTop = 0;
-  el("toast").className = "on " + kind;
-  toastTimer = setTimeout(() => el("toast").classList.remove("on"), 4500);
+  toast.className = "on " + kind;
+  scheduleToastDismissal();
 }
 function sound(kind, delay = 0) {
   if (prefs.sound && !document.hidden) GameSound.play(kind, delay);
