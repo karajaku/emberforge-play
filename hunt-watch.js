@@ -106,7 +106,7 @@ const HuntWatch=(()=>{
     const hp=h?.hp??resultHealth?.hp??st.hp,max=h?.maxHp??resultHealth?.maxHp??st.hp,enemyHp=h?.enemyHp??resultHealth?.enemyHp??Game.trail.opponent(rank,enemy.kind).hp;
     const total=h?.enemyMax??resultHealth?.enemyMax??enemyHp;
     const fighter=(side,label,asset,width,current,maxHp)=>'<div class="watch-fighter '+side+'"'+(side==='enemy'&&enemy.elite?' data-elite="true"':'')+' data-action="'+(roll?.[side==='player'?'player':'enemy']||'')+'">'+healthMeter(side,label,current,maxHp)+
-      '<div class="watch-actor"'+(current<=0?' data-defeated="true"':'')+'>'+(['wolf','moth','tree','goblin'].includes(asset)?
+      '<div class="watch-actor'+(asset==='moth'?' airborne':'')+'"'+(current<=0?' data-defeated="true"':'')+'>'+(['wolf','moth','tree','goblin'].includes(asset)?
         '<img class="trail-creature" src="assets/hunt/'+asset+'.webp" alt="">':'<canvas width="'+width+'" height="144" data-sprite="'+asset+'" aria-hidden="true"></canvas>')+'<div class="watch-ward" aria-hidden="true">'+icon('shield')+'</div></div>'+
       (useDice?die(roll?.[side==='player'?'playerFace':'enemyFace'],roll?.[side==='player'?'player':'enemy'],side):'')+
       (side==='enemy'?enemySkill(h):'')+'</div>';
