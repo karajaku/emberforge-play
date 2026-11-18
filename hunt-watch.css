@@ -27,7 +27,7 @@ body[data-motion="on"] .watch-roll.rolling .watch-die { animation:watch-roll .3s
 .watch-actor::before { content:'';position:absolute;left:3%;right:3%;bottom:0;height:18%;border-radius:50%;background:#112c1b99;box-shadow:0 0 0 2px #b2bf7655,inset 0 0 12px #b2bf7633;z-index:-1; }
 .watch-actor[data-attacking="true"] { z-index:6; }
 .ui-game .watch-fighter .hp-meter { position:absolute;width:48%;z-index:3; }
-.enemy .hp-meter { left:0;top:3%; }.player .hp-meter { right:0;bottom:6%; }
+.player .hp-meter { left:0;top:3%; }.enemy .hp-meter { right:0;bottom:6%; }
 .watch-roll { position:absolute;z-index:5;gap:8px; }
 .player .watch-roll { left:12%;bottom:0; }.enemy .watch-roll { right:12%;top:45%; }
 .watch-roll.waiting { opacity:.35; }.watch-roll.waiting .watch-die svg { visibility:hidden; }
