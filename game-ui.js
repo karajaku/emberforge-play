@@ -71,7 +71,15 @@ const GameUI = (() => {
     if(current()==='forge'&&phonePage('forge')==='work') {
       const rail=document.createElement('nav');rail.className='ui-forge-rail';rail.setAttribute('aria-label','대장간 작업');
       rail.innerHTML=[['craft','anvil','제작'],['training','hammer','수련'],['orders','scroll-text','의뢰']].map(([page,ic,label])=>'<button data-go="forge/'+page+'">'+icon(ic)+'<span>'+label+'</span></button>').join('');
-      document.querySelector('.forge-layout .stage-side').append(rail);
+      const stage = document.querySelector('.forge-layout .stage-side');
+      stage.append(rail);
+      if (state.best > 0) {
+        const duel = document.createElement('button');
+        duel.className = 'ui-daily-duel';
+        duel.dataset.duel = '';
+        duel.innerHTML = icon('swords') + '<span>오늘의 시검</span>';
+        stage.append(duel);
+      }
     }
     const growth=document.querySelector('.progression-stage');if(growth)growth.innerHTML=icon('sparkles');
   }

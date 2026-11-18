@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <meta name="theme-color" content="#142020">
+    <title>수문장의 시검 · 잿불 대장간</title>
+    <link rel="icon" href="assets/icon.png">
+    <link rel="stylesheet" href="duel.css?v=1">
+    <script defer src="swordcraft.js"></script>
+    <script defer src="duel.js?v=1"></script>
+  </head>
+  <body>
+    <main>
+      <nav><a id="forge-link" href="index.html#forge">← 잿불 대장간으로</a></nav>
+      <article>
+        <header>
+          <p id="day-label"></p>
+          <h1>수문장의 시검</h1>
+          <p>빌린 검 한 자루로 수문장의 자세를 무너뜨리세요.</p>
+        </header>
+        <div class="panel">
+          <p id="link-notice" hidden></p>
+          <section id="duel-arena" aria-label="시검">
+            <p id="opponent" hidden></p>
+            <div class="meters">
+              <div>내 자세 <b id="health"></b></div>
+              <div>수문장 자세 <b id="enemy"></b></div>
+              <div>내 기력 <b id="stamina"></b></div>
+            </div>
+            <div class="intent" aria-live="polite" aria-atomic="true">
+              <p id="turn-note"></p>
+              <h2 id="intent"></h2>
+            </div>
+            <div class="moves">
+              <button data-move="q">속공<small>피해 2 · 기력 +1</small></button>
+              <button data-move="l">찌르기<small>피해 5 · 기력 −2</small></button>
+              <button data-move="p">받아치기<small>강타 방어 · 반격 3</small></button>
+            </div>
+          </section>
+          <section id="duel-result" aria-labelledby="result-title" hidden>
+            <h2 id="result-title" tabindex="-1"></h2>
+            <div id="scoreboard"></div>
+            <p class="rules">승리하면 적은 턴, 이어서 남은 내 자세로 겨룹니다. 둘 다 쓰러지면 수문장의 자세를 더 깎은 쪽이 앞섭니다.</p>
+            <div class="actions">
+              <button class="primary" id="share-duel"></button>
+              <button id="retry-duel">다시 겨루기</button>
+            </div>
+            <a id="result-forge" href="index.html#forge">대장간에서 내 검 벼리기 →</a>
+            <div id="manual-share" hidden>
+              <label for="share-link">링크를 길게 누르거나 선택해 복사하세요.</label>
+              <input id="share-link" type="url" readonly>
+            </div>
+            <p id="share-status" role="status"></p>
+          </section>
+          <aside aria-labelledby="stamps-title">
+            <h2 id="stamps-title">시검 출석 도장</h2>
+            <p id="stamp-progress"></p>
+            <small id="stamp-note"></small>
+            <a id="today-link" href="duel.html" hidden>오늘의 시검 열기 →</a>
+          </aside>
+        </div>
+      </article>
+    </main>
+  </body>
+</html>

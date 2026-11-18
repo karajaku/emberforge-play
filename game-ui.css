@@ -91,6 +91,8 @@ body.ui-game { grid-template-rows:auto minmax(0,1fr) auto auto; }
 .ui-forge-rail button { display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:57px;min-height:58px;border:1px solid #a38c5e;background:#25312de8;color:#eed6a4;border-radius:10px;box-shadow:0 3px #18201899; }
 .ui-forge-rail svg { width:24px;height:24px; }
 .ui-forge-rail span { font-size:11px; }
+.ui-game .ui-daily-duel { position:absolute;right:0;top:90px;z-index:4;display:grid;justify-items:center;gap:3px;min-height:52px;padding:6px 8px;border:1px solid #b89761;border-radius:10px;background:#29382fea;color:#f4dab0;font-size:12px; }
+.ui-daily-duel svg { width:22px;height:22px; }
 .ui-game .forge-layout .scene .location { top:8px; }
 .ui-game .forge-strike { border-radius:38% 38% 20% 20%; }
 .ui-game #mobileNav { border-top:1px solid #a68c5e;border-radius:12px 12px 0 0;background:#1f2c2cf5;box-shadow:0 -3px 12px #0004; }
@@ -145,6 +147,7 @@ body.ui-game { grid-template-rows:auto minmax(0,1fr) auto auto; }
 @media(max-height:760px) {
  .ui-game header .headwrap { height:54px; }
  .ui-game .ui-forge-rail { top:80px;gap:8px; }
+ .ui-game .ui-daily-duel { top:80px; }
  .ui-game #screen > .ui-hunt-layout .scene { min-height:215px; }
  .ui-game .ui-battle-scene .hp-count { font-size:10px; }
  .ui-game .ui-battle-scene .hp-meter { padding:5px 8px; }

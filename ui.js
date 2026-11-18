@@ -1097,6 +1097,14 @@ document.addEventListener("click", (e) => {
   const d = b.dataset;
   if (d.storage) return storageAction(d.storage);
   if (storageError || !ready) return;
+  if ("duel" in d) {
+    b.disabled = true;
+    accrue();
+    return flush().then(() => {
+      b.disabled = false;
+      if (!storageError && !restarting) location.assign("duel.html");
+    });
+  }
   if (d.repeat === "start") { startAutoHunt(Number(el("repeatRank")?.value)); return; }
   if (d.repeat === "stop") {
     repeatHunting.afterBattle();
