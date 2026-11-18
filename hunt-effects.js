@@ -7,6 +7,7 @@ const HuntEffects=(()=>{
     document.querySelector('.watch-arena')?.removeAttribute('data-phase');
     document.querySelectorAll('.watch-roll').forEach(n=>n.classList.remove('rolling','waiting','chosen'));
     document.querySelectorAll('.watch-actor').forEach(n=>{delete n.dataset.attackAt;delete n.dataset.attacking;});
+    document.querySelector('.watch-counter-status')?.style.removeProperty('visibility');
     if(resolve){GameSound.stop();const done=resolve;resolve=null;done();}
   }
   const later=(fn,ms)=>timers.push(setTimeout(fn,ms));
@@ -27,8 +28,17 @@ const HuntEffects=(()=>{
     node.innerHTML='<b>'+icon(kind==='guard'||kind==='stopped'?'shield':'chevrons-up')+labels[kind]+'</b>'+(kind==='stopped'?'<small>반격 준비</small>':'');
     actor.append(node);nodes.push(node);later(()=>node.remove(),800);
   }
+  function counterBonus(arena){
+    const node=document.createElement('div');node.className='watch-counter-award';node.setAttribute('role','status');
+    node.innerHTML=icon('coins')+'<b>반격 보너스 +25%</b><small>승리 시 지급</small>';
+    arena.append(node);nodes.push(node);later(()=>node.remove(),1100);
+  }
   function play(hit,before,roll){
-    cancel();const arena=document.querySelector('.watch-arena');if(!arena||!motionEnabled())return false;
+    cancel();const arena=document.querySelector('.watch-arena');if(!arena)return false;
+    const firstCounter=(roll?roll.skill==='counter':hit.kind==='counter')&&!(before.ripostes>0);
+    if(!motionEnabled()){if(firstCounter)counterBonus(arena);return false;}
+    const bonusStatus=document.querySelector('.watch-counter-status');
+    if(firstCounter&&bonusStatus)bonusStatus.style.visibility='hidden';
     completion=new Promise(done=>resolve=done);
     const actors={player:arena.querySelector('.player .watch-actor'),enemy:arena.querySelector('.enemy .watch-actor')};
     const meters={player:arena.querySelector('[data-side="player"]'),enemy:arena.querySelector('[data-side="enemy"]')};
@@ -87,6 +97,7 @@ const HuntEffects=(()=>{
         arena.dataset.phase=side+'-hit';
         const damage=side==='player'?hit.damage:hit.taken,guarded=actions[target]==='block',held=guarded&&end[target]>0;
         updateHealthMeter(meters[target],end[target],start[target],motionEnabled());
+        if(side==='player'&&firstCounter){counterBonus(arena);bonusStatus?.style.removeProperty('visibility');}
         burst(actors[target],guarded?'guarded':charge?'charge':side==='player'&&roll?.skill==='counter'?'counter':heavy?'heavy':'slash',damage);
         const result=guarded?(held?(charge?'stopped':'guard'):'broken'):charge?'direct':null;
         if(result)reaction(actors[target],result);
