@@ -21,9 +21,9 @@ const HuntEffects=(()=>{
       '<b>'+(damage?'−'+fmt(damage):icon('shield'))+'</b>';
     actor.append(node);nodes.push(node);later(()=>node.remove(),700);
   }
-  function reaction(actor,kind){
+  function reaction(actor,kind,skillName){
     if(!actor||!motionEnabled())return;
-    const labels={guard:'방어!',stopped:'돌진 저지!',direct:'직격!',broken:'방어 관통!'};
+    const labels={guard:'방어!',stopped:(skillName||'돌진')+' 저지!',direct:'직격!',broken:'방어 관통!'};
     const node=document.createElement('div');node.className='watch-reaction '+kind;node.dataset.reaction=kind;node.setAttribute('role','status');
     node.innerHTML='<b>'+icon(kind==='guard'||kind==='stopped'?'shield':'chevrons-up')+labels[kind]+'</b>'+(kind==='stopped'?'<small>반격 준비</small>':'');
     actor.append(node);nodes.push(node);later(()=>node.remove(),800);
@@ -80,7 +80,7 @@ const HuntEffects=(()=>{
     }
     for(const side of ['player','enemy'])if(actions[side]==='block')later(()=>guard(side),lead+150);
     function strike(side,at){
-      const target=side==='player'?'enemy':'player',charge=side==='enemy'&&roll?.enemySkill==='charge',heavy=actions[side]==='heavyStrike'||(side==='player'&&!!roll?.skill)||charge;
+      const target=side==='player'?'enemy':'player',charge=side==='enemy'&&!!roll?.enemySkill,heavy=actions[side]==='heavyStrike'||(side==='player'&&!!roll?.skill)||charge;
       if(actions[side]==='block')return;
       const dir=side==='player'?1:-1;
       const own=actors[side].getBoundingClientRect(),other=actors[target].getBoundingClientRect();
@@ -100,7 +100,7 @@ const HuntEffects=(()=>{
         if(side==='player'&&firstCounter){counterBonus(arena);bonusStatus?.style.removeProperty('visibility');}
         burst(actors[target],guarded?'guarded':charge?'charge':side==='player'&&roll?.skill==='counter'?'counter':heavy?'heavy':'slash',damage);
         const result=guarded?(held?(charge?'stopped':'guard'):'broken'):charge?'direct':null;
-        if(result)reaction(actors[target],result);
+        if(result)reaction(actors[target],result,charge?DiceCombat.enemySkills[roll.enemySkill].name:null);
         if(held){
           const ward=actors[target].querySelector('.watch-ward');
           animate(ward,[{opacity:1,transform:'scale(1)'},{opacity:1,transform:'scale(.82,1.1)',filter:'brightness(1.5)',offset:.18},{opacity:.9,transform:'scale('+ (charge?1.3:1.15)+')',offset:.4},{opacity:0,transform:'scale(1.05)',filter:'brightness(1)'}],{duration:charge?550:400,fill:'forwards'});
@@ -116,7 +116,8 @@ const HuntEffects=(()=>{
     }
     strike('player',lead+260);
     // The existing model resolves lethal player hits before an enemy reply.
-    if(end.enemy>0)strike('enemy',lead+920);
+    if(end.enemy>0 && before.enemyKind!=='goblin')strike('enemy',lead+920);
+    if(roll?.enemySkill==='escape')later(()=>animate(actors.enemy,[{opacity:1,transform:'translateX(0)'},{opacity:0,transform:'translateX(75%)'}],{duration:430,fill:'forwards'}),lead+940);
     later(()=>{
       arena.dataset.phase=end.enemy<=0?'victory':end.player<=0?'defeat':'recover';
       const dead=end.enemy<=0?'enemy':end.player<=0?'player':null;

@@ -16,10 +16,25 @@ const SaveStore = (() => {
     try { data = JSON.parse(raw); } catch { throw fault("corrupt"); }
     if (data?.version > 1 || data?._save?.format > 1 || data?.hunting?.version > 1) throw fault("future");
     for (const h of [data?.hunt, data?.lastHunt]) {
+      if (h?.trailVersion > 1) throw fault("future");
+      const skillVersion = h?.trailVersion === 1 ? 2 : 1;
+      if (h?.skillVersion > skillVersion) throw fault("future");
+      if (h?.trailVersion !== undefined) {
+        if (h.trailVersion !== 1 || h.diceVersion !== 1 || !Number.isInteger(h.rank) || h.rank < 1 || h.rank > 60 ||
+            typeof h.bonusEncounter !== "boolean" || !Number.isInteger(h.wave)) throw fault("corrupt");
+        const pack = game.trail.lineup(h.rank, h.bonusEncounter);
+        if (h.wave < 0 || h.wave >= pack.length || pack[h.wave] !== h.enemyKind) throw fault("corrupt");
+        if (h === data.hunt) {
+          if (h.skillVersion !== 2 || !Number.isInteger(h.waveTurn) || h.waveTurn < 1 || h.waveTurn > 40 ||
+              typeof h.goblinCaught !== "boolean" || h.enemySkillState?.key !== game.huntEnemy(h).skill) throw fault("corrupt");
+          if ((h.lastDice?.enemySkill === "escape" && h.enemyKind !== "goblin") ||
+              (game.trail.awaitingNext(h) && h.wave === pack.length - 1)) throw fault("corrupt");
+        }
+      }
       if (h?.diceVersion > 1) throw fault("future");
-      if (h?.skillVersion > 1) throw fault("future");
-      if (h?.skillVersion !== undefined && h.skillVersion !== 1) throw fault("corrupt");
-      if(h?.skillCooldowns!==undefined&&(!object(h.skillCooldowns)||Object.entries(h.skillCooldowns).some(([key,n])=>!['heavyStrike','counter'].includes(key)||!Number.isInteger(n)||n<0||n>(key==='counter'?2:3))))throw fault("corrupt");
+      if (h?.skillVersion !== undefined && h.skillVersion !== skillVersion) throw fault("corrupt");
+      const heavyMax = h?.trailVersion === 1 ? 4 : 3;
+      if(h?.skillCooldowns!==undefined&&(!object(h.skillCooldowns)||Object.entries(h.skillCooldowns).some(([key,n])=>!['heavyStrike','counter'].includes(key)||!Number.isInteger(n)||n<0||n>(key==='counter'?2:heavyMax))))throw fault("corrupt");
       if(h?.enemySkillState!==undefined&&(!object(h.enemySkillState)||!Number.isInteger(h.enemySkillState.cooldown)||h.enemySkillState.cooldown<0||h.enemySkillState.cooldown>4||![2,3,4].includes(h.enemySkillState.interval)||![2,3,4].includes(h.enemySkillState.power)))throw fault("corrupt");
       if (h?.diceVersion !== undefined && h.diceVersion !== 1) throw fault("corrupt");
       if (h?.lastDice && (!object(h.lastDice) ||

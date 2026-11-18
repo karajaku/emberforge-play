@@ -4,6 +4,7 @@ const Game = (() => {
   const craft = typeof module !== "undefined" ? require("./swordcraft.js") : Swordcraft;
   const finale = typeof module !== "undefined" ? require("./breakthrough.js") : Breakthrough;
   const dice = typeof module !== "undefined" ? require("./dice-combat.js") : DiceCombat;
+  const trail = typeof module !== "undefined" ? require("./hunt-trail.js") : HuntTrail;
   const shop = typeof module !== "undefined" ? require("./relic-shop.js") : RelicShop;
   const grades = ["일반", "레어", "에픽", "전설"];
   const swords = ["순철 장검", "서리결 장검", "황혼의 마검", "태양의 성검"];
@@ -387,6 +388,7 @@ const Game = (() => {
   ];
   function huntEnemy(huntOrRank) {
     const rank = Math.max(1, Math.min(60, Number(typeof huntOrRank === "number" ? huntOrRank : huntOrRank?.rank) || 1));
+    if (huntOrRank?.trailVersion === 1) return trail.enemy(rank, huntOrRank.enemyKind);
     // An already-running legacy hunt keeps its original moves until it ends.
     const enemy = typeof huntOrRank === "number" ? forestEnemies[(rank - 1) % 5]
       : forestEnemies.find(e => e.kind === huntOrRank?.enemyKind) || forestEnemies[0];
@@ -1009,11 +1011,26 @@ const Game = (() => {
           last: enemy.name + " 출현 · " + enemy.trait,
         };
         // Explicit per-battle model: old saves and untagged legacy callers retain their rules.
-        if (arg?.combat === "dice-v1") {
+        if (arg?.combat === "dice-v1" || arg?.combat === "trail-v1") {
           s.hunt.diceVersion=1;s.hunt.skillVersion=1;s.hunt.skillCooldowns={heavyStrike:0,counter:0};
           s.hunt.enemySkillState={cooldown:enemy.first,interval:enemy.interval,power:enemy.power};
         }
-        return { ...success("이끼숲 " + rank + "구역 사냥 시작 · 사냥권 1개 사용"), receipt: { ...w.lastStart } };
+        if (arg?.combat === "trail-v1") {
+          // Older tabs reject skill version 2 before they can resolve a wave as a full stage.
+          s.hunt.skillVersion = 2;
+          s.hunt.trailVersion = 1;
+          s.hunt.bonusEncounter = random() < .15;
+          s.hunt.goblinCaught = false;
+          trail.enter(s.hunt, 0);
+        }
+        return { ...success(huntEnemy(s.hunt).habitat + " " + rank + "구역 사냥 시작 · 사냥권 1개 사용"), receipt: { ...w.lastStart } };
+      }
+      case "huntAdvance": {
+        const h = s.hunt;
+        if (!trail.awaitingNext(h) || arg?.id !== h.id || arg.wave !== h.wave ||
+            h.wave + 1 >= trail.lineup(h.rank, h.bonusEncounter).length) return fail("이어질 조우가 없습니다.");
+        trail.enter(h, h.wave + 1);
+        return { ok: true, message: h.last, kind: "info" };
       }
       case "flee":
         if (!s.hunt) return fail("교전 중인 적이 없습니다.");
@@ -1024,9 +1041,10 @@ const Game = (() => {
       case "block": {
         const h = s.hunt;
         if (!h) return fail("먼저 사냥을 시작하세요.");
+        if (trail.awaitingNext(h)) return fail("다음 적을 기다리고 있습니다.");
         // Existing dice saves acquire optional skill state on their next committed turn.
         if(h.diceVersion===1){
-          h.skillVersion=1;
+          h.skillVersion=h.trailVersion ? 2 : 1;
           if(!h.enemySkillState){const enemy=huntEnemy(h);h.enemySkillState={cooldown:Math.max(0,enemy.first-h.turn+1),interval:enemy.interval,power:enemy.power};}
         }
         const roll = h.diceVersion === 1 ? dice.turn(h, dice.face(random), dice.face(random)) : null;
@@ -1044,11 +1062,23 @@ const Game = (() => {
         };
         if (roll?roll.skill==='counter':!block&&h.counter) h.ripostes = (h.ripostes || 0) + 1;
         h.enemyHp = Math.max(0, h.enemyHp - damage);
+        const trailResult = h.trailVersion ? {trailVersion:1, wave:h.wave, bonusEncounter:h.bonusEncounter} : {};
         if (!h.enemyHp) {
+          if (h.trailVersion && h.wave + 1 < trail.lineup(h.rank, h.bonusEncounter).length) {
+            if (h.enemyKind === "goblin") h.goblinCaught = true;
+            h.counter = roll.counter;
+            h.turn++;
+            return { ok:true, message:"", kind:"info", impact };
+          }
           const base = 800 * h.rank * h.rank;
           const bonus = h.ripostes ? base / 4 : 0;
           const chest = awardChest(s, "forest", h.rank, base, bonus, int);
+          if (h.goblinCaught) {
+            chest.goblinGold = base / 2;
+            chest.gold += chest.goblinGold;
+          }
           s.lastHunt = {
+            ...trailResult,
             id: h.id, ticketSource: h.ticketSource,
             ...(roll ? {diceVersion:1, lastDice:roll} : {}),
             health: huntHealth(h),
@@ -1078,10 +1108,11 @@ const Game = (() => {
         }
         impact.taken = Math.min(taken, h.hp);
         h.hp = Math.max(0, h.hp - taken);
-        if (roll && h.turn >= 40) h.hp = 0;
+        if (roll && (h.waveTurn ?? h.turn) >= 40) h.hp = 0;
         h.counter = roll?roll.counter:block && charge;
         if (!h.hp) {
           s.lastHunt = {
+            ...trailResult,
             id: h.id, ticketSource: h.ticketSource,
             ...(roll ? {diceVersion:1, lastDice:roll} : {}),
             health: huntHealth(h),
@@ -1097,6 +1128,7 @@ const Game = (() => {
           return { ...success("사냥 실패 · 장비를 챙겨 야영지로 돌아왔습니다.", "loss"), impact };
         }
         h.turn++;
+        if (h.trailVersion) h.waveTurn++;
         if (roll) {h.last = "주사위 전투"; return {ok:true, message:"", kind:"info", impact};}
         h.last =
           (h.counter ? "돌진 방어 · 다음 공격 2.5배" : block ? "방어 태세" : (act === "heavyStrike" ? "강공 " : "타격 ") + damage) +
@@ -1446,6 +1478,7 @@ const Game = (() => {
     midRecovery,
     huntCharge,
     huntEnemy,
+    trail,
     canStoreWeapon,
     canDive,
     mining,

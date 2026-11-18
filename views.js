@@ -401,7 +401,8 @@ function chestReceipt(c) {
   return '<div class="chest-reveal tier-' + c.tier + '"><i class="chest-art" aria-hidden="true"></i><b>' +
     (c.name || ["나무 상자", "은장 상자", "황금 상자"][c.tier]) + '</b><small>' + chestOrigin(c) + '</small></div>' +
     '<div class="chest-loot">' + line(icon("coins") + "골드", fmt(c.gold) + " G") +
-    (c.counter || c.extra ? desc("기본 " + fmt(c.base) + " G" + (c.counter ? " · 반격 +" + fmt(c.counter) + " G" : "") +
+    (c.counter || c.extra || c.goblinGold ? desc("기본 " + fmt(c.base) + " G" + (c.counter ? " · 반격 +" + fmt(c.counter) + " G" : "") +
+      (c.goblinGold ? " · 황금 고블린 +" + fmt(c.goblinGold) + " G" : "") +
       (c.extra ? " · 상자 보너스 +" + fmt(c.extra) + " G" : "")) : "") +
     loot("sparkles", "별의 파편", c.shards) + loot("scroll-text", "10% 주문서", c.scrolls) +
     c.charms.map((n, i) => loot("gift", Game.blessings[i], n)).join("") + "</div>";
