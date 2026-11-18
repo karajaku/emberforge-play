@@ -1,12 +1,24 @@
 /* Session-only spectator controller. Durable operations use act() and the save lock. */
 const HuntWatch=(()=>{
-  let active=false,generation=0,timer=null,busy=false,reward=null,reason='';
+  let active=false,generation=0,timer=null,busy=false,reward=null,reason='',outcome=null;
   const names={strike:'공격',block:'방어',heavyStrike:'강공'};
   const icons={strike:'sword',block:'shield',heavyStrike:'hammer'};
   const allowed=()=>ready&&!storageError&&!restarting&&!document.hidden&&!modal&&current()==='forest'&&phonePage('forest')==='hunt';
   const pending=()=>!state.hunt&&state.chests.find(c=>c.id===state.lastHunt?.chestId&&c.source==='forest');
   const nextRank=()=>Math.min(60,state.huntBest+1);
+  function ticketInfo(w){
+    const empty=w.free+w.purchased===0,seconds=Math.ceil((w.remaining||0)/1000);
+    const countdown=Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0');
+    const text=(w.purchased?'무료 ':'사냥권 ')+fmt(w.free)+' / '+Game.hunting.cap+
+      (w.purchased?' · 구매 '+fmt(w.purchased):empty?' · 충전 '+countdown:'');
+    return {text,empty,width:Math.min(100,Math.max(0,w.free/Game.hunting.cap*100))};
+  }
+  function ticketBar(w){const t=ticketInfo(w);return '<span class="watch-ticket-bar" data-empty="'+t.empty+'"><span class="watch-ticket-fill" aria-hidden="true" style="width:'+t.width+'%"></span><span class="watch-ticket-text">'+t.text+'</span></span>';}
   function stop(why='',paint=true) {active=false;generation++;clearTimeout(timer);timer=null;reason=why;if(paint&&state)render();}
+  function stageOutcome(before){
+    if(state.hunt)outcome=null;
+    else if(before&&state.lastHunt?.id===before.id)outcome=state.lastHunt.health;
+  }
   function die(face,action,side) {
     return '<div class="watch-roll" data-die="'+side+'"><div class="watch-die" data-action="'+(action||'')+'" role="img" aria-label="'+(face?names[action]+' 주사위':'주사위 대기')+'">'+icon(icons[action]||'sword')+'</div><span>'+(face?names[action]:'대기')+'</span></div>';
   }
@@ -23,8 +35,8 @@ const HuntWatch=(()=>{
     const enemy=Game.huntEnemy(h||rank),st=Game.stats(s),roll=h?h.lastDice:s.lastHunt?.lastDice;
     const useDice=h?h.diceVersion===1:true;
     const sprite='blade'+(Game.bladeStage(s.weapon)||'');
-    const resultHealth=(!h&&(reward||pending()||reason.startsWith('패배')))?s.lastHunt?.health:null;
-    const hp=h?.hp??resultHealth?.hp??st.hp,max=h?.maxHp??st.hp,enemyHp=h?.enemyHp??resultHealth?.enemyHp??(90+Math.round(36*(rank-1)**1.65));
+    const resultHealth=!h?(outcome||((reward||pending()||reason.startsWith('패배'))?s.lastHunt?.health:null)):null;
+    const hp=h?.hp??resultHealth?.hp??st.hp,max=h?.maxHp??resultHealth?.maxHp??st.hp,enemyHp=h?.enemyHp??resultHealth?.enemyHp??(90+Math.round(36*(rank-1)**1.65));
     const total=h?.enemyMax??resultHealth?.enemyMax??enemyHp;
     const fighter=(side,label,asset,width,current,maxHp)=>'<div class="watch-fighter '+side+'" data-action="'+(roll?.[side==='player'?'player':'enemy']||'')+'">'+healthMeter(side,label,current,maxHp)+
       '<div class="watch-actor"'+(current<=0?' data-defeated="true"':'')+'><canvas width="'+width+'" height="144" data-sprite="'+asset+'" aria-hidden="true"></canvas><div class="watch-ward" aria-hidden="true">'+icon('shield')+'</div></div>'+
@@ -38,14 +50,20 @@ const HuntWatch=(()=>{
       '<div class="watch-reward" role="status">'+skills(h)+(reward?'<b>'+reward.rank+'스테이지 클리어</b><strong>'+icon('coins')+' +'+fmt(reward.gold)+' G</strong><div class="watch-loot">'+
         [[reward.shards,'sparkles','별의 파편'],[reward.scrolls,'scroll-text','주문서'],...[0,1,2].map(i=>[reward.charms[i],['leaf','hammer','star'][i],Game.blessings[i]])].filter(([n])=>n).map(([n,ic,title])=>'<span aria-label="'+title+' '+n+'개" title="'+title+'">'+icon(ic)+' +'+n+'</span>').join('')+'</div>':reason?'<b>'+reason+'</b>':'')+'</div>'+
       (!motionEnabled()?'<div class="watch-motion-hint"><span>'+(reducedMotion.matches&&!prefs.motionOverride?'기기 설정으로 연출 정지':'연출 꺼짐')+'</span><button class="mini" data-motion-policy="full">연출 켜기</button></div>':'')+
-      '<button class="primary watch-start" '+(empty&&!active?'data-open="huntWallet"':'data-watch="toggle"')+(finished?' disabled':'')+'>'+icon(active?'shield':'sword')+label+'</button>'+
+      '<button class="primary watch-start" '+(empty&&!active?'data-open="huntWallet"':'data-watch="toggle"')+(finished?' disabled':'')+'><span class="watch-start-label">'+icon(active?'shield':'sword')+label+'</span>'+ticketBar(w)+'</button>'+
       (!active&&reason==='패배 · 장비를 강화해 주세요'?go('forge','장비 강화','action'):'')+'</section>';
   };
   function beforeRender(){if(active&&!allowed())stop('',false);}
   function refreshWallet() {
-    if(active||!allowed()||state.hunt||pending()||state.huntBest>=60)return;
+    if(!allowed())return;
     const button=document.querySelector('.watch-start'),w=Game.huntingStatus(state);
-    if(button && (button.dataset.open==='huntWallet') !== (!w.free&&!w.purchased))render();
+    if(!button)return;
+    if(!active&&!state.hunt&&!pending()&&state.huntBest<60&&(button.dataset.open==='huntWallet') !== (!w.free&&!w.purchased)){render();return;}
+    // Update only the meter: a whole-screen render would cancel the current attack.
+    const bar=button.querySelector('.watch-ticket-bar');if(!bar)return;
+    const t=ticketInfo(w),label=bar.querySelector('.watch-ticket-text');
+    if(label.textContent!==t.text)label.textContent=t.text;
+    bar.dataset.empty=String(t.empty);bar.querySelector('.watch-ticket-fill').style.width=t.width+'%';
   }
   function arm(delay=400) {
     if(!active||busy||timer)return;
@@ -95,10 +113,10 @@ const HuntWatch=(()=>{
     if(active){stop('일시 중단');return;}
     // Capturing this click bypasses the general UI handler; unlock sound here too.
     if(prefs.sound)GameSound.unlock();GameMusic.unlock();
-    repeatHunting.stop('관전 사냥');autoCombat.stop();active=true;reason='';generation++;render();arm(100);
+    repeatHunting.stop('관전 사냥');autoCombat.stop();active=true;reason='';outcome=null;generation++;render();arm(100);
   },true);
   document.addEventListener('visibilitychange',()=>{if(document.hidden)stop('일시 중단');});
   window.addEventListener('pagehide',()=>stop('',false));
   window.addEventListener('hashchange',()=>{if(current()!=='forest'||phonePage('forest')!=='hunt')stop('',false);});
-  return {view, stop, beforeRender, refreshWallet, get active(){return active;}};
+  return {view, stop, beforeRender, refreshWallet, stageOutcome, get active(){return active;}};
 })();

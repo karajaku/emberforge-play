@@ -18,7 +18,12 @@ body[data-motion="on"] .watch-roll.rolling .watch-die { animation:watch-roll .3s
 @keyframes watch-roll { 0%{transform:perspective(300px) translateY(0) rotate(-30deg) rotateY(0)}50%{transform:perspective(300px) translateY(-26px) rotate(140deg) rotateY(55deg)}100%{transform:perspective(300px) translateY(0) rotate(330deg) rotateY(0)} }
 .watch-reward { min-height:80px;display:grid;align-content:center;justify-items:center;gap:8px;color:#eaddb6;text-align:center; }
 .watch-reward strong { display:flex;align-items:center;gap:8px;font-size:25px;color:#f8d58b; }.watch-reward svg { width:26px;height:26px; }
-.watch-start { margin-bottom:8px; }
+.ui-game .watch-start { margin-bottom:8px;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:8px 12px;min-height:76px!important; }
+.watch-start-label { display:flex;align-items:center;justify-content:center;gap:8px; }
+.watch-ticket-bar { display:block;position:relative;width:100%;max-width:290px;min-height:19px;border:1px solid #e8d7a188;border-radius:5px;overflow:hidden;background:#152e25;color:#fff6d4;font-size:11px;line-height:17px;font-weight:700;text-shadow:0 1px 2px #000; }
+.watch-ticket-fill { position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,#8c7336,#b89950);pointer-events:none; }
+.watch-ticket-text { position:relative;display:block;padding:0 5px;white-space:nowrap; }
+.watch-ticket-bar[data-empty="true"] { border-color:#e6bd80;color:#ffe1af; }
 .watch-motion-hint { display:flex;align-items:center;justify-content:space-between;gap:8px;color:#e9d6a5;font-size:12px;padding:0 4px; }.watch-motion-hint button{min-height:44px;}
 .watch-loot { display:flex;gap:12px;justify-content:center; }.watch-loot span { display:flex;align-items:center;gap:3px;font-size:13px; }.watch-loot svg { width:18px;height:18px; }
 .watch-actor { position:absolute;isolation:isolate;transform-origin:50% 75%;z-index:2; }
@@ -54,7 +59,14 @@ body[data-motion="on"] .watch-roll.rolling .watch-die { animation:watch-roll .3s
 .watch-enemy-skill { position:absolute;right:2%;top:34%;z-index:6;display:flex;align-items:center;gap:3px;background:#35221cdd;border:1px solid #b4866a;border-radius:7px;padding:3px 7px;color:#d5b6a2;font-size:12px; }.watch-enemy-skill svg { width:20px;height:20px; }.watch-enemy-skill[data-ready="true"] { color:#ffdb98;border-color:#ffae69;box-shadow:0 0 10px #ff9b6155; }
 .charge .hunt-cut { left:10%;top:10%;width:80%;height:80%;background:transparent;border:8px solid #ffd5a4;border-radius:50%;box-shadow:0 0 18px #ff8f58,inset 0 0 12px #ff8f58; }
 @keyframes skill-flare { 0%{opacity:0;transform:translate(-50%,-50%) scale(.65)}20%,70%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-80%) scale(1.08)} }
-.guarded .hunt-cut { background:#96ecd9;box-shadow:0 0 15px #8aefee;transform:rotate(42deg); }
+.guarded .hunt-cut { left:8%;top:10%;width:84%;height:72%;border:5px solid #b5ffe5;background:transparent;box-shadow:0 0 18px #8aefee,inset 0 0 12px #8aefee;border-radius:50%;transform:rotate(0); }
+.watch-reaction { position:absolute;left:50%;top:-14px;z-index:12;display:grid;justify-items:center;gap:3px;width:max-content;max-width:170px;pointer-events:none;color:#d1ffeb;text-shadow:0 2px 2px #08281c;animation:watch-reaction .8s ease-out both; }
+.watch-reaction b { display:flex;align-items:center;gap:4px;padding:5px 9px;border:1px solid #8beac5;border-radius:6px;background:#123b30ed;font-size:16px;line-height:1.1;white-space:nowrap;box-shadow:0 0 12px #69dfab55; }
+.watch-reaction b svg { width:19px;height:19px; }.watch-reaction small { padding:2px 6px;border-radius:4px;background:#143a30e8;color:#fff0bb;font-size:11px; }
+.watch-actor:has(.watch-reaction) { z-index:8; }.watch-actor:has(.watch-reaction) .hunt-burst b { top:27%; }
+.watch-reaction.stopped b { color:#fff2b6;border:2px solid #e5d18c;font-size:18px;box-shadow:0 0 18px #abed9d88; }
+.watch-reaction:is(.direct,.broken) { color:#ffe6d4;text-shadow:0 2px 2px #361409; }.watch-reaction:is(.direct,.broken) b { background:#52291ded;border-color:#efaa82;box-shadow:0 0 14px #ff966455; }
+@keyframes watch-reaction { 0%{opacity:0;transform:translate(-50%,12px) scale(.65)}16%{opacity:1;transform:translate(-50%,-5px) scale(1.1)}32%,72%{opacity:1;transform:translate(-50%,-2px) scale(1)}100%{opacity:0;transform:translate(-50%,-22px) scale(.96)} }
 .hunt-chip { position:absolute;left:50%;top:50%;width:6px;height:6px;background:#ffefb5;box-shadow:0 0 6px #fff0bc;animation:hunt-chip .48s ease-out both; }
 .guarded .hunt-chip { background:#9effe6; }
 .hunt-burst b { position:absolute;left:0;top:12%;width:100%;text-align:center;font-size:30px;font-weight:900;color:#fff8d8;text-shadow:2px 2px #332218,-2px -2px #332218;animation:hunt-number .7s ease-out both; }

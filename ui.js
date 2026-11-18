@@ -251,6 +251,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
     const result = Game.perform(state, action, arg, undefined, undefined, pressedAt);
     repeatHunting.stage(action, result, beforeHunt, arg);
     save();
+    HuntWatch.stageOutcome(beforeHuntHealth);
     if (repeatGuard) {
       if (!result.ok) repeatHunting.stop(action === "openChest" ? "보물 수령 실패" : "입장 불가");
       else if (action === "huntStart" && repeatHunting.active) autoCombat.select("auto");

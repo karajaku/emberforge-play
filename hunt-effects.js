@@ -20,6 +20,13 @@ const HuntEffects=(()=>{
       '<b>'+(damage?'−'+fmt(damage):icon('shield'))+'</b>';
     actor.append(node);nodes.push(node);later(()=>node.remove(),700);
   }
+  function reaction(actor,kind){
+    if(!actor||!motionEnabled())return;
+    const labels={guard:'방어!',stopped:'돌진 저지!',direct:'직격!',broken:'방어 관통!'};
+    const node=document.createElement('div');node.className='watch-reaction '+kind;node.dataset.reaction=kind;node.setAttribute('role','status');
+    node.innerHTML='<b>'+icon(kind==='guard'||kind==='stopped'?'shield':'chevrons-up')+labels[kind]+'</b>'+(kind==='stopped'?'<small>반격 준비</small>':'');
+    actor.append(node);nodes.push(node);later(()=>node.remove(),800);
+  }
   function play(hit,before,roll){
     cancel();const arena=document.querySelector('.watch-arena');if(!arena||!motionEnabled())return false;
     completion=new Promise(done=>resolve=done);
@@ -78,13 +85,22 @@ const HuntEffects=(()=>{
       },at);
       later(()=>{
         arena.dataset.phase=side+'-hit';
-        const damage=side==='player'?hit.damage:hit.taken;
+        const damage=side==='player'?hit.damage:hit.taken,guarded=actions[target]==='block',held=guarded&&end[target]>0;
         updateHealthMeter(meters[target],end[target],start[target],motionEnabled());
-        burst(actors[target],actions[target]==='block'?'guarded':charge?'charge':side==='player'&&roll?.skill==='counter'?'counter':heavy?'heavy':'slash',damage);
-        const recoil=`translate(${dir*(heavy?28:16)}px,${-dir*(heavy?16:9)}px)`;
-        animate(actors[target],[{transform:'translate(0,0)',filter:'brightness(1)'},{transform:recoil,filter:'brightness(1.9)',offset:.15},{transform:recoil,filter:'brightness(1.3)',offset:.38},{transform:'translate(0,0)',filter:'brightness(1)'}],{duration:360});
-        if(heavy)animate(arena,[{transform:'translate(0,0)'},{transform:'translate(-4px,2px)'},{transform:'translate(4px,-2px)'},{transform:'translate(0,0)'}],{duration:160});
-        sound(actions[target]==='block'?'block':heavy?'counter':'slash');
+        burst(actors[target],guarded?'guarded':charge?'charge':side==='player'&&roll?.skill==='counter'?'counter':heavy?'heavy':'slash',damage);
+        const result=guarded?(held?(charge?'stopped':'guard'):'broken'):charge?'direct':null;
+        if(result)reaction(actors[target],result);
+        if(held){
+          const ward=actors[target].querySelector('.watch-ward');
+          animate(ward,[{opacity:1,transform:'scale(1)'},{opacity:1,transform:'scale(.82,1.1)',filter:'brightness(1.5)',offset:.18},{opacity:.9,transform:'scale('+ (charge?1.3:1.15)+')',offset:.4},{opacity:0,transform:'scale(1.05)',filter:'brightness(1)'}],{duration:charge?550:400,fill:'forwards'});
+          // Deflection replaces the remaining lunge at contact, keeping the original turn timing.
+          animate(actors[side],[{transform:`translate(${dx}px,${dy}px) rotate(${charge?0:dir*20}deg) scale(${charge?1.22:heavy?1.16:1.04})`},{transform:`translate(${dx-dir*(charge?42:22)}px,${dy+dir*16}px) rotate(${-dir*18}deg) scale(.95)`,offset:.36},{transform:'translate(0,0) rotate(0)'}],{duration:300,easing:'ease-out'});
+          if(charge)animate(document.querySelector('[data-skill="counter"]'),[{transform:'scale(1)',filter:'brightness(1)'},{transform:'scale(1.18)',filter:'brightness(1.7)',offset:.3},{transform:'scale(1)',filter:'brightness(1)'}],{duration:500});
+        }
+        const recoil=`translate(${dir*(held?6:charge?40:heavy?28:16)}px,${-dir*(held?3:charge?23:heavy?16:9)}px)`;
+        animate(actors[target],[{transform:'translate(0,0)',filter:'brightness(1)'},{transform:recoil,filter:'brightness('+(held?1.25:1.9)+')',offset:.15},{transform:recoil,filter:'brightness(1.3)',offset:.38},{transform:'translate(0,0)',filter:'brightness(1)'}],{duration:held?300:360});
+        if(heavy&&!held)animate(arena,[{transform:'translate(0,0)'},{transform:'translate(-4px,2px)'},{transform:'translate(4px,-2px)'},{transform:'translate(0,0)'}],{duration:160});
+        sound(held&&charge?'parry':guarded?'block':heavy?'counter':'slash');
       },at+300);
     }
     strike('player',lead+260);
