@@ -29,6 +29,7 @@ const HuntWatch=(()=>{
       '<div class="scene watch-arena combat-hud">'+fighter('player','나',sprite,128,hp,max)+fighter('enemy',enemy.name,'boar',144,enemyHp,total)+'</div>'+
       '<div class="watch-reward" role="status">'+(reward?'<b>'+reward.rank+'스테이지 클리어</b><strong>'+icon('coins')+' +'+fmt(reward.gold)+' G</strong><div class="watch-loot">'+
         [[reward.shards,'sparkles','별의 파편'],[reward.scrolls,'scroll-text','주문서'],...[0,1,2].map(i=>[reward.charms[i],['leaf','hammer','star'][i],Game.blessings[i]])].filter(([n])=>n).map(([n,ic,title])=>'<span aria-label="'+title+' '+n+'개" title="'+title+'">'+icon(ic)+' +'+n+'</span>').join('')+'</div>':reason?'<b>'+reason+'</b>':'')+'</div>'+
+      (!motionEnabled()?'<div class="watch-motion-hint"><span>'+(reducedMotion.matches&&!prefs.motionOverride?'기기 설정으로 연출 정지':'연출 꺼짐')+'</span><button class="mini" data-motion-policy="full">연출 켜기</button></div>':'')+
       '<button class="primary watch-start" '+(empty&&!active?'data-open="huntWallet"':'data-watch="toggle"')+(finished?' disabled':'')+'>'+icon(active?'shield':'sword')+label+'</button>'+
       (!active&&reason==='패배 · 장비를 강화해 주세요'?go('forge','장비 강화','action'):'')+'</section>';
   };

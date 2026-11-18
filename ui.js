@@ -6,16 +6,17 @@ const saveLock = SaveStore.createLock({ get locks() { return navigator.locks; },
 let state = null, storageError = null, ready = false;
 function readState() { return store.load(); }
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
-const motionEnabled = () => prefs.motion && !reducedMotion.matches;
+const motionEnabled = () => prefs.motion && (prefs.motionOverride || !reducedMotion.matches);
 function syncMotion() {
   document.body.dataset.motion = motionEnabled() ? "on" : "off";
+  document.body.dataset.motionOverride = prefs.motionOverride ? "full" : "system";
   if (!motionEnabled()) {
     Impacts.clear(); Feedback.clear();
     for (const animation of document.getAnimations()) animation.cancel();
   }
 }
 reducedMotion.addEventListener("change", syncMotion);
-let prefs = { sound: true, music: true, musicVolume: .35, motion: !matchMedia("(prefers-reduced-motion: reduce)").matches };
+let prefs = { sound: true, music: true, musicVolume: .35, motion: !matchMedia("(prefers-reduced-motion: reduce)").matches, motionOverride:false };
 try {
   Object.assign(prefs, JSON.parse(localStorage.getItem(settingsKey) || "{}"));
 } catch {}
@@ -680,14 +681,16 @@ function modalData() {
         ) +
           row(
             "애니메이션",
-            "대기 모션과 타격 연출",
+            !prefs.motion ? "게임 설정에서 움직임을 껐습니다" : !motionEnabled() ? "PC의 동작 줄이기 설정으로 정지 중입니다" : "주사위·공격·피격 연출이 켜져 있습니다",
             preferenceSwitch("motion", "애니메이션"),
           ) +
+          ((reducedMotion.matches || prefs.motionOverride) ? row("연출 적용 방식", prefs.motionOverride ? "이 게임에서는 전체 연출을 사용합니다" : "기기 설정과 관계없이 이 게임의 연출을 켤 수 있습니다", '<button class="mini" data-motion-policy="'+(prefs.motionOverride?'system':'full')+'">'+(prefs.motionOverride?'기기 설정 따르기':'이 게임에서 연출 켜기')+'</button>') : '') +
           row(
             "저장 방식",
             storageError ? "현재 저장 불가" : "이 기기에 자동 저장 · 정상본 2개 보관",
             icon("archive"),
           ) +
+          row("게임 버전", UpdateNotice.version(), "") +
           '<div class="settings-links">' + openBtn("daily", icon("gift") + "오늘의 출석 보상") +
           openBtn("lessons", icon("hammer") + "대장장이 수업") +
           openBtn("help", icon("book-open") + "플레이 안내") + "</div>" +
@@ -1001,6 +1004,14 @@ document.addEventListener("click", (e) => {
   }
   if (d.tower) towerMode = d.tower;
   if (d.bag) bagTab = d.bag;
+  if (d.motionPolicy) {
+    HuntWatch.stop('',false);
+    prefs.motionOverride=d.motionPolicy==='full';
+    if(prefs.motionOverride)prefs.motion=true;
+    syncMotion();
+    try {localStorage.setItem(settingsKey,JSON.stringify(prefs));}catch{}
+    render();if(modal)displayModal();return;
+  }
   if (d.pref) {
     prefs[d.pref] = !prefs[d.pref];
     if (d.pref === "music") { syncMusic(); if (prefs.music) GameMusic.unlock(); }

@@ -7,15 +7,15 @@ const HuntEffects=(()=>{
     animations.forEach(a=>a.cancel());animations=[];nodes.forEach(n=>n.remove());nodes=[];
     document.querySelector('.watch-arena')?.removeAttribute('data-phase');
     document.querySelectorAll('.watch-roll').forEach(n=>n.classList.remove('rolling','waiting','chosen'));
-    document.querySelectorAll('.watch-actor').forEach(n=>delete n.dataset.attackAt);
+    document.querySelectorAll('.watch-actor').forEach(n=>{delete n.dataset.attackAt;delete n.dataset.attacking;});
     if(resolve){GameSound.stop();const done=resolve;resolve=null;done();}
   }
   const later=(fn,ms)=>timers.push(setTimeout(fn,ms));
-  function animate(node,frames,options){if(node)animations.push(node.animate(frames,options));}
+  function animate(node,frames,options){if(node&&motionEnabled())animations.push(node.animate(frames,options));}
   const names={strike:'공격',block:'방어',heavyStrike:'강공'},icons={strike:'sword',block:'shield',heavyStrike:'hammer'};
   function pips(die,face){die.querySelectorAll('i').forEach((pip,n)=>pip.classList.toggle('pip',points[face].includes(n+1)));}
   function burst(actor,kind,damage){
-    if(!actor)return;
+    if(!actor||!motionEnabled())return;
     const node=document.createElement('div');node.className='hunt-burst '+kind;node.setAttribute('aria-hidden','true');
     node.innerHTML='<i class="hunt-cut"></i>'+Array.from({length:8},(_,i)=>'<i class="hunt-chip" style="--dx:'+Math.round(Math.cos(i*Math.PI/4)*68)+'px;--dy:'+Math.round(Math.sin(i*Math.PI/4)*60)+'px"></i>').join('')+
       '<b>'+(damage?'−'+fmt(damage):icon('shield'))+'</b>';
@@ -62,14 +62,18 @@ const HuntEffects=(()=>{
       later(()=>{
         arena.dataset.phase=side+'-windup';
         actors[side].dataset.attackAt=String(performance.now());
-        animate(actors[side],[{transform:'translate(0,0) rotate(0)'},{transform:`translate(${-dx*.16}px,${-dy*.16}px) rotate(${-dir*(heavy?26:14)}deg)`,offset:.32},{transform:`translate(${dx}px,${dy}px) rotate(${dir*20}deg) scale(${heavy?1.16:1.04})`,offset:.5},{transform:`translate(${dx*.75}px,${dy*.75}px) rotate(${dir*8}deg)`,offset:.65},{transform:'translate(0,0) rotate(0)'}],{duration:600,easing:'ease-in-out'});
+        actors[side].dataset.attacking='true';
+        const contact=`translate(${dx}px,${dy}px) rotate(${dir*20}deg) scale(${heavy?1.16:1.04})`;
+        animate(actors[side],[{transform:'translate(0,0) rotate(0)',easing:'ease-in'},{transform:`translate(${-dx*.16}px,${-dy*.16}px) rotate(${-dir*(heavy?26:14)}deg)`,offset:.30,easing:'cubic-bezier(.15,.8,.2,1)'},{transform:contact,offset:.5},{transform:contact,offset:heavy?.66:.60,easing:'ease-out'},{transform:'translate(0,0) rotate(0)'}],{duration:600});
+        later(()=>delete actors[side].dataset.attacking,600);
       },at);
       later(()=>{
         arena.dataset.phase=side+'-hit';
         const damage=side==='player'?hit.damage:hit.taken;
-        updateHealthMeter(meters[target],end[target],start[target],true);
+        updateHealthMeter(meters[target],end[target],start[target],motionEnabled());
         burst(actors[target],actions[target]==='block'?'guarded':heavy?'heavy':'slash',damage);
-        animate(actors[target],[{transform:'translateX(0)',filter:'brightness(1)'},{transform:`translateX(${dir*(heavy?27:15)}px)`,filter:'brightness(2.4)',offset:.2},{transform:'translateX(0)',filter:'brightness(1)'}],{duration:320});
+        const recoil=`translate(${dir*(heavy?28:16)}px,${-dir*(heavy?16:9)}px)`;
+        animate(actors[target],[{transform:'translate(0,0)',filter:'brightness(1)'},{transform:recoil,filter:'brightness(1.9)',offset:.15},{transform:recoil,filter:'brightness(1.3)',offset:.38},{transform:'translate(0,0)',filter:'brightness(1)'}],{duration:360});
         if(heavy)animate(arena,[{transform:'translate(0,0)'},{transform:'translate(-4px,2px)'},{transform:'translate(4px,-2px)'},{transform:'translate(0,0)'}],{duration:160});
         sound(actions[target]==='block'?'block':heavy?'counter':'slash');
       },at+300);

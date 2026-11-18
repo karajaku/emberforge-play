@@ -33,4 +33,4 @@
 @keyframes forge-drop { from { opacity: .9; transform: scale(1); } to { opacity: 0; transform: translateY(45px) scale(1.7,.4); } }
 @keyframes forge-drop-label { 0% { opacity: 0; transform: translateY(-12px); } 15%,65% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(18px); } }
 @keyframes forge-shatter { from { opacity: 1; transform: scale(.6) rotate(0); } to { opacity: 0; transform: scale(3.2) rotate(35deg); } }
-@media (prefers-reduced-motion: reduce) { .feedback { display: none; } }
+@media (prefers-reduced-motion: reduce) { body:not([data-motion-override="full"]) .feedback { display: none; } }

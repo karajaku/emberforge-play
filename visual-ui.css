@@ -234,5 +234,5 @@ body::before { image-rendering:pixelated; }
 .craft-scene:not(.sparring),.final-scene { background-image:url('assets/forge.png'); background-size:cover; background-position:center; }
 body[data-place="forge"][data-page="craft"] #screen > .scene { min-height:210px; flex:1; }
 @media (max-height:760px) { #apprentice:not([hidden]) { top:54px; } body[data-place="forest"] #screen .stage-side .scene { min-height:152px; } }
-@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; } }
+@media (prefers-reduced-motion:reduce) { body:not([data-motion-override="full"]) *,body:not([data-motion-override="full"]) *::before,body:not([data-motion-override="full"]) *::after { animation:none!important; transition:none!important; } }
 @media (max-height:760px) { header .headwrap { height:54px; }.stage-side .scene { min-height:160px; }.scene .caption b { font-size:21px; }#screen .panel { padding:8px; gap:6px; }.primary { min-height:56px!important; }.hunt-stack { gap:5px; }#apprentice:not([hidden]) { margin-bottom:4px; }#mobileNav .navitem { min-height:53px; } }

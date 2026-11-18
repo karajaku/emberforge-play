@@ -1,4 +1,4 @@
-.watch-view { display:flex;flex-direction:column;flex:1!important;gap:12px;min-height:0; }
+.watch-view { display:flex;flex-direction:column;flex:1!important;gap:12px;min-height:0;max-height:740px;margin-block:auto; }
 .watch-stage { text-align:center;color:#e7d4a5;letter-spacing:3px;padding:8px;font-size:13px; }
 .watch-stage b { font-size:24px; }
 .ui-game .watch-arena { position:relative;display:block;flex:1;min-height:360px;padding:0;isolation:isolate; }
@@ -17,11 +17,13 @@ body[data-motion="on"] .watch-roll.rolling .watch-die { animation:watch-roll .3s
 .watch-reward { min-height:80px;display:grid;align-content:center;justify-items:center;gap:8px;color:#eaddb6;text-align:center; }
 .watch-reward strong { display:flex;align-items:center;gap:8px;font-size:25px;color:#f8d58b; }.watch-reward svg { width:26px;height:26px; }
 .watch-start { margin-bottom:8px; }
+.watch-motion-hint { display:flex;align-items:center;justify-content:space-between;gap:8px;color:#e9d6a5;font-size:12px;padding:0 4px; }.watch-motion-hint button{min-height:44px;}
 .watch-loot { display:flex;gap:12px;justify-content:center; }.watch-loot span { display:flex;align-items:center;gap:3px;font-size:13px; }.watch-loot svg { width:18px;height:18px; }
 .watch-actor { position:absolute;isolation:isolate;transform-origin:50% 75%;z-index:2; }
 .player .watch-actor { left:2%;bottom:19%;width:49%;max-width:190px; }
 .enemy .watch-actor { right:3%;top:13%;width:40%;max-width:154px; }
 .watch-actor::before { content:'';position:absolute;left:3%;right:3%;bottom:0;height:18%;border-radius:50%;background:#112c1b99;box-shadow:0 0 0 2px #b2bf7655,inset 0 0 12px #b2bf7633;z-index:-1; }
+.watch-actor[data-attacking="true"] { z-index:6; }
 .ui-game .watch-fighter .hp-meter { position:absolute;width:48%;z-index:3; }
 .enemy .hp-meter { left:0;top:3%; }.player .hp-meter { right:0;bottom:6%; }
 .watch-roll { position:absolute;z-index:5;gap:8px; }
@@ -38,6 +40,7 @@ body[data-motion="on"] .watch-roll.rolling .watch-die { animation:watch-roll .3s
 .hunt-burst { position:absolute;inset:0;z-index:4;pointer-events:none;color:#fff3be; }
 .hunt-cut { position:absolute;left:0;top:44%;width:100%;height:8px;background:#f5fff5;box-shadow:0 0 12px #b6ffdb,0 8px #66d7aa;border-radius:50%;transform:rotate(-42deg);animation:hunt-cut .34s ease-out both; }
 .heavy .hunt-cut { height:14px;box-shadow:0 0 20px #ffdf7d,0 12px #ffb13a; }
+.heavy .hunt-cut::after { content:'';position:absolute;inset:-6px 0;background:#fff7cf;border-radius:50%;transform:rotate(85deg);opacity:.8; }
 .guarded .hunt-cut { background:#96ecd9;box-shadow:0 0 15px #8aefee;transform:rotate(42deg); }
 .hunt-chip { position:absolute;left:50%;top:50%;width:6px;height:6px;background:#ffefb5;box-shadow:0 0 6px #fff0bc;animation:hunt-chip .48s ease-out both; }
 .guarded .hunt-chip { background:#9effe6; }

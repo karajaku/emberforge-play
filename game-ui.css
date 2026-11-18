@@ -1,4 +1,6 @@
 /* One layout owner for the forge controls, independent of generic .panel/.primary. */
+#updateNotice { position:fixed;left:50%;top:62px;transform:translateX(-50%);z-index:70;display:flex;align-items:center;justify-content:space-between;gap:12px;width:min(430px,calc(100% - 28px));padding:8px 12px;border:1px solid #e4be79;border-radius:10px;background:#20362ff5;color:#fff0c8;box-shadow:0 4px 16px #0008;font-size:13px; }
+#updateNotice button { min-height:44px;padding:8px 12px;border:1px solid #d6b579;border-radius:8px;background:#af843e;color:#fff7dd;font-weight:700; }
 #screen > .forge-control-layout .stage-side .scene { min-height:178px; }
 .forge-control-layout .forge-console { flex:none; display:flex; flex-direction:column; gap:6px; padding:0 4px 7px; }
 .forge-control-layout .forge-readout > .line { display:flex; align-items:center; justify-content:center; gap:12px; margin:0; padding:0 44px 0 0; position:relative; border:0; min-height:36px; color:#fff0d2; font-size:14px; text-shadow:0 2px 2px #150f0b; }
