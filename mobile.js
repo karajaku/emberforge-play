@@ -37,9 +37,5 @@ function phoneLessonDestination(tip) {
   const action = tip.selector.match(/data-act="([^"]+)"/)?.[1];
   const pages = { order: "orders", craftStart: "craft", collect: "field", deploy: "stored" };
   const page = pages[action];
-  if (action === "deploy") {
-    const index = Number(tip.selector.match(/data-arg="(\d+)"/)?.[1]);
-    if (index >= phoneRows) return "bag/stored/" + (1 + Math.floor(index / phoneRows));
-  }
   return phoneDestination(tip.route, page);
 }

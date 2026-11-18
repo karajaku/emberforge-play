@@ -5,6 +5,16 @@ const store = SaveStore.create(() => localStorage);
 const saveLock = SaveStore.createLock({ get locks() { return navigator.locks; }, get indexedDB() { return window.indexedDB; } });
 let state = null, storageError = null, ready = false;
 function readState() { return store.load(); }
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+const motionEnabled = () => prefs.motion && !reducedMotion.matches;
+function syncMotion() {
+  document.body.dataset.motion = motionEnabled() ? "on" : "off";
+  if (!motionEnabled()) {
+    Impacts.clear(); Feedback.clear();
+    for (const animation of document.getAnimations()) animation.cancel();
+  }
+}
+reducedMotion.addEventListener("change", syncMotion);
 let prefs = { sound: true, music: true, musicVolume: .35, motion: !matchMedia("(prefers-reduced-motion: reduce)").matches };
 try {
   Object.assign(prefs, JSON.parse(localStorage.getItem(settingsKey) || "{}"));
@@ -282,8 +292,8 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
     render();
     if (modal) displayModal();
     else closeModal(false);
-    if (result.impact) showHuntDamage(document.querySelector("#screen .combat-hud"), result.impact, prefs.motion);
-    if (result.ok && prefs.motion) {
+    if (result.impact) showHuntDamage(document.querySelector("#screen .combat-hud"), result.impact, motionEnabled());
+    if (result.ok && motionEnabled()) {
       const stage = document.querySelector("#screen .scene");
       if (result.impact) {
         const hit = result.impact;
@@ -314,7 +324,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
       const chest = ["openChest", "openTowerChests"].includes(action);
       const reward = ["collect", "daily", "order", "sell", "market", "reward"].includes(action);
       const ascension = (["rebirth", "imprint", "fuse", "polish"].includes(action) || (action === "shop" && Number(arg) === 3) || (action === "finalMove" && state.weapon.level === 20)) && result.kind === "win";
-      const animate = prefs.motion && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const animate = motionEnabled();
       if (forgeAction) {
         const level = state[arg === "armor" ? "armor" : "weapon"].level;
         const label = action === "temper" ? (state.heat === 5 ? "정밀 타격" : "담금질 완료") :
@@ -363,6 +373,7 @@ function render() {
   if (!state) return;
   const id = current(),
     parent = zones[id] ? "world" : id;
+  syncMotion();
   document.body.dataset.place = id;
   document.body.dataset.page = phonePage(id);
   phonePageNav(id);
@@ -383,6 +394,8 @@ function render() {
     .join("");
   el("mobileNav").innerHTML = navHTML;
   el("gold").textContent = brief(state.gold);
+  const wallet = Game.huntingStatus(state);
+  el("huntTickets").textContent = brief(wallet.free + wallet.purchased);
   const titles = {
     forge: ["대장간", "BLACKSMITH"],
     world: ["모험 지도", "WORLD MAP"],
@@ -396,7 +409,6 @@ function render() {
     "</div><h1>" +
     title +
     '</h1></div><div class="title-actions">' +
-    phoneStoryButton(state, id) +
     openBtn("storyBook", icon("book-open") + "이야기", "ghost") +
     (id === "forge"
       ? openBtn("journal", icon("scroll-text") + "강화 기록", "ghost")
@@ -446,19 +458,14 @@ function renderLesson() {
   if (host.hidden) return;
   const step = Apprentice.next(state);
   const tip = step >= 0 ? Apprentice.guidance(state, step) : null;
-  const firstHunt = step === 1 && current() === "forge";
-  const title = step < 0 ? "수업 완료" : firstHunt ? "첫 강화 완료" : Apprentice.lessons[step][1];
+  const title = step < 0 ? "수업 완료" : Apprentice.lessons[step][1];
   const target = tip && current() === tip.route ? el("screen").querySelector(tip.selector) : null;
   const progress = step < 0 ? 6 : step + 1;
-  const actionLabel = target ? "위치 보기" : firstHunt ? "이끼숲으로" : tip?.button;
-  const action = step < 0 ? lessonButton("hide", "마치기") :
-    '<button class="mini" data-lesson="locate" aria-label="' + actionLabel + '">' +
-    '<span class="lesson-cta-label">' + actionLabel + '</span>' + icon("arrow-right") + '</button>';
   host.innerHTML = '<button class="lesson-copy" data-lesson="menu" aria-label="수업 ' + progress + '/6 · ' +
     title + ' · 수업 관리" aria-describedby="lesson-action-hint">' +
-    '<strong>수업 ' + progress + '/6 · ' + title + ' ' + icon("chevron-right") + '</strong>' +
+    '<strong>' + icon("circle-help") + ' 수업</strong>' +
     '<span id="lesson-action-hint">' + (tip ? tip.text : "첫 사냥터를 운영했습니다. 이제 새 검을 벼리거나 탑에 도전해 보세요.") +
-    '</span></button>' + action;
+    '</span></button>';
   if (target) {
     target.classList.add("lesson-target");
     target.setAttribute("aria-describedby", "lesson-action-hint");
@@ -469,6 +476,7 @@ function lessonButton(action, label) {
 }
 let pendingLessonFocus = false;
 function focusLesson() {
+  closeModal(false);
   const n = Apprentice.next(state);
   if (n < 0) return;
   const tip = Apprentice.guidance(state, n);
@@ -500,6 +508,7 @@ function lessonMenu() {
     Apprentice.lessons
       .map((lesson, i) => row(lesson[1], notes[i], done[i] ? icon("check") : ""))
       .join("") +
+      (done.every(Boolean) ? "" : lessonButton("locate", "다음 단계로 이동")) +
       (state.apprentice.visible
         ? lessonButton("hide", "수업 안내 숨기기")
         : lessonButton("show", done.every(Boolean) ? "완료 기록 보기" : "이어서 배우기")),
@@ -519,7 +528,12 @@ function modalData() {
   const s = state;
   if (modal === "companion") return ["동료 대화", storyChat(s, current())];
   if (modal === "storyScene") return storyPage();
-  if (modal === "storyBook") return storyBook(s);
+  if (modal === "storyBook") {
+    const book = storyBook(s);
+    if (CharcoalStory.dialogue(s, current(), s.hunt && Game.huntCharge(s.hunt)))
+      book[1] += openBtn("companion", "동료와 대화", "action");
+    return book;
+  }
   if (modal === "final") return finalWorkshop(s);
   if (modal === "craft") return craftWorkshop(s);
   switch (modal) {
@@ -788,6 +802,8 @@ function modalData() {
           "시련 버프를 모두 지우고 1층으로 돌아갑니다. 이미 수령한 층별 재화 기록은 유지됩니다.",
         ) + btn("restart", "1층부터 다시 도전", "", "primary"),
       ];
+    case "huntWallet":
+      return ["사냥권 · 충전", '<section id="huntingWallet">' + huntingWalletContent(s) + '</section>' + openBtn("daily", "출석 보상 확인")];
     case "huntRules":
       return ["기세와 반격", line("베기 · 돌진 방어", "기세 +1 · 최대 2칸") +
         desc("강공은 기세 2칸을 써서 피해를 두 배로 주고 단단한 가죽을 뚫습니다. 적이 살아남으면 받는 피해도 1.5배입니다.") +
@@ -823,7 +839,7 @@ function modalData() {
 }
 function displayModal() {
   const [title, html] = modalData();
-  document.body.dataset.storyMotion = prefs.motion ? "on" : "off";
+  document.body.dataset.storyMotion = motionEnabled() ? "on" : "off";
   el("shade").dataset.modal = modal;
   el("modalTitle").textContent = title;
   el("modalBody").innerHTML = html;
@@ -970,7 +986,7 @@ document.addEventListener("click", (e) => {
   if (d.pref) {
     prefs[d.pref] = !prefs[d.pref];
     if (d.pref === "music") { syncMusic(); if (prefs.music) GameMusic.unlock(); }
-    if (d.pref === "motion" && !prefs.motion) { Impacts.clear(); Feedback.clear(); }
+    if (d.pref === "motion") syncMotion();
     if (d.pref === "sound") { if (prefs.sound) sound("coins"); else GameSound.stop(); }
     try {
       localStorage.setItem(settingsKey, JSON.stringify(prefs));
@@ -980,6 +996,13 @@ document.addEventListener("click", (e) => {
     return;
   }
   render();
+});
+document.addEventListener("change", (e) => {
+  if (e.target.id === "repeatRank") {
+    huntPreviewRank = Number(e.target.value);
+    render(); el("repeatRank")?.focus({ preventScroll:true });
+    return;
+  }
 });
 document.addEventListener("input", (e) => {
   if (e.target.id !== "musicVolume") return;
@@ -1029,9 +1052,12 @@ function flush() {
     state.activeMs %= 60000;
     save();
     el("gold").textContent = brief(state.gold);
+    const wallet = Game.huntingStatus(state);
+    el("huntTickets").textContent = brief(wallet.free + wallet.purchased);
   });
 }
 document.addEventListener("visibilitychange", () => {
+  document.body.dataset.visibility = document.hidden ? "hidden" : "visible";
   syncMusic();
   if (document.hidden) {
     repeatHunting.stop("화면 숨김");
@@ -1055,10 +1081,16 @@ addEventListener("pageshow", () => syncMusic());
 setInterval(() => {
   if (document.hidden || !ready || storageError) return;
   accrue();
+  const wallet = Game.huntingStatus(state);
+  el("huntTickets").textContent = brief(wallet.free + wallet.purchased);
+  const autoStart = document.querySelector('[data-repeat="start"]');
+  if (autoStart) autoStart.disabled = wallet.free + wallet.purchased < 1;
+  for (const button of document.querySelectorAll('[data-act="huntStart"]'))
+    button.disabled = wallet.free + wallet.purchased < 1;
+  const walletSummary = document.querySelector('[data-wallet-summary]');
+  if (walletSummary) walletSummary.textContent = "사냥권 · 무료 " + wallet.free + " / 구매 " + wallet.purchased;
   if (el("huntingWallet")) {
     const w = Game.huntingStatus(state);
-    const autoStart = document.querySelector('[data-repeat="start"]');
-    if (autoStart) autoStart.disabled = w.free + w.purchased < 1;
     if (el("huntingWallet").firstElementChild?.dataset.huntingStatus !== huntingWalletKey(state, w))
       el("huntingWallet").innerHTML = huntingWalletContent(state);
     else el("huntingWallet").querySelector("[data-hunting-recharge]").textContent = huntingRechargeText(w);
@@ -1127,7 +1159,7 @@ function animate(now) {
       const equipment = id.startsWith("blade") || id === "cuirass",
         delta = now - animationStart;
       let index = 0;
-      if (prefs.motion) {
+      if (motionEnabled()) {
         if (equipment)
           index =
             delta >= 0 && delta < 480 ? 6 + Math.floor(delta / 80) : Math.floor(now / 160) % 6;
@@ -1152,6 +1184,7 @@ function animate(now) {
       }
       if (canvas.dataset.frame === String(index)) continue;
       const ctx = canvas.getContext("2d");
+      ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, canvas.width, 144);
       ctx.drawImage(im, index * canvas.width, 0, canvas.width, 144, 0, 0, canvas.width, 144);
       canvas.dataset.frame = index;
@@ -1159,7 +1192,7 @@ function animate(now) {
     if (modal === "temper" && el("needle"))
       el("needle").style.left =
         Game.temperPosition(Math.max(0, Date.now() - state.temperStart)) * 100 + "%";
-    if (modal === "battle" && battle) drawTowerBattle(battle, now, prefs.motion);
+    if (modal === "battle" && battle) drawTowerBattle(battle, now, motionEnabled());
   }
   requestAnimationFrame(animate);
 }

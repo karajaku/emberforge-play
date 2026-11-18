@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="combat.css?v=1.30" />
     <link rel="stylesheet" href="feedback.css?v=1.25" />
     <link rel="stylesheet" href="save.css?v=1.26" />
+    <link rel="stylesheet" href="visual-ui.css?v=1.31" />
   </head>
   <body>
     <header>
@@ -26,7 +27,7 @@
         <div class="resources">
           <span class="wallet" title="보유 골드"
             ><i id="coinIcon"></i><b id="gold"></b><small>G</small></span
-          ><button
+          ><button class="ticket-wallet" data-open="huntWallet" aria-label="사냥권 잔량과 충전"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18v5a2 2 0 0 0 0 4v5H3v-5a2 2 0 0 0 0-4zM15 5v3m0 3v2m0 3v3"/></svg><b id="huntTickets">—</b></button><button
             class="round"
             data-open="settings"
             aria-label="환경 설정"
@@ -78,8 +79,8 @@
     <script src="breakthrough.js?v=1.22"></script>
     <script src="charcoal-story.js?v=1.22"></script>
     <script src="game.js?v=1.29"></script>
-    <script src="apprentice.js?v=1.29"></script>
-    <script src="views.js?v=1.30"></script>
+    <script src="apprentice.js?v=1.31"></script>
+    <script src="views.js?v=1.31"></script>
     <script src="craft-view.js?v=1.29"></script>
     <script src="final-view.js?v=1.29"></script>
     <script src="effects.js?v=1.22"></script>
@@ -87,11 +88,11 @@
     <script src="music.js?v=1.23"></script>
     <script src="feedback.js?v=1.25"></script>
     <script src="combat-hud.js?v=1.22"></script>
-    <script src="story-view.js?v=1.29"></script>
-    <script src="mobile.js?v=1.29"></script>
+    <script src="story-view.js?v=1.31"></script>
+    <script src="mobile.js?v=1.31"></script>
     <script src="save-store.js?v=1.27"></script>
     <script src="repeat-hunting.js?v=1.30"></script>
     <script src="auto-combat.js?v=1.28"></script>
-    <script src="ui.js?v=1.30"></script>
+    <script src="ui.js?v=1.31"></script>
   </body>
 </html>

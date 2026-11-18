@@ -1,14 +1,6 @@
 "use strict";
 const el = (id) => document.getElementById(id);
-const itemIcons = [
-  "anvil", "compass", "backpack", "sparkles", "coins", "scroll-text", "shield", "sword",
-  "hammer", "flame", "gift", "settings", "trees", "pickaxe", "castle", "orbit",
-];
 const icon = (n) => {
-  const index = itemIcons.indexOf(n);
-  if (index >= 0)
-    return '<span aria-hidden="true" class="item-art" style="background-position:' +
-      ((index % 4) * 100 / 3) + '% ' + (Math.floor(index / 4) * 100 / 3) + '%"></span>';
   return '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' +
   (ICONS[n] || "") +
   "</svg>";
@@ -116,7 +108,7 @@ function scene(id, heading, english, loc, sprite = "", grade = 0, enemy = null) 
         ' 애니메이션"></canvas>'
       : "") +
     (enemy ? '<span class="forest-rank">' + (enemy.elite ? "우두머리 · " : "") + "Lv." + enemy.rank + '</span>' : "") +
-    '<div class="caption"><span class="eyebrow">' +
+    '<span class="scene-ambient" aria-hidden="true"></span><div class="caption"><span class="eyebrow">' +
     english +
     "</span><b>" +
     heading +
@@ -205,120 +197,33 @@ function swordOddsTable(level) {
     rows.join("") + '</tbody></table></details>';
 }
 function forgeView(s) {
-  const g = s[gear],
-    weapon = gear === "weapon",
-    finalChoice = weapon && g.level === 19 && Breakthrough.choices(g, Game.price).length > 0,
-    recovery = weapon ? Game.midRecovery(g) : null,
-    cost = s.enabled[2] && s.charms[2] ? 0 : Game.price(g);
-  const title = Game.name(g, gear),
-    stat = Game.stats(s),
-    next = Game.stats({ ...s, [gear]: { ...g, level: g.level + 1 } });
-  const page = phonePage("forge");
+  const g = s[gear], weapon = gear === "weapon", page = phonePage("forge");
+  const recovery = weapon ? Game.midRecovery(g) : null;
+  const cost = s.enabled[2] && s.charms[2] ? 0 : Game.price(g);
   if (page === "orders") return orderView(s);
-  if (page === "craft") {
-    const work = patternView(s) + craftEntry(s);
-    return card("검 제작", work || desc("검이 +7에 도달하면 칼날 연마를 시작할 수 있습니다."), "anvil");
-  }
+  if (page === "craft") return scene("forge", Game.name(s.weapon) + " +" + s.weapon.level, "", "검 제작", "blade" + (Game.bladeStage(s.weapon) || "")) + card("검 제작", patternView(s) + craftEntry(s) ||
+    desc("검 +7부터 칼날 연마를 시작할 수 있습니다."), "anvil");
   if (page === "training") {
     const w = s.weapon, recover = Game.midRecovery(w);
-    const training = phoneList([
-      recover ? recoveryView(s, recover) : "",
-      notebookView(s, s.enabled[2] && s.charms[2] ? 0 : Game.price(w), recover),
-      legacyView(s),
-    ].filter(Boolean), "", 1);
-    return card("단조 수첩과 전승 수련", training || desc("검이 +17에 도달하면 단조 수첩이 열립니다. 첫 환생 이후에는 전승 수련을 시작할 수 있습니다."), "anvil");
+    return card("단조 수첩 · 전승 수련", [recover ? recoveryView(s, recover) : "",
+      notebookView(s, s.enabled[2] && s.charms[2] ? 0 : Game.price(w), recover), legacyView(s)].filter(Boolean).join("") ||
+      desc("검 +17부터 단조 수첩 · 첫 환생 이후 전승 수련"), "anvil");
   }
-  return (
-    '<div class="columns"><div class="stage-side">' +
-    scene(
-      "forge",
-      title + (page ? " +" + g.level : ""),
-      "THE WORKSHOP",
-      page ? tier(g, gear) : "잿불 작업장",
-      weapon ? "blade" + (Game.bladeStage(g) || "") : "cuirass",
-      g.grade,
-    ) +
-    '</div><section class="panel"><div class="flex"><h2>장비 강화</h2>' +
-    '<button class="inlinehelp" data-open="risk" aria-label="강화 확률과 실패 조건">' +
-    icon("circle-help") +
-    "</button>" +
-    '</div><div class="segment">' +
-    [
-      ["weapon", "sword", "무기"],
-      ["armor", "shield", "방어구"],
-    ]
-      .map(
-        ([id, ic, n]) =>
-          '<button data-gear="' +
-          id +
-          '" aria-pressed="' + (gear === id) + '" class="' +
-          (gear === id ? "sel" : "") +
-          '">' +
-          icon(ic) +
-          n +
-          "</button>",
-      )
-      .join("") +
-    "</div>" +
-    '<div class="gearhead"><span class="gearicon">' +
-    gearPortrait(g, gear) +
-    '</span><div><small class="grade">' +
-    tier(g, gear) +
-    '</small><b class="name">' +
-    title +
-    '</b></div><b class="level">+' +
-    g.level +
-    "</b></div>" +
-    '<div class="stats">' +
-    line(
-      recovery ? "일반 강화 시 공격력" : weapon ? "공격력" : "체력",
-      fmt(weapon ? stat.attack : stat.hp) +
-        (g.level >= 20
-          ? ""
-          : ' <span class="mint">→ ' + fmt(weapon ? next.attack : next.hp) + "</span>"),
-    ) +
-    forgeChances(s, g) + "</div>" +
-    (weapon && !page ? patternView(s) + craftEntry(s) : "") +
-    (recovery && !page ? recoveryView(s, recovery) : "") +
-    (finalChoice
-      ? openBtn(
-          "final",
-          icon("sword") +
-            (g.finalTrial
-              ? Breakthrough.methods[g.finalTrial.key].name + " 계속"
-              : "+20 돌파 방식 선택"),
-          "primary",
-        )
-      : "") +
-    (g.level >= 20
-      ? go("growth", "초월 · 환생 확인", "primary")
-      : btn(
-          "enhance",
-          icon("hammer") +
-            (recovery ? "일반 강화 +15" : finalChoice ? "일반 강화 +20" : "강화하기") +
-            " <small>" +
-            fmt(cost) +
-            " G</small>",
-          gear,
-          recovery || finalChoice ? "action split" : "primary split",
-          !!g.finalTrial,
-        )) +
-    (weapon && !page ? notebookView(s, cost, recovery) : "") +
-    (weapon && !page ? legacyView(s) : "") +
-    '<div class="actions">' +
-    openBtn("guards", icon("shield") + "가호" + (s.enabled.some(Boolean) ? " 장착됨" : " 설정")) +
-    openBtn("temper", icon("flame") + (s.heat ? "담금질 +" + s.heat + "%p" : "담금질")) +
-    "</div>" +
-    Game.blessings.map((name, i) =>
-      s.enabled[i] && s.charms[i] > 0
-        ? line(name, fmt(s.charms[i]) + "개 남음")
-        : "",
-    ).join("") +
-    "</section></div>" +
-    (page ? "" : orderView(s) +
-    section("모험 지역", go("world", "지도 보기 " + icon("chevron-right"), "textbtn")) +
-    portals())
-  );
+  const stat = Game.stats(s), next = Game.stats({ ...s, [gear]: { ...g, level:g.level + 1 } });
+  const finalChoice = weapon && g.level === 19 && Breakthrough.choices(g, Game.price).length > 0;
+  const switcher = '<div class="segment gear-switch">' + [["weapon","sword","무기"],["armor","shield","방어구"]].map(([id,ic,label]) =>
+    '<button data-gear="' + id + '" aria-pressed="' + (gear === id) + '" class="' + (gear === id ? 'sel' : '') + '">' + icon(ic) + label + '</button>').join('') + '</div>';
+  return '<div class="columns forge-layout"><div class="stage-side">' + switcher + scene("forge", Game.name(g, gear) + " +" + g.level,
+    "", tier(g, gear), weapon ? "blade" + (Game.bladeStage(g) || "") : "cuirass", g.grade) + '</div><section class="panel">' +
+    '<div class="stats">' + line(weapon ? "공격력" : "체력", fmt(weapon ? stat.attack : stat.hp) + (g.level >= 20 ? "" : ' <span class="mint">→ ' + fmt(weapon ? next.attack : next.hp) + '</span>')) +
+    forgeChances(s, g) + '</div>' +
+    (recovery ? go("forge/training", "+" + recovery.target + " 확정 복구 가능 · 수련", "action") : "") +
+    (finalChoice ? openBtn("final", icon("sword") + (g.finalTrial ? Breakthrough.methods[g.finalTrial.key].name + " 계속" : "+20 돌파 방식 선택"), "primary") : "") +
+    (g.level >= 20 ? go("growth", "초월 · 환생 확인", "primary") : btn("enhance", icon("hammer") +
+      (recovery ? "일반 강화 +15" : finalChoice ? "일반 강화 +20" : "강화하기") + '<small>' + fmt(cost) + ' G</small>', gear, finalChoice || recovery ? "action split" : "primary split", !!g.finalTrial)) +
+    '<div class="actions forge-support">' + openBtn("temper", icon("flame") + (s.heat ? "담금질 +" + s.heat + "%p" : "담금질")) +
+    openBtn("guards", icon("shield") + (s.enabled.some(Boolean) ? "가호 장착됨" : "가호")) +
+    '<button class="round" data-open="risk" aria-label="강화 확률과 실패 조건">' + icon("circle-help") + '</button></div></section></div>';
 }
 function restoreButton(s, book) {
   return btn(
@@ -433,52 +338,52 @@ function repeatPanel(s) {
     (r.unconfirmed ? '<small>저장 미확정 · 위 숫자는 저장 완료분</small>' : '') +
     '</div></section>';
 }
+let huntPreviewRank = null;
+function selectedHuntRank(s) {
+  const next = Math.min(60, (s.huntBest || 0) + 1);
+  return huntPreviewRank && huntPreviewRank <= next ? huntPreviewRank : next;
+}
+function forestSceneTarget(s) {
+  if (s.hunt) return s.hunt;
+  if (s.chests?.some(c => c.id === s.lastHunt?.chestId)) return s.lastHunt;
+  if (typeof repeatHunting !== "undefined" && repeatHunting.active) return repeatHunting.summary.rank;
+  return selectedHuntRank(s);
+}
 function forestView(s, health) {
-  const page = phonePage("forest");
-  if (page === "field") return fieldView(s);
-  const automatic = typeof repeatHunting !== "undefined" && repeatHunting.active;
-  const h = s.hunt,
-    next = Math.min(60, (s.huntBest || 0) + 1),
-    pendingChest = s.chests?.find(c => c.id === s.lastHunt?.chestId);
-  const enemy = Game.huntEnemy(h || s.lastHunt || next);
-  const hud = health ? combatHud(health.hp, health.maxHp, health.enemyHp, health.enemyMax, enemy.name) : "";
-  const fight = h
-    ? huntIntent(h) + '<div class="battle-controls">' + hud + huntModeControls(s) +
-      (h.rank >= 2 ? huntTools(h) + huntChoices(h) : '<div class="actions">' +
-        btn("strike", icon("sword") + (h.counter ? "반격 ×2.5" : "베기"), "", h.counter ? "primary grow counter-ready" : "primary grow") +
-        btn("block", icon("shield") + "방어", "", Game.huntCharge(h) ? "action guard-ready" : "action") +
-        btn("flee", "퇴각", "", "mini") + "</div>") + "</div>" +
-      repeatPanel(s) + '<div class="hunt-feedback">' + desc(h.last) + '</div>' +
-      desc("이어하기 추가 차감 없음 · 퇴각 시 사냥권 반환 없음") +
-      '<details class="hunt-enemy-help"><summary>적 특성과 전투 안내</summary>' + forestEncounter(h) +
-      desc("자동은 약 1초마다 행동합니다. 승리 보물을 수령하고 같은 구역을 사냥권 소진까지 반복합니다. 화면을 숨기거나 종료하면 수동 대기로 돌아옵니다.") + '</details>' +
-      (page ? "" : storyChat(s, "forest"))
-    : automatic ? '<div class="battle-controls">' + hud + huntModeControls(s) + '</div>'
-    : huntResult(s.lastHunt, s.chests) + (page ? "" : storyChat(s, "forest")) +
-      (pendingChest ? "" : desc(
-        next === 1 ? "돌진을 방어하면 다음 베기가 2.5배 반격이 됩니다. 반격을 맞히고 이기면 골드가 25% 늘어납니다." :
-          "기세 2칸을 모으면 강공을 쓸 수 있습니다. 적을 먼저 쓰러뜨리면 피해를 받지 않고, 돌진을 막고 반격하면 골드를 25% 더 받습니다.",
-      )) +
-      (pendingChest ? "" : forestEncounter(next, true)) +
-      '<div class="battle-controls">' + hud + (pendingChest || (typeof repeatHunting !== "undefined" && repeatHunting.active) ? huntModeControls(s) : "") + (pendingChest
-        ? (typeof repeatHunting !== "undefined" && repeatHunting.active ? "" : btn("openChest", icon("gift") + "보물 획득", pendingChest.id, "primary"))
-        : btn("huntStart", icon("swords") + next + "구역 수동 · 사냥권 1", next, "primary")) + "</div>" +
-      (!pendingChest && s.huntBest ? btn("huntStart", "이전 구역 재도전 · 사냥권 1", Math.min(s.huntBest, 60), "mini") : "");
-  const autoSetup = !h && !pendingChest && !(typeof repeatHunting !== "undefined" && repeatHunting.active)
-    ? '<div class="auto-start"><label for="repeatRank">구역</label><select id="repeatRank">' +
-      Array.from({ length: next }, (_, i) => '<option value="' + (i + 1) + '"' + (i + 1 === (s.lastHunt?.rank || next) ? ' selected' : '') + '>' + (i + 1) + '구역</option>').join('') +
-      '</select><button class="primary" data-repeat="start"' + (Game.huntingStatus(s).free + Game.huntingStatus(s).purchased ? '' : ' disabled') + '>자동 사냥 시작</button><small>무료 우선 · 구매분 포함 · 소진까지</small></div>' : '';
+  if (phonePage("forest") === "field") return fieldView(s);
+  const h = s.hunt, automatic = typeof repeatHunting !== "undefined" && repeatHunting.active;
+  const next = Math.min(60, (s.huntBest || 0) + 1), w = Game.huntingStatus(s);
+  const pendingChest = s.chests?.find(c => c.id === s.lastHunt?.chestId);
+  const selected = selectedHuntRank(s), enemy = Game.huntEnemy(h || selected);
+  const hud = h && health ? combatHud(health.hp, health.maxHp, health.enemyHp, health.enemyMax, enemy.name) : "";
+  const stats = Game.stats(s);
+  const idle = '<div class="idle-stats">' + gearPortrait(s.weapon,"weapon") + '<span>현재 장비</span><b>공격 ' + fmt(stats.attack) + ' · 체력 ' + fmt(stats.hp) + '</b></div>';
+  const wallet = '<div class="wallet-short"><span data-wallet-summary>사냥권 · 무료 ' + w.free + ' / 구매 ' + w.purchased + '</span>' +
+    openBtn("huntWallet", "충전 · 출석", "textbtn") + '</div>';
+  let content;
+  if (h) content = huntIntent(h) + '<div class="battle-controls">' + hud +
+    (h.rank >= 2 ? huntTools(h) + huntChoices(h) : '<div class="actions">' +
+      btn("strike", icon("sword") + (h.counter ? "반격 ×2.5" : "베기"), "", h.counter ? "primary grow counter-ready" : "primary grow") +
+      btn("block", icon("shield") + "방어", "", Game.huntCharge(h) ? "action guard-ready" : "action") + btn("flee","퇴각","","mini") + '</div>') +
+    huntModeControls(s) + '</div>' + repeatPanel(s);
+  else if (automatic) content = idle + huntModeControls(s) + repeatPanel(s);
+  else if (pendingChest) content = huntResult(s.lastHunt,s.chests) + btn("openChest",icon("gift") + "보물 획득",pendingChest.id,"primary") + huntModeControls(s);
+  else content = idle + '<div class="auto-start"><label for="repeatRank">자동 사냥 구역</label><select id="repeatRank">' +
+    Array.from({length:next},(_,i) => '<option value="' + (i+1) + '"' + (i+1 === selected ? ' selected' : '') + '>' + (i+1) + '구역</option>').join('') +
+    '</select><button class="primary" data-repeat="start"' + (w.free + w.purchased ? '' : ' disabled') + '>' + icon("sword") + '자동 사냥 시작</button><small>무료 우선 · 구매분 포함 · 소진까지</small></div>' +
+    '<div class="actions">' + btn("huntStart", selected + "구역 수동 · 사냥권 1",selected,"action",!w.free && !w.purchased) +
+    (s.huntBest ? btn("huntStart","이전 구역 재도전 · 사냥권 1",Math.min(s.huntBest,60),"mini",!w.free && !w.purchased) : '') + '</div>' + repeatPanel(s) +
+    (s.lastHunt ? '<details><summary>지난 토벌 결과</summary>' + huntResult(s.lastHunt,s.chests) + '</details>' : '');
   const task = Game.routeTask(s);
-  const training =
-    !h && !pendingChest && s.weapon.route?.trait === "edge" && task?.open
-      ? task.ready
-        ? go(page ? "forge/training" : "forge", "수련 마감 · +" + task.target, "action")
-        : task.needed <= next
-          ? btn("huntStart", "전승 수련 · " + task.needed + "구역 · 사냥권 1", task.needed, "action")
-          : ""
-      : "";
-  const wallet = '<section class="card" id="huntingWallet">' + huntingWalletContent(s) + '</section>';
-  return '<div class="stack hunt-stack">' + (h ? fight + wallet : autoSetup + repeatPanel(s) + fight + wallet) + training + "</div>" + (page ? "" : section("배치 수익") + fieldView(s));
+  const training = !h && !pendingChest && s.weapon.route?.trait === "edge" && task?.open ? task.ready ?
+    go("forge/training","수련 마감 · +" + task.target,"action") : task.needed <= next ?
+    btn("huntStart","전승 수련 · " + task.needed + "구역 · 사냥권 1",task.needed,"action") : "" : "";
+  return '<div class="stack hunt-stack">' + content + (h ? "" : wallet) +
+    (!w.free && !w.purchased && !h ? '<div class="actions">' + openBtn("daily", "출석 보상") + go("forge","대장간으로") + '</div>' : '') +
+    training + '<details class="hunt-enemy-help"><summary>적 특성 · 전투 안내</summary>' + forestEncounter(h || selected) +
+    (h ? desc(h.last) : '') + desc("이어하기 추가 차감 없음 · 퇴각 시 사냥권 반환 없음") +
+    desc("자동은 약 1초마다 행동하고 승리 보물을 수령한 뒤 같은 구역을 반복합니다. 화면을 숨기거나 종료하면 수동 대기로 돌아옵니다.") +
+    openBtn("huntRules", "기세와 반격 규칙", "action") + '</details></div>';
 }
 function chestOrigin(c) {
   return c.source === "tower" ? "무한의 탑 " + c.rank + (c.rankEnd && c.rankEnd !== c.rank ? "~" + c.rankEnd : "") + "층" : "이끼숲 " + c.rank + "구역";
@@ -561,13 +466,13 @@ function fieldView(s) {
         ? row(
             Game.name(g) + " +" + g.level,
             fmt(Game.perMinute(g) / 6) + " G / 10초",
-            btn("deploy", "배치", i, "mini"),
+            btn("deploy", "배치", i, "mini"), "", gearPortrait(g,"weapon"),
           )
         : "",
     )
     .filter(Boolean);
   const deployed = s.field.map((g, i) =>
-    row(Game.name(g) + " +" + g.level, fmt(Game.perMinute(g) / 6) + " G / 10초", btn("recall", "회수", i, "mini")));
+    row(Game.name(g) + " +" + g.level, fmt(Game.perMinute(g) / 6) + " G / 10초", btn("recall", "회수", i, "mini"), "", gearPortrait(g,"weapon")));
   return (
     metrics(
       gaugeMetric("배치 무기", s.field.length, 2 + s.imprints.land, "mint"),
@@ -576,7 +481,7 @@ function fieldView(s) {
     ) +
     btn("collect", "배치 수익 수령", "", "primary") +
     desc("13강 이상 무기를 보관한 뒤 배치하면 게임을 닫아도 배치 수익이 쌓입니다. 사냥권은 쓰지 않습니다.") +
-    phoneList([...deployed, ...candidates]) +
+    '<div class="field-slots">' + deployed.join("") + Array.from({length:Math.max(0,2+s.imprints.land-s.field.length)},() => '<div class="field-empty">빈 배치 자리<br><small>+13 이상 무기</small></div>').join("") + '</div>' + (candidates.length ? section("배치할 무기") + '<div class="field-slots">' + candidates.join("") + '</div>' : "") +
     (candidates.length ? "" : go("bag/stored", "무기 보관함 " + icon("arrow-right"), "action"))
   );
 }
@@ -720,9 +625,8 @@ function zoneView(s, id) {
     f = towerMode === "trial" ? s.trial.floor : s.tower;
   if (id === "forest" && phonePage(id) === "field")
     return '<section class="panel">' + fieldView(s) + "</section>";
-  const last = s.lastHunt?.health;
-  const health = id === "forest" && (s.hunt || (last && last.number === s.huntNumber && last));
-  const enemy = id === "forest" ? Game.huntEnemy(s.hunt || (health && s.lastHunt) || Math.min(60, (s.huntBest || 0) + 1)) : null;
+  const health = id === "forest" && s.hunt;
+  const enemy = id === "forest" ? Game.huntEnemy(forestSceneTarget(s)) : null;
   return (
     '<div class="columns"><div class="stage-side">' +
     scene(
@@ -787,19 +691,10 @@ function bagView(s) {
     if (page === "gear") return shelf + equipment;
     const stored = card(
           "보관 무기 · " + s.bag.length + " / 20",
-          phoneList(s.bag
-            .map((g, i) =>
-              row(
-                Game.name(g) + " +" + g.level,
-                [tier(g, "weapon"), craftSummary(g)].filter(Boolean).join(" · "),
-                btn("equip", "장착", i, "mini") +
-                  (g.level >= 13 ? btn("deploy", "배치", i, "mini") : ""),
-                "", gearPortrait(g, "weapon"),
-              ),
-            ),
-            desc("강화한 무기를 보관하면 이곳에서 다시 장착할 수 있습니다. +13부터는 사냥터에 배치할 수 있습니다.") +
-              (page ? (Game.canStoreWeapon(s.weapon) ? go("bag", "장착 무기 보기", "action") :
-                forgeLink) : "")),
+          '<div class="inventory-grid">' + s.bag.map((g,i) => '<article class="inventory-tile">' + gearPortrait(g,"weapon") +
+            '<b>' + Game.name(g) + ' +' + g.level + '</b><small>' + [tier(g,"weapon"),craftSummary(g)].filter(Boolean).join(' · ') + '</small>' +
+            '<div class="actions">' + btn("equip","장착",i,"mini") + (g.level >= 13 ? btn("deploy","배치",i,"mini") : '') + '</div></article>').join('') + '</div>' +
+            (s.bag.length ? '' : desc("보관한 무기는 여기에서 장착하거나 +13부터 사냥터에 배치합니다.") + go("bag","장착 장비 보기","action")),
         );
     return tabBar + shelf + (page ? "" : equipment) + stored;
   }
@@ -866,7 +761,7 @@ function growthView(s) {
         openBtn("rebirth", s.weapon.level === 20 ? "환생 의식 열기" : "환생 조건 보기", s.weapon.level === 20 ? "primary" : "action"),
       "flame",
     ),
-    imprint: card("영혼 각인", phoneList(imprint, "", 1), "sparkles"),
+    imprint: card("영혼 각인", imprint.join(""), "sparkles"),
     fusion: card(
       "초월 합성",
       desc(
@@ -885,6 +780,6 @@ function growthView(s) {
     ),
   };
   const page = phonePage("growth");
-  return page ? summary + cards[page] : summary + section("영구 성장") +
+  return page ? (page === "rebirth" ? '<div class="progression-stage" aria-hidden="true"></div>' : "") + summary + cards[page] : summary + section("영구 성장") +
     '<div class="baggrid">' + Object.values(cards).join("") + "</div>" + orderView(s);
 }

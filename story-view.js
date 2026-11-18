@@ -63,7 +63,7 @@ function storyBook(s) {
   return ["이야기", CharcoalStory.volumes.map((volume, i) =>
     '<h3 class="volume-title">' + (i + 1) + "장 · " + volume.title + "</h3>" +
     volume.scenes.map(leaf).join("")).join("") +
-    storyButton("quiet", s.story.quiet ? "자동 컷신과 동료 대화 켜기" : "자동 컷신과 동료 대화 끄기")];
+    storyButton("quiet", s.story.quiet ? "이야기·동료 대화 안내 켜기" : "이야기·동료 대화 안내 끄기")];
 }
 function storyPage() {
   const { id, replay, page, answer } = storyScene;
@@ -112,7 +112,8 @@ function autoStory() {
         (state.rebirths || state.weapon.level !== 20 || state.story.bundle < CharcoalStory.chapters.bundle.pages)) continue;
     if (id === "lesson" && !state.story.lesson && !state.story.firstGift) continue;
     if (CharcoalStory.unlocked(state, id) && state.story[id] < CharcoalStory.chapters[id].pages) {
-      startStory(id);
+      const book = document.querySelector('[data-open="storyBook"]');
+      if (book) { book.classList.add("story-ready"); book.setAttribute("aria-label", "이야기 · 새로운 장면"); }
       return;
     }
   }
