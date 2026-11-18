@@ -13,7 +13,7 @@ const SaveStore = (() => {
   function decode(raw) {
     let data;
     try { data = JSON.parse(raw); } catch { throw fault("corrupt"); }
-    if (data?.version > 1 || data?._save?.format > 1) throw fault("future");
+    if (data?.version > 1 || data?._save?.format > 1 || data?.hunting?.version > 1) throw fault("future");
     if (!object(data) || data.version !== 1 || !object(data.weapon) || !Array.isArray(data.field))
       throw fault("corrupt");
     if (data.created !== undefined && (!Number.isFinite(data.created) || Math.abs(data.created) > 8.64e15))
@@ -49,8 +49,31 @@ const SaveStore = (() => {
     if (data._save && (!object(data._save) || data._save.format !== 1 ||
         !Number.isSafeInteger(data._save.revision) || data._save.revision < 1 ||
         typeof data._save.generation !== "string" || !Number.isFinite(data._save.savedAt))) throw fault("corrupt");
+    if ("hunting" in data) {
+      const w = data.hunting;
+      const count = n => Number.isSafeInteger(n) && n >= 0;
+      const time = n => Number.isFinite(n) && Math.abs(n) <= 8.64e15;
+      if (!object(w) || w.version !== 1 || typeof w.id !== "string" || !w.id ||
+          !count(w.free) || !count(w.purchased) || !count(w.serial) || !time(w.observedAt) ||
+          !(w.rechargeAt === null || time(w.rechargeAt)) ||
+          typeof w.daily !== "string" || !/^(|\d{4}-\d{2}-\d{2})$/.test(w.daily) ||
+          (w.free >= game.hunting.cap) !== (w.rechargeAt === null) ||
+          (w.rechargeAt !== null && w.rechargeAt > w.observedAt)) throw fault("corrupt");
+      if (w.serial === 0 ? w.lastStart !== null :
+          !object(w.lastStart) || w.lastStart.request !== w.serial ||
+          w.lastStart.id !== w.id + "-" + w.serial ||
+          !Number.isInteger(w.lastStart.rank) || w.lastStart.rank < 1 || w.lastStart.rank > 60 ||
+          !["free", "purchased"].includes(w.lastStart.source)) throw fault("corrupt");
+    }
     const restored = { ...defaults, ...data, fieldIncomeVersion: data.fieldIncomeVersion ?? 1,
       apprentice: apprentice.restore(data, defaults.apprentice) };
+    if (!("hunting" in data)) {
+      delete restored.hunting;
+      game.settleHunting(restored);
+    } else if (restored.hunt && !restored.hunt.id) {
+      restored.hunt.id = "legacy-" + restored.hunting.id;
+      restored.hunt.ticketSource = null;
+    }
     restored.story = story.restore({ ...restored, story: data.story });
     try { game.migrateTraining(restored); } catch { throw fault("corrupt"); }
     return restored;
@@ -61,7 +84,7 @@ const SaveStore = (() => {
       error.name === "SecurityError" || !writing ? "access" : "write");
   }
   function create(getStorage, id = () => globalThis.crypto.randomUUID()) {
-    let expected, lastSavedAt = null, pending = null;
+    let expected, lastSavedAt = null, pending = null, needsMigration = false;
     const read = name => { try { return getStorage().getItem(name); } catch (e) { throw storageFault(e); } };
     const write = (name, value) => {
       try { getStorage().setItem(name, value); } catch (e) { throw storageFault(e, true); }
@@ -74,6 +97,8 @@ const SaveStore = (() => {
         return null;
       }
       const state = decode(expected);
+      const before = JSON.parse(expected);
+      needsMigration = !before.hunting || !!(before.hunt && !before.hunt.id);
       lastSavedAt = state._save?.savedAt ?? state.last ?? null;
       return state;
     }
@@ -117,6 +142,7 @@ const SaveStore = (() => {
       const result = decode(raw);
       lastSavedAt = result._save.savedAt;
       pending = null;
+      needsMigration = false;
       return result;
     }
     function recover() {
@@ -128,6 +154,7 @@ const SaveStore = (() => {
       return commit(state, "recover");
     }
     return { load, check, commit, recover, backup,
+      get needsMigration() { return needsMigration; },
       get pending() { return !!pending; }, get lastSavedAt() { return lastSavedAt; } };
   }
   function createLock(environment) {

@@ -177,9 +177,50 @@ const Game = (() => {
     best: 0,
     done: false,
   });
+  const hunting = { initial: 30, cap: 30, interval: 600000, daily: 10 };
+  function freshHunting(t) {
+    return { version: 1, id: globalThis.crypto.randomUUID(), free: hunting.initial, purchased: 0,
+      rechargeAt: null, observedAt: t, daily: "", serial: 0, lastStart: null };
+  }
+  // Local trial only: device time and restored snapshots are not server authority.
+  function settleHunting(s, t = Date.now()) {
+    if (!s.hunting) {
+      s.hunting = freshHunting(t);
+      s.hunting.daily = s.day || "";
+    }
+    const w = s.hunting;
+    t = Math.max(t, w.observedAt);
+    w.observedAt = t;
+    if (w.free >= hunting.cap) w.rechargeAt = null;
+    else {
+      w.rechargeAt ??= t;
+      const count = Math.floor(Math.max(0, t - w.rechargeAt) / hunting.interval);
+      w.free = Math.min(hunting.cap, w.free + count);
+      w.rechargeAt = w.free >= hunting.cap ? null : w.rechargeAt + count * hunting.interval;
+    }
+    if (s.hunt && !s.hunt.id) {
+      s.hunt.id = "legacy-" + w.id;
+      s.hunt.ticketSource = null; // Never charge a battle that predates migration.
+    }
+    return w;
+  }
+  function huntingStatus(s, t = Date.now()) {
+    const copy = { hunting: { ...s.hunting }, hunt: null };
+    const w = settleHunting(copy, t);
+    return { ...w, remaining: w.rechargeAt === null ? null :
+      Math.max(0, w.rechargeAt + hunting.interval - w.observedAt) };
+  }
+  function resetProgress(s, t = Date.now()) {
+    settleHunting(s, t);
+    const next = fresh(t);
+    next.hunting = JSON.parse(JSON.stringify(s.hunting));
+    next.day = s.day; // Resetting progress does not grant another daily supply.
+    return next;
+  }
   function fresh(t = Date.now()) {
     return {
       version: 1,
+      hunting: freshHunting(t),
       story: story.fresh(),
       apprentice: { visible: true, tempered: false, deployed: false, collected: false },
       lastHunt: null,
@@ -379,6 +420,7 @@ const Game = (() => {
     };
   }
   function settle(s, t = Date.now()) {
+    settleHunting(s, t);
     if (t > s.last) {
       // Settle pre-update time at the old rate before switching existing saves.
       const divisor = s.fieldIncomeVersion === 2 ? 1 : 6;
@@ -899,32 +941,53 @@ const Game = (() => {
         return success("사냥 수익 +" + value.toLocaleString() + " G", "win");
       }
       case "daily":
-        if (s.day === day(t)) return fail("오늘 보상을 이미 받았습니다.");
+        if (s.day >= day(t) || s.hunting.daily >= day(t)) return fail("오늘 보상을 이미 받았습니다.");
         s.day = day(t);
+        s.hunting.daily = s.day;
+        s.hunting.free += hunting.daily;
+        if (s.hunting.free >= hunting.cap) s.hunting.rechargeAt = null;
         s.gold += 1000000;
         s.tickets += 5;
         s.tanks++;
         s.charms[0] += 3;
         s.charms[1] += 3;
-        return success("출석 · 100만 G, 입장권 5장, 산소통 1개, 가호 2종 각 3개", "win");
+        return success("출석 · 무료 사냥권 10개, 100만 G, 입장권 5장, 산소통 1개, 가호 2종 각 3개", "win");
       case "tank":
         if (s.gold < 10000000) return fail("산소통은 1,000만 G입니다.");
         s.gold -= 10000000;
         s.tanks++;
         return success("산소통 1개 구입");
       case "huntStart": {
+        const w = s.hunting;
+        const request = typeof arg === "object" && arg !== null ? arg.request : w.serial + 1;
+        if (!Number.isSafeInteger(request) || request < 1) return fail("사냥 시작 요청이 올바르지 않습니다.");
+        if (request <= w.serial) {
+          if (request === w.lastStart?.request)
+            return { ok: true, message: s.hunt?.id === w.lastStart.id ? "진행 중이던 전투입니다." : "이미 처리한 사냥 시작입니다.", receipt: { ...w.lastStart } };
+          return fail("이미 처리한 이전 사냥 요청입니다.");
+        }
+        if (request !== w.serial + 1) return fail("최신 사냥 상태를 다시 확인하세요.");
         if (s.hunt) return fail("이미 교전 중입니다.");
-        const rank = Number(arg);
+        const rank = Number(typeof arg === "object" && arg !== null ? arg.rank : arg);
         if (!Number.isInteger(rank) || rank < 1 || rank > Math.min(60, s.huntBest + 1))
           return fail("먼저 이전 지역을 토벌하세요.");
+        if (w.free + w.purchased < 1) return fail("사냥권이 부족합니다. 10분 충전·오늘의 출석을 확인하거나 대장간과 배치 수익을 이용하세요.");
         const st = stats(s),
           enemyHp = 90 + Math.round(36 * (rank - 1) ** 1.65);
         const enemy = huntEnemy(rank);
         const task = routeTask(s);
+        const source = w.free > 0 ? "free" : "purchased";
+        w[source]--;
+        if (w.free < hunting.cap && w.rechargeAt === null) w.rechargeAt = w.observedAt;
+        w.serial = request;
+        w.lastStart = { request, id: w.id + "-" + request, rank, source };
         s.huntNumber = (s.huntNumber || 0) + 1;
         if (s.weapon.route?.trait === "edge" && task?.open && rank >= task.needed)
           s.weapon.route.hunt = s.huntNumber;
         s.hunt = {
+          id: w.lastStart.id,
+          request,
+          ticketSource: source,
           number: s.huntNumber,
           rank,
           enemyKind: enemy.kind,
@@ -941,12 +1004,12 @@ const Game = (() => {
           ripostes: 0,
           last: enemy.name + " 출현 · " + enemy.trait,
         };
-        return success("이끼숲 " + rank + "구역 사냥 시작");
+        return { ...success("이끼숲 " + rank + "구역 사냥 시작 · 사냥권 1개 사용"), receipt: { ...w.lastStart } };
       }
       case "flee":
         if (!s.hunt) return fail("교전 중인 적이 없습니다.");
         s.hunt = null;
-        return success("숲길에서 안전하게 퇴각했습니다.");
+        return success("숲길에서 안전하게 퇴각했습니다. 사용한 사냥권은 반환되지 않습니다.");
       case "strike":
       case "heavyStrike":
       case "block": {
@@ -970,6 +1033,7 @@ const Game = (() => {
           const bonus = h.ripostes ? base / 4 : 0;
           const chest = awardChest(s, "forest", h.rank, base, bonus, int);
           s.lastHunt = {
+            id: h.id, ticketSource: h.ticketSource,
             health: huntHealth(h),
             rank: h.rank,
             enemyKind: huntEnemy(h).kind,
@@ -1000,6 +1064,7 @@ const Game = (() => {
         h.counter = block && charge;
         if (!h.hp) {
           s.lastHunt = {
+            id: h.id, ticketSource: h.ticketSource,
             health: huntHealth(h),
             rank: h.rank,
             enemyKind: huntEnemy(h).kind,
@@ -1329,6 +1394,7 @@ const Game = (() => {
     return 1 - Math.abs((elapsed % 1800) / 900 - 1);
   }
   return {
+    hunting, settleHunting, huntingStatus, resetProgress,
     migrateTraining,
     reforgeOptions,
     breakPattern,

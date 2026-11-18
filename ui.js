@@ -73,7 +73,7 @@ function reloadAtForge() {
 function startNewGame() {
   return locked(() => {
     if (modal !== "confirmNewGame") return;
-    state = Game.fresh();
+    state = Game.resetProgress(state);
     save("reset");
     reloadAtForge();
   });
@@ -102,7 +102,8 @@ function showSaveGuard() {
     " · 무기 +" + backup.weapon.level + " · " + fmt(backup.gold) + " G · 환생 " + backup.rebirths + "회" : "복구 가능한 직전 정상본 없음";
   el("saveRetry").hidden = storageError === "future" || storageError === "conflict";
   el("saveRecover").hidden = !backup || storageError === "future" || store.pending || storageError === "conflict";
-  el("saveReset").hidden = !["corrupt", "missing", "no-backup"].includes(storageError) || store.pending;
+  // An unreadable wallet cannot safely be replaced with a new first grant.
+  el("saveReset").hidden = true;
   el("saveReload").textContent = store.pending ? "미저장 진행을 포기하고 최신 저장 읽기" : "최신 저장 다시 읽기";
   el("saveGuard").hidden = false;
   for (const node of document.querySelectorAll("body > header, body > main, #apprentice, #mobileNav, #shade")) node.inert = true;
@@ -124,14 +125,13 @@ function storageAction(action) {
     if (!store.pending || confirm("이 탭의 미저장 진행을 포기하고 기기의 최신 저장을 읽을까요?")) location.reload();
     return;
   }
-  if (action === "reset" && !confirm("손상된 원본을 별도로 보존하고 새 게임을 시작할까요? 기존 진행은 새 게임에 합쳐지지 않습니다.")) return;
-  if (action === "recover" && !confirm("표시된 직전 정상본으로 복구할까요? 현재 원본도 별도로 보존합니다.")) return;
+  if (action === "reset") return;
+  if (action === "recover" && !confirm("표시된 직전 정상본으로 복구할까요? 로컬 사냥권도 그때의 잔량으로 돌아갑니다. 현재 원본도 별도로 보존합니다.")) return;
   return locked(() => {
     if (!storageError) return; // Ignore already queued recovery/retry double-clicks.
     if (action === "recover") state = store.recover();
-    else if (action === "reset") { state = Game.fresh(); save("reset"); }
     else if (store.pending) save();
-    else { state = readState(); if (!state) { state = Game.fresh(); save(); } }
+    else { state = readState(); if (!state) { state = Game.fresh(); save(); } else if (store.needsMigration) save(); }
     resumeSaved();
   }, true);
 }
@@ -156,6 +156,9 @@ function syncMusic() {
     { enabled: prefs.music, volume: prefs.musicVolume, hidden: document.hidden });
 }
 function act(action, arg = "", pressedAt) {
+  // Capture the request before queueing: rapid clicks share one start sequence.
+  if (action === "huntStart" && typeof arg !== "object" && state)
+    arg = { rank: arg, request: state.hunting.serial + 1 };
   return locked(() => {
     sync();
     Feedback.clear();
@@ -582,7 +585,7 @@ function modalData() {
     case "confirmNewGame":
       return [
         "처음부터 시작할까요?",
-        desc("장비, 골드, 환생과 이야기 기록을 초기화하고 첫 장면부터 시작합니다. 현재 원본을 별도로 보존한 뒤 새 진행 저장이 성공해야 시작합니다.") +
+        desc("장비, 골드, 환생과 이야기 기록을 초기화하고 첫 장면부터 시작합니다. 사냥권 잔량·충전 시간·출석 수령 기록은 유지되며 최초 30개를 다시 지급하지 않습니다. 현재 원본을 별도로 보존한 뒤 새 진행 저장이 성공해야 시작합니다.") +
           '<div class="actions">' + openBtn("settings", "취소") +
           '<button class="action danger" data-new-game>진행을 지우고 시작</button></div>',
       ];
@@ -605,15 +608,16 @@ function modalData() {
     case "daily":
       return [
         "오늘의 출석 보상",
-        desc("매일 한국 시간 자정에 갱신됩니다.") +
+        '<p class="desc" data-attendance-day="' + Game.day(Date.now()) + '">오늘 ' + Game.day(Date.now()) + " · 한국 시간(KST) 자정 갱신 · 로컬 기기 시각 기준</p>" +
+          row("무료 사냥권 +10", "30개를 넘어 보유 가능 · 상한 이상이면 자연 충전 대기", icon("gift")) +
           row("1,000,000 G", "무한의 탑 입장권 5장 · 산소통 1개", icon("gift")) +
           row("가호 보급", "정령과 대장장이 가호 각 3개", icon("shield")) +
           btn(
             "daily",
-            s.day === Game.day(Date.now()) ? "오늘 수령 완료" : "보급품 받기",
+            s.day >= Game.day(Date.now()) || s.hunting.daily >= Game.day(Date.now()) ? "오늘 수령 완료" : "보급품 받기",
             "",
             "primary",
-            s.day === Game.day(Date.now()),
+            s.day >= Game.day(Date.now()) || s.hunting.daily >= Game.day(Date.now()),
           ),
       ];
     case "market":
@@ -944,6 +948,13 @@ addEventListener("pageshow", () => syncMusic());
 setInterval(() => {
   if (document.hidden || !ready || storageError) return;
   accrue();
+  if (el("huntingWallet")) {
+    const w = Game.huntingStatus(state);
+    if (el("huntingWallet").firstElementChild?.dataset.huntingStatus !== huntingWalletKey(state, w))
+      el("huntingWallet").innerHTML = huntingWalletContent(state);
+    else el("huntingWallet").querySelector("[data-hunting-recharge]").textContent = huntingRechargeText(w);
+  }
+  if (modal === "daily" && document.querySelector("[data-attendance-day]")?.dataset.attendanceDay !== Game.day(Date.now())) displayModal();
   if (state.autoMine) {
     locked(() => {
       const settled = sync();
@@ -1049,6 +1060,7 @@ el("settingsIcon").innerHTML = icon("settings");
 locked(() => {
   state = readState();
   if (!state) { state = Game.fresh(); save(); }
+  else if (store.needsMigration) save();
   resumeSaved();
 }, true);
 requestAnimationFrame(animate);

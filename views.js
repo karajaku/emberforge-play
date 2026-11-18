@@ -396,6 +396,23 @@ function notebookView(s, cost, recovery) {
     "</section>"
   );
 }
+function huntingRechargeText(w) {
+  const seconds = Math.ceil((w.remaining || 0) / 1000);
+  const time = Math.floor(seconds / 60) + "분 " + seconds % 60 + "초";
+  return w.remaining === null ? "자연 충전 대기 · 무료 30개 미만부터 충전" : "다음 무료 충전 " + time + " · 10분마다 1개";
+}
+function huntingWalletKey(s, w) {
+  return [w.free, w.purchased, s.day >= Game.day(Date.now()) || w.daily >= Game.day(Date.now())].join(":");
+}
+function huntingWalletContent(s) {
+  const w = Game.huntingStatus(s);
+  const claimed = s.day >= Game.day(Date.now()) || w.daily >= Game.day(Date.now());
+  return '<div data-hunting-status="' + huntingWalletKey(s, w) + '">' + line("사냥권", "무료 " + fmt(w.free) + " / 30 · 구매 " + fmt(w.purchased)) +
+    '<p class="desc" data-hunting-recharge>' + huntingRechargeText(w) + '</p>' +
+    (!w.free && !w.purchased ? desc("사냥권이 부족합니다. 충전을 기다리거나 출석을 확인하세요. 제작·담금질·보관함 정리·배치 수익 수령은 계속할 수 있습니다.") +
+      '<div class="actions">' + openBtn("daily", claimed ? "출석 수령 완료" : "출석 +10 받기", "mini") + go("forge", "대장간으로", "mini") + '</div>' : "") +
+    desc("무료 로컬 시험 · 실제 구매 미지원 · 기기 시각과 저장 기준") + '</div>';
+}
 function forestView(s, health) {
   const page = phonePage("forest");
   if (page === "field") return fieldView(s);
@@ -405,7 +422,7 @@ function forestView(s, health) {
   const enemy = Game.huntEnemy(h || s.lastHunt || next);
   const hud = health ? combatHud(health.hp, health.maxHp, health.enemyHp, health.enemyMax, enemy.name) : "";
   const fight = h
-    ? forestEncounter(h) + huntIntent(h) + '<div class="hunt-feedback">' + desc(h.last) + (h.rank >= 2 ? huntTools(h) : "") + "</div>" +
+    ? desc("진행 중인 전투 · 이어서 플레이해도 추가 차감 없음 · 퇴각 시 사냥권 반환 없음") + forestEncounter(h) + huntIntent(h) + '<div class="hunt-feedback">' + desc(h.last) + (h.rank >= 2 ? huntTools(h) : "") + "</div>" +
       (page ? "" : storyChat(s, "forest")) +
       '<div class="battle-controls">' + hud + (h.rank >= 2 ? huntChoices(h) : '<div class="actions">' +
         btn("strike", icon("sword") + (h.counter ? "반격 ×2.5" : "베기"), "", h.counter ? "primary grow counter-ready" : "primary grow") +
@@ -419,18 +436,18 @@ function forestView(s, health) {
       (pendingChest ? "" : forestEncounter(next, true)) +
       '<div class="battle-controls">' + hud + (pendingChest
         ? btn("openChest", icon("gift") + "보물 획득", pendingChest.id, "primary")
-        : btn("huntStart", icon("swords") + next + "구역 사냥", next, "primary")) + "</div>" +
-      (!pendingChest && s.huntBest ? btn("huntStart", "이전 구역 재도전", Math.min(s.huntBest, 60), "mini") : "");
+        : btn("huntStart", icon("swords") + next + "구역 사냥 · 사냥권 1", next, "primary")) + "</div>" +
+      (!pendingChest && s.huntBest ? btn("huntStart", "이전 구역 재도전 · 사냥권 1", Math.min(s.huntBest, 60), "mini") : "");
   const task = Game.routeTask(s);
   const training =
     !h && !pendingChest && s.weapon.route?.trait === "edge" && task?.open
       ? task.ready
         ? go(page ? "forge/training" : "forge", "수련 마감 · +" + task.target, "action")
         : task.needed <= next
-          ? btn("huntStart", "전승 수련 · " + task.needed + "구역", task.needed, "action")
+          ? btn("huntStart", "전승 수련 · " + task.needed + "구역 · 사냥권 1", task.needed, "action")
           : ""
       : "";
-  return '<div class="stack">' + fight + training + "</div>" + (page ? "" : section("자동 사냥") + fieldView(s));
+  return '<div class="stack"><section class="card" id="huntingWallet">' + huntingWalletContent(s) + '</section>' + fight + training + "</div>" + (page ? "" : section("자동 사냥") + fieldView(s));
 }
 function chestOrigin(c) {
   return c.source === "tower" ? "무한의 탑 " + c.rank + (c.rankEnd && c.rankEnd !== c.rank ? "~" + c.rankEnd : "") + "층" : "이끼숲 " + c.rank + "구역";
@@ -469,6 +486,7 @@ function huntResult(last, chests) {
     last.ripostes +
     "회" +
     bonus +
+    (last.ticketSource ? " · 사냥권 1개 사용" : " · 이전 전투 추가 차감 없음") +
     "</small>" +
     (chest ? desc("보물상자를 발견했습니다. 아래에서 보물을 획득하세요.") : recovery) +
     "</div>"
