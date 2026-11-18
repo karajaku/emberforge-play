@@ -140,3 +140,11 @@ body.ui-game { --text:#f4ead4;--muted:#c1b69e;--gold:#e4be79;--mint:#91d9b6; }
  .ui-game .ui-battle-scene [data-side="player"] .hp-name { display:none; }
  .ui-gear-tile { min-height:133px; }.ui-gear-tile .gear-portrait { width:90px;height:90px; }
 }
+#shade[data-modal="shopSell"] label { display: block; margin: 12px 0 4px; }
+#shade[data-modal="shopSell"] select, #shade[data-modal="shopSell"] input {
+  box-sizing: border-box; width: 100%; min-height: 44px; padding: 6px 10px;
+  border: 1px solid #987a55; border-radius: 6px; background: #fff8eb; color: #443021; font: inherit;
+}
+#shade:is([data-modal="shop"], [data-modal="relicWorkshop"]) .listrow b { color: #443021; }
+#shade .shop-modes { display: grid; grid-template-columns: 1fr 1fr; margin: 8px 0; }
+#shade .shop-modes button { min-height: 44px; }

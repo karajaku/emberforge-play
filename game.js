@@ -4,6 +4,7 @@ const Game = (() => {
   const craft = typeof module !== "undefined" ? require("./swordcraft.js") : Swordcraft;
   const finale = typeof module !== "undefined" ? require("./breakthrough.js") : Breakthrough;
   const dice = typeof module !== "undefined" ? require("./dice-combat.js") : DiceCombat;
+  const shop = typeof module !== "undefined" ? require("./relic-shop.js") : RelicShop;
   const grades = ["일반", "레어", "에픽", "전설"];
   const swords = ["순철 장검", "서리결 장검", "황혼의 마검", "태양의 성검"];
   const armors = ["순철 흉갑", "청명한 흉갑", "황혼의 흉갑", "별무리 성갑"];
@@ -265,6 +266,7 @@ const Game = (() => {
       lastTowerRun: null,
       trial: freshTrial(),
       relics: [],
+      relicScrolls: {},
       equippedRelic: -1,
       stones: 0,
       points: 0,
@@ -300,8 +302,9 @@ const Game = (() => {
       attack += s.trial.buffs.attack;
       hp += s.trial.buffs.hp;
     }
-    if (raid && s.relics[s.equippedRelic])
-      attack = Math.round(attack * (1 + s.relics[s.equippedRelic].power / 100));
+    const relic = s.relics[s.equippedRelic];
+    if (raid && relic)
+      attack = Math.round((attack + (relic.extraAttack || 0)) * (1 + relic.power / 100));
     return { attack, hp };
   }
   function price(g) {
@@ -1315,16 +1318,34 @@ const Game = (() => {
         s.trial = { ...freshTrial(), claimed: s.trial.claimed, best: s.trial.best };
         return success("1층부터 다시 도전합니다.");
       case "shop": {
-        const i = Number(arg),
-          cost = [20, 10, 60, 30][i];
-        if (!cost || s.points < cost) return fail("상점 포인트가 부족합니다.");
-        if (i === 3 && s.relics.length >= 20) return fail("유물 보관함이 가득 찼습니다.");
-        s.points -= cost;
-        if (i === 3) {
+        const item = shop.find(arg);
+        if (!item || s.points < item.price) return fail("품목과 보유 포인트를 확인하세요.");
+        if (item.id === "3" && s.relics.length >= 20) return fail("유물 보관함이 가득 찼습니다.");
+        s.points -= item.price;
+        if (item.id === "3") {
           if (random() < 0.2) return success("이번 뽑기에서는 유물이 나오지 않았습니다.");
           addRelic(s, int(1, 4));
-        } else s.charms[i]++;
-        return success(i === 3 ? "유물을 획득했습니다." : blessings[i] + " 구입", "win");
+          return success("유물을 획득했습니다.", "win");
+        }
+        shop.adjust(s, item, 1);
+        return success(item.name + " 구입", "win");
+      }
+      case "resell": {
+        const item = shop.find(arg?.id), count = arg?.count;
+        if (!item?.sell || !Number.isSafeInteger(count) || count < 1 || count > shop.owned(s, item))
+          return fail("판매 품목과 보유 수량을 확인하세요.");
+        const payout = count * item.sell;
+        if (!Number.isSafeInteger(payout)) return fail("이 가호는 짝수 단위로 판매하세요.");
+        shop.adjust(s, item, -count);
+        s.points += payout;
+        return success(item.name + " " + count + "개 판매 · +" + payout + " P", "win");
+      }
+      case "relicScroll": {
+        const item = shop.find(arg);
+        if (!shop.scrolls.includes(item) || !shop.owned(s, item)) return fail("보유한 유물 주문서를 선택하세요.");
+        const reason = shop.restriction(s.relics[s.equippedRelic], item);
+        if (reason) return fail(reason);
+        return success(...shop.apply(s, item, random));
       }
       case "relic": {
         const i = Number(arg);
@@ -1339,9 +1360,10 @@ const Game = (() => {
         s.shards--;
         r.tries++;
         if (random() < 0.6) {
-          r.power = Math.round(r.power * 1.3 * 10) / 10;
+          r.power = shop.boost(r.power, 30);
           return success("유물 강화 성공", "win");
         }
+        r.failures++;
         return success("유물 강화 실패", "loss");
       }
       case "guild": {
@@ -1400,7 +1422,7 @@ const Game = (() => {
     }
   }
   function addRelic(s, base) {
-    s.relics.push({ power: base, tries: 0 });
+    s.relics.push({ power: base, tries: 0, failures: 0 });
     if (s.equippedRelic < 0) s.equippedRelic = 0;
   }
   function marketPrice(i, t) {

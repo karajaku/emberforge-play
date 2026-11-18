@@ -745,20 +745,38 @@ function modalData() {
           btn("market", "보유 광물 일괄 판매", "", "primary", !s.ore.some(Boolean)),
       ];
     case "shop":
-      return [
-        "포인트 상점",
-        line("보유 포인트", fmt(s.points) + " P") +
-          desc("화면을 열고 플레이한 시간 1분당 1 P를 모읍니다.") +
-          [...Game.blessings, "유물 뽑기"]
-            .map((n, i) =>
-              row(
-                n,
-                i === 3 ? "당첨 확률 80%" : "1개",
-                btn("shop", [20, 10, 60, 30][i] + " P", i, "mini", s.points < [20, 10, 60, 30][i]),
-              ),
-            )
-            .join(""),
-      ];
+    case "shopSell": {
+      const selling = modal === "shopSell";
+      const head = line("보유 포인트", fmt(s.points) + " P") +
+        '<div class="segment shop-modes">' + ["shop", "shopSell"].map((mode, i) =>
+          '<button data-open="' + mode + '" aria-pressed="' + (mode === modal) + '" class="' +
+          (mode === modal ? "sel" : "") + '">' + ["구매", "되팔기"][i] + '</button>').join("") + '</div>';
+      if (!selling) return ["포인트 상점", head + desc("플레이 1분마다 1 P 적립 · 유물 주문서는 보관함의 대표 유물에 사용합니다.") +
+        RelicShop.catalog.map(item => row(item.name, item.text +
+          (item.sell ? " · 보유 " + RelicShop.owned(s, item) + "개" : ""),
+          btn("shop", fmt(item.price) + " P", item.id, "mini", s.points < item.price || (item.id === "3" && s.relics.length >= 20)))).join("") +
+        go("bag/relics", "유물 보관함", "action")];
+      const stock = RelicShop.catalog.filter(item => item.sell && RelicShop.owned(s, item));
+      if (!stock.length) return ["포인트 상점", head + desc("판매할 가호나 유물 주문서가 없습니다.")];
+      return ["포인트 상점", head + '<label for="saleItem">판매할 품목</label><select id="saleItem"><option value="">품목 선택</option>' +
+        stock.map(item => '<option value="' + item.id + '">' + item.name + ' · 보유 ' + fmt(RelicShop.owned(s, item)) + '개</option>').join("") +
+        '</select><label for="saleCount">판매 수량</label><input id="saleCount" type="number" inputmode="numeric">' +
+        '<p id="saleQuote" class="desc" aria-live="polite"></p>' + btn("resell", "판매", "", "primary", true)];
+    }
+    case "relicWorkshop": {
+      const relic = s.relics[s.equippedRelic];
+      if (!relic) return ["유물 강화", desc("보관함에서 대표 유물을 지정하세요.") + go("bag/relics", "유물 보관함")];
+      const inventory = RelicShop.scrolls.filter(item => RelicShop.owned(s, item));
+      return ["대표 유물 강화", line("레이드 공격력", "+" + relic.power + "%" + (relic.extraAttack ? " · 추가 +" + relic.extraAttack : "")) +
+        line("남은 강화 기회", (10 - relic.tries) + " / 10회") + line("복구 가능한 실패", relic.failures + "회") +
+        row("별의 파편 강화", "기본 공격력 보너스 · 성공 60% · 수치 +30%",
+          btn("polish", "파편 1개", "", "mini", !s.shards || relic.tries >= 10)) +
+        (inventory.length ? inventory.map(item => {
+          const reason = RelicShop.restriction(relic, item);
+          return row(item.name + " ×" + RelicShop.owned(s, item), item.text + (reason ? " · " + reason : ""),
+            btn("relicScroll", "사용", item.id, "mini", !!reason));
+        }).join("") : desc("포인트 상점에서 유물 주문서를 구입할 수 있습니다.")) + openBtn("shop", "포인트 상점")];
+    }
     case "autoMineSetup": {
       const max = Math.min(Game.mining.maxTanks, s.tanks);
       const tankMs = Math.floor((100 + 10 * s.imprints.lung) / 10) * Game.mining.stepMs;
@@ -859,14 +877,40 @@ function modalData() {
   }
 }
 function displayModal() {
+  const selectedSale = el("saleItem")?.value;
   const [title, html] = modalData();
   document.body.dataset.storyMotion = motionEnabled() ? "on" : "off";
   el("shade").dataset.modal = modal;
   el("modalTitle").textContent = title;
   el("modalBody").innerHTML = html;
+  if (el("saleItem")) {
+    el("saleItem").value = selectedSale || "";
+    if (el("saleItem").selectedIndex < 0) el("saleItem").value = "";
+    updateSaleQuote(true);
+  }
   el("shade").hidden = false;
   document.body.style.overflow = "hidden";
   syncMusic();
+}
+function updateSaleQuote(reset) {
+  const item = RelicShop.find(el("saleItem").value);
+  const amount = el("saleCount"), sell = el("modalBody").querySelector('[data-act="resell"]');
+  amount.disabled = !item;
+  if (!item) {
+    amount.value = "";
+    el("saleQuote").textContent = "";
+    sell.disabled = true;
+    return;
+  }
+  const step = item.sell === 0.5 ? 2 : 1;
+  amount.min = amount.step = step;
+  amount.max = RelicShop.owned(state, item);
+  if (reset) amount.value = step;
+  const count = amount.valueAsNumber;
+  const valid = Number.isSafeInteger(count) && count >= step && count % step === 0 && count <= Number(amount.max);
+  el("saleQuote").textContent = "개당 " + item.sell + " P" + (step === 2 ? " · 2개 단위 판매" : "") +
+    (valid ? " · 받을 포인트 " + fmt(count * item.sell) + " P" : " · 판매 가능한 수량을 입력하세요.");
+  sell.disabled = !valid;
 }
 function showModal(key) {
   if (HuntWatch.active) HuntWatch.stop('일시 중단');
@@ -923,7 +967,7 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
   }
   if (e.key === "Tab" && modal) {
-    const items = [...el("shade").querySelectorAll("button:not(:disabled),input")].filter(
+    const items = [...el("shade").querySelectorAll("button:not(:disabled),input,select")].filter(
       (n) => n.offsetWidth,
     );
     if (!items.length) return;
@@ -993,6 +1037,10 @@ document.addEventListener("click", (e) => {
   if (d.open) return showModal(d.open);
   if ("close" in d) return dismissModal();
   if (d.act) {
+    if (d.act === "resell") {
+      b.disabled = true;
+      return act("resell", { id: el("saleItem").value, count: el("saleCount").valueAsNumber });
+    }
     if (d.act === "autoMine") return act("autoMine", el("autoTankCount").value);
     if (d.act === "reward" && modal === "battle") closeModal(false);
     if (d.act === "rebirth" && el("inheritChoice"))
@@ -1028,6 +1076,7 @@ document.addEventListener("click", (e) => {
   render();
 });
 document.addEventListener("change", (e) => {
+  if (e.target.id === "saleItem") updateSaleQuote(true);
   if (e.target.id === "repeatRank") {
     huntPreviewRank = Number(e.target.value);
     render(); el("repeatRank")?.focus({ preventScroll:true });
@@ -1035,6 +1084,7 @@ document.addEventListener("change", (e) => {
   }
 });
 document.addEventListener("input", (e) => {
+  if (e.target.id === "saleCount") return updateSaleQuote(false);
   if (e.target.id !== "musicVolume") return;
   prefs.musicVolume = Number(e.target.value) / 100;
   syncMusic();

@@ -6,6 +6,7 @@ const SaveStore = (() => {
   const game = typeof module !== "undefined" ? require("./game.js") : Game;
   const apprentice = typeof module !== "undefined" ? require("./apprentice.js") : Apprentice;
   const story = typeof module !== "undefined" ? require("./charcoal-story.js") : CharcoalStory;
+  const shop = typeof module !== "undefined" ? require("./relic-shop.js") : RelicShop;
   const key = "emberforge.save.v1";
   const keys = { current: key, previous: key + ".previous", original: key + ".original" };
   const fault = (code) => Object.assign(new Error(code), { code });
@@ -77,6 +78,16 @@ const SaveStore = (() => {
     }
     const restored = { ...defaults, ...data, fieldIncomeVersion: data.fieldIncomeVersion ?? 1,
       apprentice: apprentice.restore(data, defaults.apprentice) };
+    for (const [key, count] of Object.entries(restored.relicScrolls)) {
+      if (!shop.scrolls.includes(shop.find(key)) || !Number.isSafeInteger(count) || count < 0) throw fault("corrupt");
+    }
+    for (const relic of restored.relics) {
+      if (!object(relic) || !Number.isFinite(relic.power) || relic.power <= 0 ||
+          !Number.isInteger(relic.tries) || relic.tries < 0 || relic.tries > 10) throw fault("corrupt");
+      if (relic.failures === undefined) relic.failures = shop.oldFailures(relic);
+      if (!Number.isInteger(relic.failures) || relic.failures < 0 || relic.failures > relic.tries ||
+          (relic.extraAttack !== undefined && (!Number.isFinite(relic.extraAttack) || relic.extraAttack <= 0))) throw fault("corrupt");
+    }
     if (!("hunting" in data)) {
       delete restored.hunting;
       game.settleHunting(restored);

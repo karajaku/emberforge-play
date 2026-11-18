@@ -716,10 +716,10 @@ function bagView(s) {
               phoneList(s.relics
                 .map((r, i) =>
                   row(
-                    "새벽의 인장 · 공격력 +" + r.power + "%",
-                    r.tries + " / 10회 시도",
+                    "새벽의 인장 · 공격력 +" + r.power + "%" + (r.extraAttack ? " · 추가 +" + r.extraAttack : ""),
+                    "남은 강화 " + (10 - r.tries) + "회 · 복구 가능 " + r.failures + "회",
                     s.equippedRelic === i
-                      ? btn("polish", "대표 · 강화", "", "mini")
+                      ? openBtn("relicWorkshop", "대표 · 강화", "mini")
                       : btn("relic", "대표 지정", i, "mini"),
                     "star",
                   ),
