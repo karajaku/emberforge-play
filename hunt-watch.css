@@ -1,0 +1,28 @@
+.watch-view { display:flex;flex-direction:column;flex:1!important;gap:12px;min-height:0; }
+.watch-stage { text-align:center;color:#e7d4a5;letter-spacing:3px;padding:8px;font-size:13px; }
+.watch-stage b { font-size:24px; }
+.ui-game .watch-arena { display:flex;gap:14px;align-items:stretch;flex:1;min-height:280px;padding:0; }
+.watch-fighter { min-width:0;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px; }
+.ui-game .watch-fighter .hp-meter { width:100%;padding:6px;background:#1e332be8;border:1px solid #8d815a;color:#eee0bf; }
+.watch-fighter .hp-name { overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:11px; }
+.watch-fighter .hp-count { font-size:11px; }.watch-fighter .hp-count small { display:none; }
+.ui-game[data-place="forest"] .watch-arena canvas { position:static;width:100%;height:auto;max-height:240px;max-width:205px;transform:none;filter:drop-shadow(0 8px 5px #15251b);image-rendering:pixelated; }
+.watch-die { width:64px;height:64px;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:5px;padding:10px;border:2px solid #f7dfad;border-radius:12px;background:#e7d9b8;box-shadow:0 5px #827354,0 10px 12px #0006; }
+.watch-die i { border-radius:50%; }.watch-die .pip { background:#244638;box-shadow:inset 0 1px #0005; }
+.enemy .watch-die { background:#c8aaa0;border-color:#e9c5b0; }.enemy .watch-die .pip { background:#652f2b; }
+.watch-roll { display:grid;justify-items:center;gap:13px; }
+.watch-roll>span { display:flex;align-items:center;gap:5px;color:#eee0c1;font-size:13px; }.watch-roll svg { width:18px;height:18px; }
+body[data-motion="on"] .watch-roll.rolling .watch-die { animation:watch-roll .16s linear infinite; }
+@keyframes watch-roll { 0%{transform:translateY(0) rotate(-14deg)}50%{transform:translateY(-9px) rotate(15deg)}100%{transform:translateY(0) rotate(-14deg)} }
+.watch-reward { min-height:80px;display:grid;align-content:center;justify-items:center;gap:8px;color:#eaddb6;text-align:center; }
+.watch-reward strong { display:flex;align-items:center;gap:8px;font-size:25px;color:#f8d58b; }.watch-reward svg { width:26px;height:26px; }
+.watch-start { margin-bottom:8px; }
+.watch-loot { display:flex;gap:12px;justify-content:center; }.watch-loot span { display:flex;align-items:center;gap:3px;font-size:13px; }.watch-loot svg { width:18px;height:18px; }
+.watch-fighter { --watch-lunge:12px; }.watch-fighter.enemy { --watch-lunge:-12px; }
+body[data-motion="on"] .watch-fighter:is([data-action="strike"],[data-action="heavyStrike"]) canvas { animation:watch-hit .3s ease-out; }
+body[data-motion="on"] .watch-fighter[data-action="block"] canvas { animation:watch-guard .4s ease-out; }
+.watch-view:has(.rolling) .watch-fighter canvas { animation:none!important; }
+@keyframes watch-hit { 40%{transform:translateX(var(--watch-lunge));filter:brightness(1.4)} }
+@keyframes watch-guard { 50%{filter:drop-shadow(0 0 12px #93e2c6) brightness(1.4)} }
+.ui-game[data-place="forest"][data-page="hunt"] .watch-view .action { flex:none; }
+@media(max-height:760px){.ui-game .watch-arena{min-height:220px}.watch-fighter{gap:10px}.watch-die{width:54px;height:54px;padding:8px}.watch-reward{min-height:60px}}

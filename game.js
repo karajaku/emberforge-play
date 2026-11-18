@@ -3,6 +3,7 @@ const Game = (() => {
   const story = typeof module !== "undefined" ? require("./charcoal-story.js") : CharcoalStory;
   const craft = typeof module !== "undefined" ? require("./swordcraft.js") : Swordcraft;
   const finale = typeof module !== "undefined" ? require("./breakthrough.js") : Breakthrough;
+  const dice = typeof module !== "undefined" ? require("./dice-combat.js") : DiceCombat;
   const grades = ["일반", "레어", "에픽", "전설"];
   const swords = ["순철 장검", "서리결 장검", "황혼의 마검", "태양의 성검"];
   const armors = ["순철 흉갑", "청명한 흉갑", "황혼의 흉갑", "별무리 성갑"];
@@ -1004,6 +1005,8 @@ const Game = (() => {
           ripostes: 0,
           last: enemy.name + " 출현 · " + enemy.trait,
         };
+        // Explicit per-battle model: old saves and untagged legacy callers retain their rules.
+        if (arg?.combat === "dice-v1") s.hunt.diceVersion = 1;
         return { ...success("이끼숲 " + rank + "구역 사냥 시작 · 사냥권 1개 사용"), receipt: { ...w.lastStart } };
       }
       case "flee":
@@ -1015,9 +1018,11 @@ const Game = (() => {
       case "block": {
         const h = s.hunt;
         if (!h) return fail("먼저 사냥을 시작하세요.");
-        const charge = huntCharge(h),
-          block = act === "block";
-        const move = huntMove(h, act);
+        const roll = h.diceVersion === 1 ? dice.turn(h, dice.face(random), dice.face(random)) : null;
+        const charge = !roll && huntCharge(h),
+          block = roll ? roll.player === "block" : act === "block";
+        const move = roll ? {...roll, available:true, momentum:h.momentum} : huntMove(h, act);
+        if (roll) {h.lastDice = roll; h.counter = false; h.ripostes = 0;}
         if (!move.available) return fail("2구역부터 기세 2칸으로 강공을 사용할 수 있습니다.");
         const { damage, taken } = move;
         h.momentum = move.momentum;
@@ -1034,6 +1039,7 @@ const Game = (() => {
           const chest = awardChest(s, "forest", h.rank, base, bonus, int);
           s.lastHunt = {
             id: h.id, ticketSource: h.ticketSource,
+            ...(roll ? {diceVersion:1, lastDice:roll} : {}),
             health: huntHealth(h),
             rank: h.rank,
             enemyKind: huntEnemy(h).kind,
@@ -1061,10 +1067,12 @@ const Game = (() => {
         }
         impact.taken = Math.min(taken, h.hp);
         h.hp = Math.max(0, h.hp - taken);
+        if (roll && h.turn >= 40) h.hp = 0;
         h.counter = block && charge;
         if (!h.hp) {
           s.lastHunt = {
             id: h.id, ticketSource: h.ticketSource,
+            ...(roll ? {diceVersion:1, lastDice:roll} : {}),
             health: huntHealth(h),
             rank: h.rank,
             enemyKind: huntEnemy(h).kind,
@@ -1078,6 +1086,7 @@ const Game = (() => {
           return { ...success("사냥 실패 · 장비를 챙겨 야영지로 돌아왔습니다.", "loss"), impact };
         }
         h.turn++;
+        if (roll) {h.last = "주사위 전투"; return {ok:true, message:"", kind:"info", impact};}
         h.last =
           (h.counter ? "돌진 방어 · 다음 공격 2.5배" : block ? "방어 태세" : (act === "heavyStrike" ? "강공 " : "타격 ") + damage) +
           " · 받은 피해 " +

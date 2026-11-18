@@ -41,7 +41,7 @@ const Apprentice = (() => {
     const forge = (text) =>
       target(text, "forge", '[data-act="enhance"][data-arg="weapon"]', "강화 버튼 찾기");
     const forest = (text, action, button) =>
-      target(text, "forest", '[data-act="' + action + '"]', button);
+      target(text, "forest", action === "collect" ? '[data-act="collect"]' : '.watch-start', button);
     const needsWeapon =
       step === 0 ||
       (step === 3 && s.best < 3) ||
@@ -91,26 +91,7 @@ const Apprentice = (() => {
       );
     }
     if (step === 1) {
-      const h = s.hunt;
-      if (!h)
-        return forest(
-          "방금 벼린 검을 써볼 차례입니다. 이끼숲에서 첫 멧돼지를 토벌하세요.",
-          "huntStart",
-          "사냥 시작",
-        );
-      if (h.counter)
-        return forest(
-          "지금 베면 2.5배 반격입니다. 명중시키고 이기면 토벌 골드도 25% 늘어납니다.",
-          "strike",
-          "반격",
-        );
-      if (Game.huntCharge(h))
-        return forest(
-          "멧돼지가 돌진을 준비합니다. 이번 턴에 방어하면 다음 베기가 반격으로 바뀝니다.",
-          "block",
-          "돌진 방어",
-        );
-      return forest("멧돼지가 일반 공격을 준비합니다. 베기로 먼저 타격하세요.", "strike", "베기");
+      return forest("사냥을 누르면 전투가 진행됩니다. 승리 보상을 받고 다음 스테이지로 나아가세요.", "huntStart", s.hunt ? "사냥 계속" : "사냥 시작");
     }
     if (step === 2)
       return target(

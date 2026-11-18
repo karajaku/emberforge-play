@@ -78,6 +78,7 @@ function startAutoHunt(rank) {
   render(); repeatHunting.refresh();
 }
 function failSave(error) {
+  HuntWatch.stop('', false);
   repeatHunting.stop(error.code === "conflict" ? "저장 충돌" : "저장 실패");
   autoCombat.stop();
   storageError = error.code || "write";
@@ -96,6 +97,7 @@ function locked(fn, maintenance = false) {
   return queue;
 }
 function reloadAtForge() {
+  HuntWatch.stop('', false);
   repeatHunting.stop("초기화");
   autoCombat.stop();
   restarting = true;
@@ -103,6 +105,7 @@ function reloadAtForge() {
   location.reload();
 }
 function startNewGame() {
+  HuntWatch.stop('', false);
   repeatHunting.stop("초기화");
   autoCombat.stop();
   return locked(() => {
@@ -146,6 +149,7 @@ function showSaveGuard() {
   el("saveGuardTitle").focus();
 }
 function resumeSaved() {
+  HuntWatch.stop('', false);
   repeatHunting.stop("저장 복귀");
   autoCombat.stop();
   storageError = null;
@@ -174,6 +178,7 @@ function storageAction(action) {
   }, true);
 }
 function notify(msg, kind = "info") {
+  if (HuntWatch.active && current() === 'forest' && !modal) return;
   if (!msg) return;
   clearTimeout(toastTimer);
   const titles = { "forge-success": "강화 성공", "forge-hold": "강화 유지",
@@ -371,6 +376,8 @@ function nav(id) {
 }
 function render() {
   if (!state) return;
+  HuntWatch.beforeRender();
+  const gridScroll = document.querySelector('.ui-gear-grid')?.scrollTop;
   const id = current(),
     parent = zones[id] ? "world" : id;
   syncMotion();
@@ -417,9 +424,10 @@ function render() {
         : openBtn("daily", icon("gift") + "출석 보상", "ghost")) +
     "</div></div>";
   let view;
-  if (id === "forge") view = forgeView(state);
-  else if (id === "bag") view = bagView(state);
+  if (id === "forge") view = GameUI.forge(state, forgeView(state));
+  else if (id === "bag") view = GameUI.bag(state, bagView(state));
   else if (id === "growth") view = growthView(state);
+  else if (id === "forest" && phonePage(id) === "hunt") view = HuntWatch.view(state);
   else if (zones[id]) view = zoneView(state, id);
   else if (phonePage(id) === "board")
     view = card("대장간 게시판",
@@ -450,6 +458,9 @@ function render() {
   const screen = el("screen");
   screen.innerHTML = view;
   renderLesson();
+  GameUI.shell();
+  const grid = document.querySelector('.ui-gear-grid');
+  if (grid && gridScroll !== undefined) grid.scrollTop = gridScroll;
   syncMusic();
 }
 function renderLesson() {
@@ -480,6 +491,7 @@ function focusLesson() {
   const n = Apprentice.next(state);
   if (n < 0) return;
   const tip = Apprentice.guidance(state, n);
+  GameUI.prepareLesson(tip);
   if (tip.route === "bag") bagTab = "gear";
   if (tip.route === "forge") gear = "weapon";
   const destination = phoneLessonDestination(tip);
@@ -497,7 +509,7 @@ function lessonMenu() {
   const done = Apprentice.completed(state);
   const notes = [
     "무기 탭에서 강화하기를 누르면 공격력이 오릅니다.",
-    "숲에서 돌진을 막고 다음 턴에 베면 반격 보너스를 얻습니다.",
+    "사냥을 누르고 전투를 지켜보세요. 승리 보상 수령 후 다음 스테이지로 진행합니다.",
     "모루를 초록 구간에서 두드리면 다음 강화에 +5%p가 붙습니다.",
     "최고 강화 +3, +7, +13에서 대장간 의뢰 보상을 챙기세요.",
     "+13 이상 무기를 보관함에 넣은 뒤 배치하세요.",
@@ -805,9 +817,9 @@ function modalData() {
     case "huntWallet":
       return ["사냥권 · 충전", '<section id="huntingWallet">' + huntingWalletContent(s) + '</section>' + openBtn("daily", "출석 보상 확인")];
     case "huntRules":
-      return ["기세와 반격", line("베기 · 돌진 방어", "기세 +1 · 최대 2칸") +
-        desc("강공은 기세 2칸을 써서 피해를 두 배로 주고 단단한 가죽을 뚫습니다. 적이 살아남으면 받는 피해도 1.5배입니다.") +
-        desc("돌진을 방어하면 다음 공격은 2.5배 반격입니다. 반격을 한 번이라도 맞히고 승리하면 골드가 25% 늘어납니다. 먼저 쓰러뜨린 적은 반격하지 못합니다.")];
+      return ["주사위 사냥", line("1~3 공격 · 4~5 방어 · 6 강공", "양쪽이 매 턴 굴립니다") +
+        desc("강공은 공격력의 1.7배, 방어는 받는 피해를 75% 줄입니다. 먼저 쓰러뜨린 적은 반격하지 못합니다. 40턴 안에 쓰러뜨리지 못하면 패배합니다.") +
+        desc("승리하면 보상을 받고 다음 스테이지로 진행합니다. 패배·사냥권 부족·60스테이지 완료 시 멈춥니다. 중단한 전투는 사냥 계속으로 재개할 수 있습니다.")];
     case "battle": {
       if (!battle) return ["전투 기록", ""];
       return [
@@ -848,6 +860,7 @@ function displayModal() {
   syncMusic();
 }
 function showModal(key) {
+  if (HuntWatch.active) HuntWatch.stop('일시 중단');
   if (!ready || storageError) return;
   if (!modal) lastFocus = document.activeElement;
   if (key === "temper") {
@@ -1027,6 +1040,7 @@ addEventListener("hashchange", () => {
 });
 addEventListener("storage", (e) => {
   if ((e.key === saveKey || e.key === null) && ready && !storageError) {
+    HuntWatch.stop('일시 중단');
     repeatHunting.stop("저장 충돌");
     autoCombat.stop();
     renderHuntMode();
@@ -1084,6 +1098,7 @@ setInterval(() => {
   const wallet = Game.huntingStatus(state);
   el("huntTickets").textContent = brief(wallet.free + wallet.purchased);
   const autoStart = document.querySelector('[data-repeat="start"]');
+  HuntWatch.refreshWallet();
   if (autoStart) autoStart.disabled = wallet.free + wallet.purchased < 1;
   for (const button of document.querySelectorAll('[data-act="huntStart"]'))
     button.disabled = wallet.free + wallet.purchased < 1;

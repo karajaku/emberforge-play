@@ -14,6 +14,12 @@ const SaveStore = (() => {
     let data;
     try { data = JSON.parse(raw); } catch { throw fault("corrupt"); }
     if (data?.version > 1 || data?._save?.format > 1 || data?.hunting?.version > 1) throw fault("future");
+    for (const h of [data?.hunt, data?.lastHunt]) {
+      if (h?.diceVersion > 1) throw fault("future");
+      if (h?.diceVersion !== undefined && h.diceVersion !== 1) throw fault("corrupt");
+      if (h?.lastDice && (!object(h.lastDice) ||
+          ![h.lastDice.playerFace, h.lastDice.enemyFace].every(n => Number.isInteger(n) && n >= 1 && n <= 6))) throw fault("corrupt");
+    }
     if (!object(data) || data.version !== 1 || !object(data.weapon) || !Array.isArray(data.field))
       throw fault("corrupt");
     if (data.created !== undefined && (!Number.isFinite(data.created) || Math.abs(data.created) > 8.64e15))
