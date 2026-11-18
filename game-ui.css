@@ -162,3 +162,18 @@ body.ui-game { grid-template-rows:auto minmax(0,1fr) auto auto; }
 #shade:is([data-modal="shop"], [data-modal="relicWorkshop"]) .listrow b { color: #443021; }
 #shade .shop-modes { display: grid; grid-template-columns: 1fr 1fr; margin: 8px 0; }
 #shade .shop-modes button { min-height: 44px; }
+
+.lining-card { display:flex; align-items:center; justify-content:space-between; gap:8px; border-top:1px solid #786e51; border-radius:8px; background:#211e19db; padding:6px 8px; }
+.lining-card div { display:grid; gap:2px; }
+.lining-card b,.lining-card small { display:flex; align-items:center; gap:4px; }
+.lining-card svg { width:16px; height:16px; }
+.lining-card .action { min-height:44px; }
+
+@media (max-height:760px) {
+  .forge-console:has(.lining-card) .forge-strike { min-height:86px; display:grid;
+    grid-template-columns:auto auto; align-content:center; justify-content:center; column-gap:6px; padding:6px; }
+  .forge-console:has(.lining-card) .forge-strike small { grid-column:1/-1; }
+  .forge-console:has(.lining-card) { gap:3px; }
+  .ui-game .forge-layout:has(.lining-card) .ui-forge-rail { top:62px; gap:4px; }
+  .forge-layout:has(.lining-card) .ui-forge-rail button { min-height:46px; }
+}

@@ -60,7 +60,7 @@ function sync() {
   return completed !== state.autoMine?.completed;
 }
 let queue = Promise.resolve();
-let restarting = false;
+let restarting = false, lastLiningPress = -Infinity;
 const autoCombat = AutoCombat.create({
   game: Game, hunt: () => state?.hunt,
   allowed: () => ready && !storageError && !restarting && !document.hidden,
@@ -156,6 +156,7 @@ function resumeSaved() {
   autoCombat.stop();
   storageError = null;
   ready = true;
+  HuntWatch.restoreReceipt();
   active = 0;
   tickTime = Date.now();
   el("saveGuard").hidden = true;
@@ -287,6 +288,12 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
     const beforeHunt = state.hunt;
     const beforeHuntHealth = state.hunt && {...state.hunt};
     const result = Game.perform(state, action, arg, undefined, undefined, pressedAt);
+    if (!result.ok && (action === "openChest" || action === "craftHuntLining")) {
+      if (repeatGuard && repeatHunting.active) repeatHunting.stop("보물 수령 실패");
+      notify(result.message, "loss");
+      render();
+      return;
+    }
     repeatHunting.stage(action, result, beforeHunt, arg);
     save();
     HuntWatch.stageOutcome(beforeHuntHealth);
@@ -744,7 +751,7 @@ function modalData() {
     case "confirmNewGame":
       return [
         "처음부터 시작할까요?",
-        desc("장비, 골드, 환생과 이야기 기록을 초기화하고 첫 장면부터 시작합니다. 사냥권 잔량·충전 시간·출석 수령 기록은 유지되며 최초 30개를 다시 지급하지 않습니다. 현재 원본을 별도로 보존한 뒤 새 진행 저장이 성공해야 시작합니다.") +
+        desc("장비, 골드, 숲결 섬유, 숲 방호 안감, 환생과 이야기 기록을 초기화하고 첫 장면부터 시작합니다. 사냥권 잔량·충전 시간·출석 수령 기록은 유지되며 최초 30개를 다시 지급하지 않습니다. 현재 원본을 별도로 보존한 뒤 새 진행 저장이 성공해야 시작합니다.") +
           '<div class="actions">' + openBtn("settings", "취소") +
           '<button class="action danger" data-new-game>진행을 지우고 시작</button></div>',
       ];
@@ -1137,6 +1144,13 @@ document.addEventListener("click", (e) => {
   if (d.open) return showModal(d.open);
   if ("close" in d) return dismissModal();
   if (d.act) {
+    if (d.act === "craftHuntLining") {
+      if (performance.now() - lastLiningPress < 450 || !state._save) return;
+      lastLiningPress = performance.now();
+      b.disabled = true;
+      return act(d.act, { generation: state._save.generation, revision: state._save.revision,
+        expectedLevel: Number(d.level) });
+    }
     if (d.act === "resell") {
       b.disabled = true;
       return act("resell", { id: el("saleItem").value, count: el("saleCount").valueAsNumber });

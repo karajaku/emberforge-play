@@ -196,6 +196,16 @@ function swordOddsTable(level) {
     forgeOutcomes.map(([,label]) => '<th>' + label + '</th>').join("") + '</tr></thead><tbody>' +
     rows.join("") + '</tbody></table></details>';
 }
+function liningCard(s) {
+  const level = s.huntLining, cost = Game.liningCosts[level];
+  const hp = fmt(Game.huntStats(s).hp);
+  const next = cost ? ' → ' + fmt(Game.huntStats({ ...s, huntLining: level + 1 }).hp) : '';
+  return '<section class="lining-card" aria-label="숲 방호 안감"><div><b>' + icon('shield') +
+    '숲 방호 안감 ' + level + '/5</b><small>사냥 HP ' + hp + next + '</small><small>' +
+    icon('trees') + '숲결 섬유 ' + fmt(s.forestFiber) + (cost ? ' / ' + cost + ' · 숲 승리 보물' : '') +
+    '</small></div><button class="action" data-act="craftHuntLining" data-level="' + level + '" ' +
+    (!cost || s.forestFiber < cost ? 'disabled' : '') + '>' + (!cost ? '완성' : level ? '보강' : '제작') + '</button></section>';
+}
 function forgeView(s) {
   const g = s[gear], weapon = gear === "weapon", page = phonePage("forge");
   const recovery = weapon ? Game.midRecovery(g) : null;
@@ -226,7 +236,8 @@ function forgeView(s) {
       (recovery ? "일반 강화 +15" : finalChoice ? "일반 강화 +20" : "강화하기") + '<small>' + fmt(cost) + ' G<span class="forge-hold-hint">꾹 눌러 연속</span></small>', gear, finalChoice || recovery ? "action split" : "primary split", !!g.finalTrial)) +
     '<div class="actions forge-support">' + openBtn("temper", icon("flame") + (s.heat ? "담금질 +" + s.heat + "%p" : "담금질")) +
     openBtn("guards", icon("shield") + (equipped.length ? "가호 장착됨" : "가호")) +
-    '<button class="round" data-open="risk" aria-label="강화 확률과 실패 조건">' + icon("circle-help") + '</button></div></section></div>';
+    '<button class="round" data-open="risk" aria-label="강화 확률과 실패 조건">' + icon("circle-help") + '</button></div>' +
+    (weapon ? '' : liningCard(s)) + '</section></div>';
 }
 function restoreButton(s, book) {
   return btn(
@@ -404,7 +415,7 @@ function chestReceipt(c) {
     (c.counter || c.extra || c.goblinGold ? desc("기본 " + fmt(c.base) + " G" + (c.counter ? " · 반격 +" + fmt(c.counter) + " G" : "") +
       (c.goblinGold ? " · 황금 고블린 +" + fmt(c.goblinGold) + " G" : "") +
       (c.extra ? " · 상자 보너스 +" + fmt(c.extra) + " G" : "")) : "") +
-    loot("sparkles", "별의 파편", c.shards) + loot("scroll-text", "10% 주문서", c.scrolls) +
+    loot("trees", "숲결 섬유", c.fiber) + loot("sparkles", "별의 파편", c.shards) + loot("scroll-text", "10% 주문서", c.scrolls) +
     c.charms.map((n, i) => loot("gift", Game.blessings[i], n)).join("") + "</div>";
 }
 function huntResult(last, chests) {

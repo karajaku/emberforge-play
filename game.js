@@ -222,7 +222,9 @@ const Game = (() => {
   }
   function fresh(t = Date.now()) {
     return {
-      version: 1,
+      version: 2,
+      forestFiber: 0,
+      huntLining: 0,
       hunting: freshHunting(t),
       story: story.fresh(),
       apprentice: { visible: true, tempered: false, deployed: false, collected: false },
@@ -288,6 +290,12 @@ const Game = (() => {
   }
   function name(g, type = "weapon") {
     return type === "armor" ? armors[g.grade] : swords[bladeStage(g)];
+  }
+  const liningCosts = Object.freeze([3, 12, 30, 75, 180]);
+  const forestYield = rank => rank >= 16 ? 3 : rank >= 6 ? 2 : 1;
+  function huntStats(s) {
+    const base = stats(s);
+    return { attack: base.attack, hp: Math.round(base.hp * (100 + 4 * s.huntLining) / 100) };
   }
   function stats(s, trial = false, raid = false) {
     let attack = Math.round(
@@ -536,10 +544,25 @@ const Game = (() => {
       return r < 0.005 ? 3 : r < 0.035 ? 2 : r < 0.2 ? 1 : 0;
     };
     switch (act) {
+      case "craftHuntLining": {
+        if (!s._save || arg?.generation !== s._save.generation || arg.revision !== s._save.revision ||
+            arg.expectedLevel !== s.huntLining) return fail("제작 상태가 바뀌었습니다. 현재 단계를 확인하세요.");
+        const cost = liningCosts[s.huntLining];
+        if (!cost || s.forestFiber < cost) return fail(cost ? "숲결 섬유가 부족합니다." : "안감이 완성되었습니다.");
+        s.forestFiber -= cost;
+        s.huntLining++;
+        return success("숲 방호 안감 " + s.huntLining + "단계 완성", "win");
+      }
       case "openChest": {
         const index = (s.chests || []).findIndex((c) => c.id === arg);
         if (index < 0) return fail("이미 열었거나 보관함에 없는 상자입니다.");
-        const [c] = s.chests.splice(index, 1);
+        const c = s.chests[index];
+        if (c.materialRule === 1) {
+          const balance = s.forestFiber + c.fiber;
+          if (!Number.isSafeInteger(balance)) return fail("섬유 보관 한도에 도달했습니다. 보물은 보관함에 남습니다.");
+          s.forestFiber = balance;
+        }
+        s.chests.splice(index, 1);
         s.gold += c.gold;
         s.shards += c.shards;
         s.scrolls += c.scrolls;
@@ -981,7 +1004,7 @@ const Game = (() => {
         if (!Number.isInteger(rank) || rank < 1 || rank > Math.min(60, s.huntBest + 1))
           return fail("먼저 이전 지역을 토벌하세요.");
         if (w.free + w.purchased < 1) return fail("사냥권이 부족합니다. 10분 충전·오늘의 출석을 확인하거나 대장간과 배치 수익을 이용하세요.");
-        const st = stats(s),
+        const st = arg?.combat === "trail-v1" ? huntStats(s) : stats(s),
           enemyHp = 90 + Math.round(36 * (rank - 1) ** 1.65);
         const enemy = huntEnemy(rank);
         const task = routeTask(s);
@@ -1022,6 +1045,7 @@ const Game = (() => {
           // Older tabs reject skill version 2 before they can resolve a wave as a full stage.
           s.hunt.skillVersion = 2;
           s.hunt.trailVersion = 1;
+          s.hunt.materialRule = 1;
           s.hunt.bonusEncounter = random() < .15;
           s.hunt.goblinCaught = false;
           trail.enter(s.hunt, 0);
@@ -1076,6 +1100,9 @@ const Game = (() => {
           const base = 800 * h.rank * h.rank;
           const bonus = h.ripostes ? base / 4 : 0;
           const chest = awardChest(s, "forest", h.rank, base, bonus, int);
+          if (h.materialRule === 1) {
+            Object.assign(chest, { materialRule: 1, entryId: h.id, fiber: forestYield(h.rank) });
+          }
           if (h.goblinCaught) {
             chest.goblinGold = base / 2;
             chest.gold += chest.goblinGold;
@@ -1288,7 +1315,7 @@ const Game = (() => {
       case "openTowerChests": {
         const run = s.towerRun || s.lastTowerRun;
         const ids = new Set(run?.chests || []);
-        const chests = s.chests.filter(c => ids.has(c.id));
+        const chests = s.chests.filter(c => c.source === "tower" && ids.has(c.id));
         if (!chests.length) return fail("열 수 있는 등반 상자가 없습니다.");
         const receipt = { source: "tower", rank: chests[0].rank, rankEnd: chests.at(-1).rank,
           name: "등반 보물상자 " + chests.length + "개", tier: Math.max(...chests.map(c => c.tier)),
@@ -1299,7 +1326,7 @@ const Game = (() => {
         }
         for (const key of ["gold", "shards", "scrolls"]) s[key] += receipt[key];
         receipt.charms.forEach((n, i) => { s.charms[i] += n; });
-        s.chests = s.chests.filter(c => !ids.has(c.id));
+        s.chests = s.chests.filter(c => c.source !== "tower" || !ids.has(c.id));
         s.lastChest = receipt;
         return success("등반 상자 " + chests.length + "개 개봉", "win");
       }
@@ -1468,7 +1495,7 @@ const Game = (() => {
     return 1 - Math.abs((elapsed % 1800) / 900 - 1);
   }
   return {
-    hunting, settleHunting, huntingStatus, resetProgress,
+    forestYield, liningCosts, huntStats, hunting, settleHunting, huntingStatus, resetProgress,
     migrateTraining,
     reforgeOptions,
     breakPattern,

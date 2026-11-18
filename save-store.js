@@ -14,7 +14,7 @@ const SaveStore = (() => {
   function decode(raw) {
     let data;
     try { data = JSON.parse(raw); } catch { throw fault("corrupt"); }
-    if (data?.version > 1 || data?._save?.format > 1 || data?.hunting?.version > 1) throw fault("future");
+    if (data?.version > 2 || data?._save?.format > 1 || data?.hunting?.version > 1) throw fault("future");
     for (const h of [data?.hunt, data?.lastHunt]) {
       if (h?.trailVersion > 1) throw fault("future");
       const skillVersion = h?.trailVersion === 1 ? 2 : 1;
@@ -40,11 +40,14 @@ const SaveStore = (() => {
       if (h?.lastDice && (!object(h.lastDice) ||
           ![h.lastDice.playerFace, h.lastDice.enemyFace].every(n => Number.isInteger(n) && n >= 1 && n <= 6))) throw fault("corrupt");
     }
-    if (!object(data) || data.version !== 1 || !object(data.weapon) || !Array.isArray(data.field))
+    if (!object(data) || ![1, 2].includes(data.version) || !object(data.weapon) || !Array.isArray(data.field))
       throw fault("corrupt");
     if (data.created !== undefined && (!Number.isFinite(data.created) || Math.abs(data.created) > 8.64e15))
       throw fault("corrupt");
     const defaults = game.fresh(data.created);
+    if (data.version === 2 && (!Number.isSafeInteger(data.forestFiber) || data.forestFiber < 0 ||
+        !Number.isInteger(data.huntLining) || data.huntLining < 0 || data.huntLining > game.liningCosts.length))
+      throw fault("corrupt");
     // Missing fields from old builds are migrated; present but malformed fields
     // must not silently become a fresh balance or equipment item.
     for (const [name, value] of Object.entries(defaults)) {
@@ -91,7 +94,35 @@ const SaveStore = (() => {
           !Number.isInteger(w.lastStart.rank) || w.lastStart.rank < 1 || w.lastStart.rank > 60 ||
           !["free", "purchased"].includes(w.lastStart.source)) throw fault("corrupt");
     }
-    const restored = { ...defaults, ...data, fieldIncomeVersion: data.fieldIncomeVersion ?? 1,
+    function validEntry(id) {
+      const wallet = data.hunting;
+      if (typeof id !== "string" || !wallet || !id.startsWith(wallet.id + "-")) return false;
+      const serial = Number(id.slice(wallet.id.length + 1));
+      return Number.isSafeInteger(serial) && serial >= 1 && serial <= wallet.serial && id === wallet.id + "-" + serial;
+    }
+    const h = data.hunt;
+    if (h?.materialRule > 1) throw fault("future");
+    if (h?.materialRule !== undefined && (data.version !== 2 || h.materialRule !== 1 || h.trailVersion !== 1 ||
+        !validEntry(h.id) || h.id !== data.hunting.lastStart.id || h.rank !== data.hunting.lastStart.rank ||
+        h.ticketSource !== data.hunting.lastStart.source || h.request !== data.hunting.serial)) throw fault("corrupt");
+    const entries = new Set(h?.materialRule ? [h.id] : []), ids = new Set();
+    for (const c of [...(data.chests || []), ...(data.lastChest ? [data.lastChest] : [])]) {
+      if (!object(c)) throw fault("corrupt");
+      if (c.materialRule > 1) throw fault("future");
+      if (c.id !== undefined) {
+        if (ids.has(c.id)) throw fault("corrupt");
+        ids.add(c.id);
+      }
+      if (c.materialRule === undefined && c.fiber === undefined && c.entryId === undefined) continue;
+      if (data.version !== 2 || c.materialRule !== 1 || c.source !== "forest" || !Number.isInteger(c.rank) ||
+          c.rank < 1 || c.rank > 60 || c.fiber !== game.forestYield(c.rank) || !validEntry(c.entryId) ||
+          typeof c.id !== "string" || !c.id || entries.has(c.entryId) ||
+          (data.lastHunt?.chestId === c.id && (data.lastHunt.id !== c.entryId || data.lastHunt.rank !== c.rank))) throw fault("corrupt");
+      entries.add(c.entryId);
+    }
+    const restored = { ...defaults, ...data, version: 2,
+      forestFiber: data.version === 1 ? 0 : data.forestFiber, huntLining: data.version === 1 ? 0 : data.huntLining,
+      fieldIncomeVersion: data.fieldIncomeVersion ?? 1,
       apprentice: apprentice.restore(data, defaults.apprentice) };
     for (const [key, count] of Object.entries(restored.relicScrolls)) {
       if (!shop.scrolls.includes(shop.find(key)) || !Number.isSafeInteger(count) || count < 0) throw fault("corrupt");
@@ -134,7 +165,7 @@ const SaveStore = (() => {
       }
       const state = decode(expected);
       const before = JSON.parse(expected);
-      needsMigration = !before.hunting || !!(before.hunt && !before.hunt.id);
+      needsMigration = before.version === 1 || !before._save || !before.hunting || !!(before.hunt && !before.hunt.id);
       lastSavedAt = state._save?.savedAt ?? state.last ?? null;
       return state;
     }
@@ -151,7 +182,7 @@ const SaveStore = (() => {
       // generation). No new game/action/random roll is executed on retry.
       if (!pending) {
         const generation = mode === "reset" || !state._save ? id() : state._save.generation;
-        const value = { ...state, _save: { format: 1, revision: (state._save?.revision || 0) + 1,
+        const value = { ...state, version: 2, _save: { format: 1, revision: (state._save?.revision || 0) + 1,
           generation, savedAt: Date.now() } };
         const raw = JSON.stringify(value);
         decode(raw);
@@ -159,20 +190,28 @@ const SaveStore = (() => {
       }
       check();
       const { mode: operation, archive } = pending;
+      if (operation === "recover") {
+        const prior = read(keys.previous);
+        if (prior !== null && read(archive + ".previous") === null && JSON.parse(prior).version === 1)
+          write(archive + ".previous", prior);
+      }
       if (expected !== null) {
         let valid = false;
         try { decode(expected); valid = true; } catch (e) {
           if (e.code === "future" || operation === "normal") throw e;
         }
-        if (operation !== "normal") write(archive, expected);
+        const migrating = valid && JSON.parse(expected).version === 1;
+        if (operation !== "normal" || migrating) write(archive, expected);
+        if (migrating) {
+          const previous = read(keys.previous);
+          if (previous !== null && read(archive + ".previous") === null) write(archive + ".previous", previous);
+        }
         if (valid) {
           if (read(keys.original) === null) write(keys.original, expected);
           write(keys.previous, expected);
         }
       }
-      const candidate = JSON.parse(pending.raw);
-      candidate._save.savedAt = Date.now();
-      const raw = JSON.stringify(candidate);
+      const raw = pending.raw;
       write(key, raw); // Commit point; no fallible writes after this line.
       expected = raw;
       const result = decode(raw);
