@@ -3,7 +3,7 @@
 const phonePages = {
   forge: [["work", "강화"], ["craft", "제작"], ["training", "수련"], ["orders", "의뢰"]],
   world: [["map", "지역 지도"], ["board", "게시판"]],
-  forest: [["hunt", "토벌"], ["field", "배치·수익"]],
+  forest: [["hunt", "토벌"], ["field", "배치 수익"]],
   bag: [["gear", "장착"], ["stored", "보관 무기"], ["items", "소모품"], ["relics", "유물"]],
   growth: [["rebirth", "환생"], ["imprint", "각인"], ["fusion", "초월"], ["guild", "길드"]],
 };

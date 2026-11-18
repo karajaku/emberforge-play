@@ -7,7 +7,7 @@ const Apprentice = (() => {
     ["temper", "담금질 익히기"],
     ["order", "첫 의뢰 보상 받기"],
     ["deploy", "검으로 사냥터 운영하기"],
-    ["collect", "첫 사냥 수익 받기"],
+    ["collect", "첫 배치 수익 받기"],
   ];
 
   function restore(data, fresh) {
@@ -126,9 +126,9 @@ const Apprentice = (() => {
           );
     if (step === 5 && (s.unclaimed >= 1 || s.field.length))
       return forest(
-        "배치한 검이 골드를 모읍니다. 누적 수익이 1 G 이상이면 수령하세요.",
+        "배치한 검이 골드를 모읍니다. 누적 배치 수익이 1 G 이상이면 수령하세요.",
         "collect",
-        "수익 수령",
+        "배치 수익 수령",
       );
     const bagIndex = s.bag.findIndex((g) => g.level >= 13);
     if (bagIndex !== -1)

@@ -80,11 +80,11 @@ function legacyView(s) {
         path +=
           btn(
             "routeSupply",
-            "사냥터 수익 " + fmt(task.supplyGold) + " G로 대납",
+            "배치 수익 " + fmt(task.supplyGold) + " G로 대납",
             task.target,
             "action",
             !task.canSupply,
-          ) + desc("미수령 수익 <span data-field-balance>" + fmt(s.unclaimed) + "</span> G");
+          ) + desc("미수령 배치 수익 <span data-field-balance>" + fmt(s.unclaimed) + "</span> G");
       }
     }
   } else if (recipe && w.level < 15) {

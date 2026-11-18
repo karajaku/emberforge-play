@@ -91,7 +91,7 @@ function finalWorkshop(s) {
         gaugeMetric("채운 칸", f.loads.length, 3, "mint"),
       ) +
       desc(
-        "재료를 고른 뒤 한 번에 지불합니다. 금고의 골드와 미수령 사냥터 수익은 따로 계산합니다.",
+        "재료를 고른 뒤 한 번에 지불합니다. 금고의 골드와 미수령 배치 수익은 따로 계산합니다.",
       ) +
       line("배합", f.loads.map((k) => Breakthrough.materials[k].name).join(" · ") || "빈 칸") +
       Object.entries(Breakthrough.materials)
@@ -111,7 +111,7 @@ function finalWorkshop(s) {
       line("필요 / 보유 골드", fmt(c.gold) + " / " + fmt(s.gold) + " G") +
       line("필요 / 보유 파편", c.shards + " / " + s.shards + "개") +
       line(
-        "필요 / 사냥터 수익",
+        "필요 / 배치 수익",
         fmt(c.unclaimed) + " / <span data-field-balance>" + fmt(s.unclaimed) + "</span> G",
       ) +
       button("undo", "마지막 재료 빼기", "mini", !f.loads.length) +

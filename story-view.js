@@ -30,7 +30,7 @@ function storyChat(s, place) {
   let destination = target;
   if (s.apprentice.deployed && (target === "forest" || (place === "forest" && !s.hunt && !target && !s.story.home))) {
     destination = "forest/field";
-    routes[destination] = "사냥 수익 확인";
+    routes[destination] = "배치 수익 확인";
   } else if (target === "bag" && s.bag.some(g => g.level >= 13)) {
     destination = "bag/stored";
     routes[destination] = "보관 무기 보기";
@@ -49,8 +49,8 @@ function phoneStoryButton(s, place) {
     (who === "dani" ? "단이" : "연화") + "와 대화</button>";
 }
 function storyBook(s) {
-  const requirements = { bridge: "이끼숲 첫 토벌 후", home: "첫 토벌과 사냥 수익 수령 후",
-    bundle: "첫 토벌과 사냥 수익 수령 후", light: "첫 길삯과 +20 검 달성 후", lesson: "첫 길삯과 첫 환생 후" };
+  const requirements = { bridge: "이끼숲 첫 토벌 후", home: "첫 토벌과 배치 수익 수령 후",
+    bundle: "첫 토벌과 배치 수익 수령 후", light: "첫 길삯과 +20 검 달성 후", lesson: "첫 길삯과 첫 환생 후" };
   function leaf(id) {
     const chapter = CharcoalStory.chapters[id];
     const open = CharcoalStory.unlocked(s, id);

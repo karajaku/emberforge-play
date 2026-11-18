@@ -26,7 +26,7 @@ const Swordcraft = (() => {
   const traits = {
     edge: { name: "예리한 날", text: "이 검의 공격력 +10%", icon: "sword" },
     ward: { name: "보강한 검등", text: "가호가 막지 못한 하락·파괴 1회 방지", icon: "shield" },
-    yield: { name: "개척자의 홈", text: "이 검의 사냥터 분당 수익 +35%", icon: "trees" },
+    yield: { name: "개척자의 홈", text: "이 검의 분당 배치 수익 +35%", icon: "trees" },
   };
   const grindZones = [
     { name: "밑날", effect: "숲에서 방어 시 받는 피해", sign: "−", icon: "shield", values: [0, 15, 24, 30] },

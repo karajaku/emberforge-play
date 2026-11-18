@@ -74,7 +74,7 @@ const Game = (() => {
     lung: { name: "호흡 단조", text: "+13부터 정밀 담금질 두 번으로 한 단계 확정 상승. 최대 +19" },
     land: {
       name: "수비대 호위",
-      text: "+13부터 미수령 사냥터 수익 2,000 G로 다음 하락·파괴 한 번 방지",
+      text: "+13부터 미수령 배치 수익 2,000 G로 다음 하락·파괴 한 번 방지",
     },
   };
   const routeTargets = [4, 7, 15];
@@ -923,7 +923,7 @@ const Game = (() => {
         if (s.field.length >= 2 + s.imprints.land) return fail("사냥터 슬롯이 가득 찼습니다.");
         s.field.push(s.bag.splice(i, 1)[0]);
         s.apprentice.deployed = true;
-        return success("사냥터 배치 · 자동 수익 시작");
+        return success("사냥터 배치 · 배치 수익 시작");
       }
       case "recall": {
         const i = Number(arg);
@@ -934,11 +934,11 @@ const Game = (() => {
       }
       case "collect": {
         const value = Math.floor(s.unclaimed);
-        if (value < 1) return fail("수익이 쌓이면 수령할 수 있습니다.");
+        if (value < 1) return fail("배치 수익이 쌓이면 수령할 수 있습니다.");
         s.gold += value;
         s.unclaimed -= value;
         s.apprentice.collected = true;
-        return success("사냥 수익 +" + value.toLocaleString() + " G", "win");
+        return success("배치 수익 +" + value.toLocaleString() + " G", "win");
       }
       case "daily":
         if (s.day >= day(t) || s.hunting.daily >= day(t)) return fail("오늘 보상을 이미 받았습니다.");

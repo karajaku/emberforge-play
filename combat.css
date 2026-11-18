@@ -90,3 +90,11 @@
   .hp-track { height: 9px; margin: 2px 0; }
   .hunt-moves .action { padding-block: 3px; }
 }
+
+.repeat-panel:empty { display: none; }
+.repeat-status { display: grid; gap: 5px; border-left: 3px solid #dcb570; padding: 7px 9px; background: #19252a; }
+.repeat-status small { font-size: 11px; color: #d6ccae; }
+.repeat-status button, .repeat-setup button, .repeat-setup select { min-height: 44px; }
+.repeat-setup { padding: 8px; border: 1px solid #70634d; }
+.repeat-setup summary { cursor: pointer; min-height: 32px; }
+.repeat-setup label { display: flex; align-items: center; justify-content: space-between; margin-block: 7px; }

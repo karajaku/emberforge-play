@@ -42,6 +42,7 @@ for (const id of [
 }
 function save(mode = "normal") {
   state = store.commit(state, mode);
+  repeatHunting.committed();
 }
 function sync() {
   const completed = state.autoMine?.completed;
@@ -55,11 +56,19 @@ const autoCombat = AutoCombat.create({
   allowed: () => ready && !storageError && !restarting && !document.hidden,
   execute: guard => act(null, "", undefined, guard),
 });
+const repeatHunting = RepeatHunting.create({
+  game: Game, state: () => state,
+  allowed: () => ready && !storageError && !restarting && !document.hidden,
+  execute: guard => act("huntStart", "", undefined, undefined, guard),
+});
+let repeatQuote = null;
 function failSave(error) {
+  repeatHunting.stop(error.code === "conflict" ? "저장 충돌" : "저장 실패");
   autoCombat.stop();
   storageError = error.code || "write";
   Feedback.clear();
   GameSound.stop();
+  renderHuntMode();
   showSaveGuard();
 }
 function locked(fn, maintenance = false) {
@@ -72,12 +81,14 @@ function locked(fn, maintenance = false) {
   return queue;
 }
 function reloadAtForge() {
+  repeatHunting.stop("초기화");
   autoCombat.stop();
   restarting = true;
   history.replaceState(null, "", "#forge");
   location.reload();
 }
 function startNewGame() {
+  repeatHunting.stop("초기화");
   autoCombat.stop();
   return locked(() => {
     if (modal !== "confirmNewGame") return;
@@ -106,6 +117,8 @@ function showSaveGuard() {
     ? "미저장 진행을 이 탭에 보관하고 있습니다. 재시도 전까지 추가 진행을 멈췄습니다. 이 탭을 닫으면 미저장 진행은 사라집니다."
     : "진행 변경과 자동 진행을 멈췄습니다. 임시 새 게임으로 전환하지 않습니다.";
   el("saveGuardTime").textContent = "마지막 정상 저장: " + time(store.lastSavedAt);
+  if (repeatHunting.summary?.unconfirmed) el("saveGuardPending").textContent +=
+    " 반복 요약은 정상 저장된 소비·결과만 집계합니다. 미확정 입장·결과는 같은 후보의 저장 재시도 성공 후 한 번 반영하며 반복은 재개하지 않습니다.";
   el("saveBackupInfo").textContent = backup ? "직전 정상본: " + time(backup._save?.savedAt || backup.last) +
     " · 무기 +" + backup.weapon.level + " · " + fmt(backup.gold) + " G · 환생 " + backup.rebirths + "회" : "복구 가능한 직전 정상본 없음";
   el("saveRetry").hidden = storageError === "future" || storageError === "conflict";
@@ -118,6 +131,7 @@ function showSaveGuard() {
   el("saveGuardTitle").focus();
 }
 function resumeSaved() {
+  repeatHunting.stop("저장 복귀");
   autoCombat.stop();
   storageError = null;
   ready = true;
@@ -164,17 +178,22 @@ function syncMusic() {
   GameMusic.update(GameMusic.resolve({ route, modal, story: storyScene, state, page: phonePage(route), towerMode }),
     { enabled: prefs.music, volume: prefs.musicVolume, hidden: document.hidden });
 }
-function act(action, arg = "", pressedAt, automaticGuard) {
+function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
   const manualBattle = !automaticGuard && ["strike", "heavyStrike", "block", "flee"].includes(action);
   const manualId = manualBattle ? state?.hunt?.id : null;
   if (manualBattle) {
+    repeatHunting.stop(action === "flee" ? "퇴각" : "수동 전환");
     autoCombat.stop(); // Invalidate even callbacks already waiting for the save lock.
     renderHuntMode();
+  }
+  if (action === "huntStart" && !repeatGuard && repeatHunting.active) {
+    notify("반복 사냥을 먼저 중단해 주세요."); return;
   }
   // Capture the request before queueing: rapid clicks share one start sequence.
   if (action === "huntStart" && typeof arg !== "object" && state)
     arg = { rank: arg, request: state.hunting.serial + 1 };
   return locked(() => {
+    if (action === "huntStart" && !repeatGuard && repeatHunting.active) return;
     if (automaticGuard) {
       action = automaticGuard();
       if (!action) return;
@@ -182,9 +201,14 @@ function act(action, arg = "", pressedAt, automaticGuard) {
       if (!manualId || state.hunt?.id !== manualId) return;
       // A manual move may itself wait for the lock while another mode is selected.
       // Its eventual execution still owns exactly one manual turn.
+      repeatHunting.stop(action === "flee" ? "퇴각" : "수동 전환");
       autoCombat.stop();
     }
     sync();
+    if (repeatGuard) {
+      arg = repeatGuard();
+      if (!arg) { render(); return; }
+    }
     Feedback.clear();
     GameSound.stop();
     const goldBefore = state.gold;
@@ -193,8 +217,14 @@ function act(action, arg = "", pressedAt, automaticGuard) {
     const sparring = action === "craftMove" && state.weapon.work?.index === 1;
     const finalKey = action === "finalMove" && state.weapon.finalTrial?.key;
     const strong = sparring && Swordcraft.heavy(state.weapon.work);
+    const beforeHunt = state.hunt;
     const result = Game.perform(state, action, arg, undefined, undefined, pressedAt);
+    repeatHunting.stage(action, result, beforeHunt);
     save();
+    if (repeatGuard) {
+      if (result.ok && repeatHunting.active) autoCombat.select("auto");
+      else repeatHunting.stop("입장 불가");
+    }
     // A completed/retreated battle must clear intent before rendering the result.
     autoCombat.refresh(false);
     if (result.ok && action === "craftMove") animationStart = performance.now();
@@ -293,9 +323,12 @@ function act(action, arg = "", pressedAt, automaticGuard) {
     }
     if (result.ok && CharcoalStory.unlocked(state, "home")) autoStory();
     autoCombat.refresh();
+    repeatHunting.refresh();
   });
 }
 function renderHuntMode() {
+  const repeatHost = document.querySelector("[data-repeat-panel]");
+  if (repeatHost) repeatHost.outerHTML = repeatPanel(state);
   const host = document.querySelector("[data-hunt-mode-controls]");
   const focusedMode = document.activeElement?.dataset.huntMode;
   if (host) {
@@ -584,6 +617,16 @@ function modalData() {
           desc("대장간의 네 확률에는 현재 보너스와 보호 효과가 적용됩니다. 하락하면 한 단계 내려가고, 파괴되면 +0 장비를 받습니다.") +
           (gear === "weapon" ? swordOddsTable(g.level) : ""),
       ];
+    }
+    case "repeatConfirm": {
+      const q = repeatQuote;
+      return ["반복 사냥 시작 확인", q ?
+        line("지정 구역", q.rank + "구역 · 이미 승리한 구역") +
+        line("총 판수", q.total + "판" + (q.total < q.requested ? " · 잔량에 맞춰 " + q.requested + "판에서 단축" : "")) +
+        line("무료 예상 사용량", q.free + "개") + line("구매 최대 사용량", q.purchased + "개") +
+        desc("실제 입장마다 1개씩 무료부터 사용합니다. 도중 충전·출석으로 무료 사용은 늘고 구매 사용은 줄 수 있지만 총 판수와 구매 상한은 늘지 않습니다. 상자는 보관함에 쌓이며 자동으로 열지 않습니다.") +
+        desc("패배·수동 전환·숨김·저장 오류 시 중단합니다. 현재 전투 중에는 새 반복을 시작할 수 없습니다.") +
+        '<button class="primary" data-repeat="confirm">위 사용량으로 총 ' + q.total + '판 시작</button>' : desc("설정을 다시 확인하세요.")];
     }
     case "settings":
       return [
@@ -878,7 +921,27 @@ document.addEventListener("click", (e) => {
   const d = b.dataset;
   if (d.storage) return storageAction(d.storage);
   if (storageError || !ready) return;
+  if (d.repeat === "preview") {
+    const rank = el("repeatRank")?.value, count = el("repeatCount")?.value;
+    return locked(() => {
+      if (repeatHunting.active) return;
+      repeatQuote = repeatHunting.preview(rank, count);
+      if (!repeatQuote) { notify("전투가 끝난 뒤 승리한 구역과 사냥권을 확인하세요.", "loss"); return; }
+      showModal("repeatConfirm");
+    });
+  }
+  if (d.repeat === "confirm") {
+    const q = repeatQuote; repeatQuote = null;
+    return locked(() => {
+      if (modal !== "repeatConfirm" || !repeatHunting.approve(q)) {
+        closeModal(false); notify("상태가 바뀌었습니다. 반복 횟수와 사용량을 다시 확인하세요.", "loss"); return;
+      }
+      autoCombat.stop(); closeModal(false); render(); repeatHunting.refresh();
+    });
+  }
+  if (d.repeat === "stop") { repeatHunting.afterBattle(); renderHuntMode(); return; }
   if (d.huntMode) {
+    if (d.huntMode === "manual") repeatHunting.stop("수동 전환");
     autoCombat.select(d.huntMode);
     renderHuntMode();
     return;
@@ -949,6 +1012,7 @@ addEventListener("hashchange", () => {
 });
 addEventListener("storage", (e) => {
   if ((e.key === saveKey || e.key === null) && ready && !storageError) {
+    repeatHunting.stop("저장 충돌");
     autoCombat.stop();
     renderHuntMode();
     locked(() => {}); // The queued baseline check also covers resets and storage.clear().
@@ -978,6 +1042,7 @@ function flush() {
 document.addEventListener("visibilitychange", () => {
   syncMusic();
   if (document.hidden) {
+    repeatHunting.stop("화면 숨김");
     autoCombat.stop();
     renderHuntMode();
     Feedback.clear();
@@ -989,6 +1054,7 @@ document.addEventListener("visibilitychange", () => {
   tickTime = Date.now();
 });
 addEventListener("pagehide", () => {
+  repeatHunting.stop("페이지 종료");
   autoCombat.stop();
   renderHuntMode();
   GameMusic.update("forge", { hidden: true });
