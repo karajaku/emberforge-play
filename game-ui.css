@@ -94,9 +94,6 @@ body.ui-game { grid-template-rows:auto minmax(0,1fr) auto auto; }
 .ui-game .ui-daily-duel { position:absolute;right:0;top:90px;z-index:4;display:grid;justify-items:center;gap:3px;min-height:52px;padding:6px 8px;border:1px solid #b89761;border-radius:10px;background:#29382fea;color:#f4dab0;font-size:12px; }
 .ui-daily-duel svg { width:22px;height:22px; }
 .ui-game .forge-layout .scene .location { top:8px; }
-.ui-game .forge-layout .location:has(.rare-offer) { padding:0; z-index:4; }
-.ui-game .forge-layout .location:has(.rare-offer) > svg { display:none; }
-.ui-game .forge-layout .rare-offer { padding:5px 12px; min-height:32px; background:#25312d; color:#ffe2a4; border-radius:20px; font-size:12px; }
 .ui-game .forge-strike { border-radius:38% 38% 20% 20%; }
 .ui-game #mobileNav { border-top:1px solid #a68c5e;border-radius:12px 12px 0 0;background:#1f2c2cf5;box-shadow:0 -3px 12px #0004; }
 .ui-game #mobileNav .navitem { color:#c2b99f;border-radius:8px;min-height:56px; }
@@ -163,15 +160,6 @@ body.ui-game { grid-template-rows:auto minmax(0,1fr) auto auto; }
   border: 1px solid #987a55; border-radius: 6px; background: #fff8eb; color: #443021; font: inherit;
 }
 #shade:is([data-modal="shop"], [data-modal="relicWorkshop"]) .listrow b { color: #443021; }
-#shade[data-modal="guards"] .dialog { color: var(--text); }
-#shade[data-modal="guards"] .listrow small { color: var(--muted); }
-#shade[data-modal="guards"] .mini.active:enabled {
-  background: #e6c47d; color: #432c14; border-color: #96713e;
-}
-#shade[data-modal="guards"] .mini:disabled {
-  background: #e6ded0; color: #5f5347; border-color: #ad9e8b;
-  opacity: 1; filter: none; box-shadow: none;
-}
 #shade .shop-modes { display: grid; grid-template-columns: 1fr 1fr; margin: 8px 0; }
 #shade .shop-modes button { min-height: 44px; }
 

@@ -16,7 +16,7 @@ const CharcoalStory = (() => {
   ];
   const questions = { driver: "다친 사람은 없어요?", coal: "수레에 뭐가 실렸죠?" };
   const fresh = () => ({ intro: 0, bridge: 0, home: 0, bundle: 0, light: 0, lesson: 0,
-    firstGift: null, soldOre: false, answer: "", quiet: false });
+    firstGift: null, answer: "", quiet: false });
   function unlocked(s, id) {
     if (id === "intro") return true;
     if (id === "bridge") return s.huntBest > 0;
@@ -35,8 +35,7 @@ const CharcoalStory = (() => {
     }
     return story;
   }
-  function frame(id, page, answer, gift = null, lifelong = false) {
-    if(lifelong && id==="light" && page===2)return ["lamplight","yeonhwa","이 검은 네 곁에 두렴. 공방에서 다른 장비를 벼리고 나면, 거기서 배운 제작법을 화로에 남길 수도 있어. 다음에는 단이가 그 손길을 배울 차례지."];
+  function frame(id, page, answer, gift = null) {
     if (id === "bundle") {
       if (page === 0) return ["tools", "dani", "왼쪽 낫은 버드나무집 거고, 이 도끼는 우리 집 거예요. 다리 한 번 막혔다고 마을에 날 선 연장이 하나도 안 남았더라고요."];
       if (page === 1) return ["tools", "dani", "이 작은 망치는 제 거예요. 빈 수레에 장작 한 짐 더 실어 번 돈으로 샀어요. 다음엔 제가 저 낫 하나라도 갈아 드리고 싶어요. 옆에서 봐도 돼요?"];

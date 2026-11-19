@@ -63,13 +63,12 @@ function storyBook(s) {
   return ["이야기", CharcoalStory.volumes.map((volume, i) =>
     '<h3 class="volume-title">' + (i + 1) + "장 · " + volume.title + "</h3>" +
     volume.scenes.map(leaf).join("")).join("") +
-    ContentGuide.index() +
     storyButton("quiet", s.story.quiet ? "이야기·동료 대화 안내 켜기" : "이야기·동료 대화 안내 끄기")];
 }
 function storyPage() {
   const { id, replay, page, answer } = storyScene;
   const chapter = CharcoalStory.chapters[id];
-  const [art, who, text] = CharcoalStory.frame(id, page, answer, state.story.firstGift, !!state.heirloom);
+  const [art, who, text] = CharcoalStory.frame(id, page, answer, state.story.firstGift);
   const volume = CharcoalStory.volumes.find(v => v.scenes.includes(id));
   const next = page < chapter.pages - 1 ? "계속 듣기" : replay ? "이야기 목록" :
     id === "intro" && !state.best ? "모루 앞으로" :

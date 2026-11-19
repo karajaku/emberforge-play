@@ -43,15 +43,15 @@ const GameUI = (() => {
     const detail=document.createElement('section');detail.className='ui-selected-gear';
     detail.setAttribute('aria-label','선택한 보관 무기');
     const projected=Game.stats({...s,weapon:selected});
-    detail.innerHTML=gearPortrait(selected,'weapon')+'<div class="ui-gear-summary"><b>'+gearText(selected)+' +'+selected.level+'</b><span>장착 시 공격력 <strong>'+fmt(projected.attack)+'</strong></span><small>'+[tier(selected,'weapon'),craftSummary(selected)].filter(Boolean).join(' · ')+'</small></div>'+
-      '<p>'+(selected.level>=13?'배치 수익 '+fmt(Game.perMinute(selected, s.imprints.haste)/6)+' G / 10초':'사냥터 배치는 +13부터')+'</p>';
+    detail.innerHTML=gearPortrait(selected,'weapon')+'<div class="ui-gear-summary"><b>'+Game.name(selected)+' +'+selected.level+'</b><span>장착 시 공격력 <strong>'+fmt(projected.attack)+'</strong></span><small>'+[tier(selected,'weapon'),craftSummary(selected)].filter(Boolean).join(' · ')+'</small></div>'+
+      '<p>'+(selected.level>=13?'배치 수익 '+fmt(Game.perMinute(selected)/6)+' G / 10초':'사냥터 배치는 +13부터')+'</p>';
     const actions=tiles[selectedIndex].querySelector('.actions');actions.className='actions ui-gear-actions';detail.append(actions);
     grid.className='ui-gear-grid';grid.setAttribute('aria-label','보관 무기 선택');
     tiles.forEach((tile,i)=>{
       const button=document.createElement('button');button.className='ui-gear-tile';button.dataset.uiGear=String(i);
       button.setAttribute('aria-pressed',String(i===selectedIndex));
-      button.setAttribute('aria-label',(s.bag[i].heirloom?.name||Game.name(s.bag[i]))+' +'+s.bag[i].level+' 선택');
-      button.innerHTML=gearPortrait(s.bag[i],'weapon')+'<b>+'+s.bag[i].level+'</b><span>'+gearText(s.bag[i])+'</span>';
+      button.setAttribute('aria-label',Game.name(s.bag[i])+' +'+s.bag[i].level+' 선택');
+      button.innerHTML=gearPortrait(s.bag[i],'weapon')+'<b>+'+s.bag[i].level+'</b><span>'+Game.name(s.bag[i])+'</span>';
       tile.replaceWith(button);
     });
     grid.after(detail);grid.parentElement.classList.add('ui-inventory');
@@ -67,15 +67,13 @@ const GameUI = (() => {
     }
     const content=tools.querySelector('.ui-utility-content');
     const titleActions=document.querySelector('#title .title-actions');
-    content.querySelector('.journey-links')?.remove();
-    content.insertAdjacentHTML('beforeend','<div class="journey-links"><a class="mini" href="heirloom.html">비교 체험</a>'+(state.heirloom && state.best>0?'<button class="mini" data-duel>오늘의 시검</button>':'')+'</div>');
     content.querySelector('.title-actions')?.remove();if(titleActions)content.prepend(titleActions);
     if(current()==='forge'&&phonePage('forge')==='work') {
       const rail=document.createElement('nav');rail.className='ui-forge-rail';rail.setAttribute('aria-label','대장간 작업');
       rail.innerHTML=[['craft','anvil','제작'],['training','hammer','수련'],['orders','scroll-text','의뢰']].map(([page,ic,label])=>'<button data-go="forge/'+page+'">'+icon(ic)+'<span>'+label+'</span></button>').join('');
       const stage = document.querySelector('.forge-layout .stage-side');
-      stage?.append(rail);
-      if (stage && state.best > 0) {
+      stage.append(rail);
+      if (state.best > 0) {
         const duel = document.createElement('button');
         duel.className = 'ui-daily-duel';
         duel.dataset.duel = '';

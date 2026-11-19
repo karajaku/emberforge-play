@@ -7,21 +7,18 @@ const SaveStore = (() => {
   const apprentice = typeof module !== "undefined" ? require("./apprentice.js") : Apprentice;
   const story = typeof module !== "undefined" ? require("./charcoal-story.js") : CharcoalStory;
   const shop = typeof module !== "undefined" ? require("./relic-shop.js") : RelicShop;
-  const key = "emberforge.save.v1";
-  const keys = { current: key, previous: key + ".previous", original: key + ".original" };
+  function saveKeys(current) {
+    return { current, previous: current + ".previous", original: current + ".original" };
+  }
+  const standardKeys = saveKeys("emberforge.save.v1");
+  const classicKeys = saveKeys("emberforge.classic.save.v1");
   const fault = (code) => Object.assign(new Error(code), { code });
   const object = value => value !== null && typeof value === "object" && !Array.isArray(value);
   function decode(raw) {
     let data;
     try { data = JSON.parse(raw); } catch { throw fault("corrupt"); }
-    if (data?.version > 2 || data?._save?.format > 1 || data?.hunting?.version > 1 || data?.heirloom?.version > 1) throw fault("future");
-    if (data?.heirloom !== undefined) {
-      const p=data.heirloom;
-      if(!object(p)||p.version!==1||!Number.isSafeInteger(p.revision)||p.revision<0||
-        !Number.isSafeInteger(p.xp)||p.xp<0||!Number.isSafeInteger(p.bundles)||p.bundles<0||
-        !["known","active","records","journal","recipes","seen","mastery"].every(k=>Array.isArray(p[k]))||
-        (p.hunt!==null&&(!object(p.hunt)||!Array.isArray(p.hunt.pack)||!Number.isInteger(p.hunt.rank)))) throw fault("corrupt");
-    }
+    if (data?.heirloom !== undefined) throw fault("future");
+    if (data?.version > 2 || data?._save?.format > 1 || data?.hunting?.version > 1) throw fault("future");
     for (const h of [data?.hunt, data?.lastHunt]) {
       if (h?.trailVersion > 1) throw fault("future");
       const skillVersion = h?.trailVersion === 1 ? 2 : 1;
@@ -69,13 +66,6 @@ const SaveStore = (() => {
         (!template.length || (actual.length === template.length && actual.every((v, i) => shape(v, template[i]))));
       if (object(template)) return object(actual) && Object.entries(template).every(([k, v]) => shape(actual[k], v));
       return typeof template === "number" ? Number.isFinite(actual) : typeof actual === typeof template;
-    }
-    if (object(data.imprints)) {
-      for (const key of ["fate", "haste"]) {
-        if (!(key in data.imprints)) data.imprints[key] = 0;
-        const level = data.imprints[key];
-        if (!Number.isInteger(level) || level < 0 || level > game.imprints[key][3]) throw fault("corrupt");
-      }
     }
     for (const name of ["trial", "imprints", "ore", "charms", "enabled"])
       if (name in data && !shape(data[name], defaults[name])) throw fault("corrupt");
@@ -138,8 +128,6 @@ const SaveStore = (() => {
       forestFiber: data.version === 1 ? 0 : data.forestFiber, huntLining: data.version === 1 ? 0 : data.huntLining,
       fieldIncomeVersion: data.fieldIncomeVersion ?? 1,
       apprentice: apprentice.restore(data, defaults.apprentice) };
-    if (!("foundRare" in data))
-      restored.foundRare = [restored.weapon, restored.armor, ...restored.bag, ...restored.field].some(g => g.grade > 0);
     for (const [key, count] of Object.entries(restored.relicScrolls)) {
       if (!shop.scrolls.includes(shop.find(key)) || !Number.isSafeInteger(count) || count < 0) throw fault("corrupt");
     }
@@ -167,13 +155,52 @@ const SaveStore = (() => {
       error.name === "SecurityError" || !writing ? "access" : "write");
   }
   function create(getStorage, id = () => globalThis.crypto.randomUUID()) {
+    let keys = standardKeys, key = keys.current;
     let expected, lastSavedAt = null, pending = null, needsMigration = false;
     const read = name => { try { return getStorage().getItem(name); } catch (e) { throw storageFault(e); } };
     const write = (name, value) => {
       try { getStorage().setItem(name, value); } catch (e) { throw storageFault(e, true); }
     };
+    // The journey conversion archived the last classic state under .preserved.<id>.
+    // Resume the newest verified snapshot in the SAME save generation, leaving
+    // the entire journey slot (including its backups) available to that build.
+    function beforeJourney(journey) {
+      const generation = journey._save?.generation;
+      if (!generation) return null;
+      const names = [standardKeys.previous, standardKeys.original];
+      try {
+        const storage = getStorage();
+        for (let i = 0; i < storage.length; i++) {
+          const name = storage.key(i);
+          if (name?.startsWith(standardKeys.current + ".preserved.")) names.push(name);
+        }
+      } catch (e) { throw storageFault(e); }
+      let best = null, revision = -1;
+      for (const name of names) {
+        const raw = read(name);
+        if (raw === null) continue;
+        let candidate;
+        try { candidate = decode(raw); } catch { continue; }
+        if (candidate._save?.generation === generation && candidate._save.revision > revision) {
+          best = raw;
+          revision = candidate._save.revision;
+        }
+      }
+      return best;
+    }
     function load() {
-      expected = read(key);
+      const raw = read(standardKeys.current);
+      let journey;
+      try { journey = JSON.parse(raw); } catch { /* decode reports corrupt data below */ }
+      const migrated = journey?.version === 2 && journey?._save?.format === 1 && journey?.heirloom?.version === 1;
+      const separate = read(classicKeys.current) !== null || read(classicKeys.previous) !== null || read(classicKeys.original) !== null;
+      keys = separate || migrated ? classicKeys : standardKeys;
+      key = keys.current;
+      expected = keys === standardKeys ? raw : read(key);
+      if (migrated && !separate) {
+        const prior = beforeJourney(journey);
+        if (prior !== null) { write(key, prior); expected = prior; }
+      }
       pending = null;
       if (expected === null) {
         if (read(keys.previous) !== null || read(keys.original) !== null) throw fault("missing");
@@ -244,7 +271,7 @@ const SaveStore = (() => {
       if (!state) throw fault("no-backup");
       return commit(state, "recover");
     }
-    return { load, check, commit, recover, backup,
+    return { load, check, commit, recover, backup, get currentKey() { return key; },
       get needsMigration() { return needsMigration; },
       get pending() { return !!pending; }, get lastSavedAt() { return lastSavedAt; } };
   }
@@ -254,7 +281,7 @@ const SaveStore = (() => {
       let locks, indexedDB;
       try { locks = environment.locks; if (!locks) indexedDB = environment.indexedDB; }
       catch { throw fault("locking"); }
-      if (locks) return locks.request(key, fn);
+      if (locks) return locks.request(standardKeys.current, fn);
       // IndexedDB readwrite transactions serialize across tabs too. The callback
       // must stay synchronous: all game/localStorage work runs in this transaction.
       if (!indexedDB) throw fault("locking");
@@ -278,6 +305,6 @@ const SaveStore = (() => {
       });
     };
   }
-  return { keys, decode, create, createLock };
+  return { keys: standardKeys, decode, create, createLock };
 })();
 if (typeof module !== "undefined") module.exports = SaveStore;

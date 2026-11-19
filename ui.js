@@ -83,7 +83,6 @@ function failSave(error) {
   HuntWatch.stop('', false);
   repeatHunting.stop(error.code === "conflict" ? "저장 충돌" : "저장 실패");
   autoCombat.stop();
-  journeyScreen?.stop();
   storageError = error.code || "write";
   Feedback.clear();
   GameSound.stop();
@@ -114,7 +113,6 @@ function startNewGame() {
   return locked(() => {
     if (modal !== "confirmNewGame") return;
     state = Game.resetProgress(state);
-    MainProgression.enable(state,true);
     save("reset");
     reloadAtForge();
   });
@@ -157,7 +155,6 @@ function resumeSaved() {
   repeatHunting.stop("저장 복귀");
   autoCombat.stop();
   storageError = null;
-  if(MainProgression.enable(state))save("progression");
   ready = true;
   HuntWatch.restoreReceipt();
   active = 0;
@@ -179,7 +176,7 @@ function storageAction(action) {
     if (!storageError) return; // Ignore already queued recovery/retry double-clicks.
     if (action === "recover") state = store.recover();
     else if (store.pending) save();
-    else { state = readState(); if (!state) { state = Game.fresh(); MainProgression.enable(state,true); save(); } else if (store.needsMigration) save(); }
+    else { state = readState(); if (!state) { state = Game.fresh(); save(); } else if (store.needsMigration) save(); }
     resumeSaved();
   }, true);
 }
@@ -433,57 +430,6 @@ function nav(id) {
     scrollTo(0, 0);
   } else location.hash = id;
 }
-const riteRoutes = {make:"growth/workshop", rebirth:"growth", marks:"growth/imprint", fuse:"growth/fusion", guild:"growth/guild"};
-const journeyRoutes = {forge:"forge", hunt:"forest", rites:"growth", log:"forge/training"};
-let journeyElement, journeyScreen;
-function mainJourneyTab(id,page) {
-  if(!state.heirloom)return null;
-  if(id==="forest" && page==="hunt" && !MainProgression.legacyForest(state))return "hunt";
-  if(id==="forge" && (state.weapon.work || state.weapon.finalTrial))return null;
-  if(id==="forge" && page!=="orders")return page==="training"?"log":page==="craft"?"rites":"forge";
-  if(id==="growth" && page!=="guild")return "rites";
-  return null;
-}
-function mountMainJourney(tab) {
-  if(!journeyElement){
-    journeyElement=document.createElement("section");
-    journeyElement.setAttribute("aria-label","장비 성장과 사냥");
-    const root=journeyElement.attachShadow({mode:"open"});
-    root.innerHTML='<link rel="stylesheet" href="game-ui.css?v=1.53"><link rel="stylesheet" href="heirloom.css?v=4"><style>:host{display:block;width:100%;color:#f1e8d2;font:15px/1.5 system-ui,sans-serif}.hero{margin-top:0}#app{padding-bottom:12px}</style><div id="status" role="status"></div><div id="app"></div>';
-    journeyScreen=createHeirloomScreen(root,{
-      motionEnabled,
-      route: nav,
-      openLining: ()=>showModal("huntLining"),
-      navigateRite: key=>nav(riteRoutes[key]),
-      navigate: key=>nav(journeyRoutes[key]),
-      claim: ()=>act("daily"),
-      async update(_slot,revision,operation) {
-        if(!operation)return MainProgression.read(state);
-        let problem,done=false;
-        const route=location.hash;
-        await locked(()=>{
-          if(!journeyElement.isConnected || document.hidden || modal || location.hash!==route)return;
-          // Only a successful domain action is committed. A failed payment cannot partially alter a save.
-          const draft=structuredClone(state);
-          try {MainProgression.apply(draft,revision,operation);}
-          catch(e){problem=e;return;}
-          state=draft;save();done=true;
-          el("gold").textContent=brief(state.gold);
-          const w=Game.huntingStatus(state);el("huntTickets").textContent=brief(w.free+w.purchased);
-        });
-        if(problem)throw problem;
-        if(!done)throw Error(storageError?"저장 상태를 확인하세요.":"화면이 바뀌어 진행을 멈췄습니다.");
-        return MainProgression.read(state);
-      }
-    });
-  }
-  el("screen").replaceChildren(journeyElement);
-  const route = location.hash.slice(1);
-  const station = Object.keys(riteRoutes).find(key => riteRoutes[key] === route);
-  if (tab === "rites" && current() === "growth") el("pageNav").hidden = true;
-  journeyScreen.show(tab,MainProgression.read(state),station || (current() === "forge" ? "make" : "rebirth"));
-  el("apprentice").hidden=true;
-}
 function render() {
   if (!state) return;
   HuntEffects.cancel();
@@ -495,14 +441,6 @@ function render() {
   document.body.dataset.place = id;
   document.body.dataset.page = phonePage(id);
   phonePageNav(id);
-  const journeyTab=mainJourneyTab(id,phonePage(id));
-  if(journeyTab && id!=="forest" && (state.hunt || state.heirloom?.hunt)){
-    history.replaceState(null,"","#forest");return render();
-  }
-  document.body.classList.toggle("main-journey",!!journeyTab);
-  if(!journeyTab)journeyScreen?.stop();
-  if (id === "forest" && phonePage(id) === "hunt" && !journeyTab)
-    el("pageNav").insertAdjacentHTML("beforeend", openBtn("huntGuide", "토벌 안내"));
   const navHTML = navItems
     .map(
       ([key, label, ic]) =>
@@ -543,11 +481,6 @@ function render() {
         ? go("world", icon("arrow-left") + "모험 지도", "ghost")
         : openBtn("daily", icon("gift") + "출석 보상", "ghost")) +
     "</div></div>";
-  if(journeyTab) {
-    HuntWatch.stop("",false);
-    mountMainJourney(journeyTab);
-    GameUI.shell();syncMusic();return;
-  }
   let view;
   if (id === "forge") view = GameUI.forge(state, forgeView(state));
   else if (id === "bag") view = GameUI.bag(state, bagView(state));
@@ -581,7 +514,7 @@ function render() {
       "</div>" +
       orderView(state));
   const screen = el("screen");
-  screen.innerHTML = ContentGuide.render(state) + view;
+  screen.innerHTML = view;
   renderLesson();
   GameUI.shell();
   const grid = document.querySelector('.ui-gear-grid');
@@ -590,7 +523,7 @@ function render() {
 }
 function renderLesson() {
   const host = el("apprentice");
-  host.hidden = !!state.heirloom || !state.apprentice.visible;
+  host.hidden = !state.apprentice.visible;
   if (host.hidden) return;
   const step = Apprentice.next(state);
   const tip = step >= 0 ? Apprentice.guidance(state, step) : null;
@@ -644,7 +577,6 @@ function lessonMenu() {
     Apprentice.lessons
       .map((lesson, i) => row(lesson[1], notes[i], done[i] ? icon("check") : ""))
       .join("") +
-      ContentGuide.index() +
       (done.every(Boolean) ? "" : lessonButton("locate", "다음 단계로 이동")) +
       (state.apprentice.visible
         ? lessonButton("hide", "수업 안내 숨기기")
@@ -663,10 +595,6 @@ function preferenceSwitch(key, label) {
 }
 function modalData() {
   const s = state;
-  if(s.heirloom && (modal==="help" || modal==="lessons")) return ["대장장이 수업",
-    desc("숲에서 골드와 재료를 모아 검과 갑옷을 벼리세요. +7, +9, +11에서 제작 공정을 선택하고 +20에서 첫 레어 장비로 승급합니다.")+
-    desc("보조 장비를 환생하면 제작법과 각인을 얻습니다. 두 전설 검의 특성은 초월로 결합할 수 있습니다.")+
-    go("forge","대장간","mini")+go("forest","숲 사냥","mini")+go("growth","전승의 화로","mini")];
   if (modal === "companion") return ["동료 대화", storyChat(s, current())];
   if (modal === "storyScene") return storyPage();
   if (modal === "storyBook") {
@@ -678,8 +606,6 @@ function modalData() {
   if (modal === "final") return finalWorkshop(s);
   if (modal === "craft") return craftWorkshop(s);
   switch (modal) {
-    case "huntGuide":
-      return ContentGuide.hunt(s);
     case "towerRun":
       return ["고속 등반 결과", towerRunView(s)];
     case "towerRewards":
@@ -788,7 +714,6 @@ function modalData() {
           (gear === "weapon" ? swordOddsTable(g.level) : ""),
       ];
     }
-    case "huntLining": return ["숲 방호 안감", liningCard(state)];
     case "settings":
       return [
         "환경 설정",
@@ -820,8 +745,7 @@ function modalData() {
           row("게임 버전", UpdateNotice.version(), "") +
           '<div class="settings-links">' + openBtn("daily", icon("gift") + "오늘의 출석 보상") +
           openBtn("lessons", icon("hammer") + "대장장이 수업 · 튜토리얼") +
-          openBtn("help", icon("book-open") + "플레이 안내") +
-          '<a class="action" href="https://karajaku.github.io/moss-companions-play/">이끼숲 동료들 플레이 ↗</a></div>' +
+          openBtn("help", icon("book-open") + "플레이 안내") + "</div>" +
           row("게임 진행", "새 게임으로 돌아갑니다.", openBtn("confirmNewGame", "처음부터 시작", "action danger")),
       ];
     case "confirmNewGame":
@@ -852,7 +776,7 @@ function modalData() {
         "오늘의 출석 보상",
         '<p class="desc" data-attendance-day="' + Game.day(Date.now()) + '">오늘 ' + Game.day(Date.now()) + " · 한국 시간(KST) 자정 갱신 · 로컬 기기 시각 기준</p>" +
           row("무료 사냥권 +10", "30개를 넘어 보유 가능 · 상한 이상이면 자연 충전 대기", icon("gift")) +
-          row(fmt(Game.dailyGold(s)) + " G", "최고 강화에 따른 보급금 · 무한의 탑 입장권 5장 · 산소통 1개", icon("gift")) +
+          row("1,000,000 G", "무한의 탑 입장권 5장 · 산소통 1개", icon("gift")) +
           row("가호 보급", "정령과 대장장이 가호 각 3개", icon("shield")) +
           btn(
             "daily",
@@ -995,12 +919,9 @@ function modalData() {
           g = s[k];
         return [
           "장비 판매",
-          (!s.foundRare ? desc("무기나 방어구를 +12까지 강화한 뒤 팔면 첫 레어 이상 장비가 확정됩니다. 운명 각인을 올리면 +1~+11 판매에서도 상위 등급을 뽑을 수 있습니다.") : "") +
-          desc(Game.name(g, k) + " +" + g.level + " 장비와 옵션을 넘기고 같은 종류의 +0 장비를 받습니다.") +
-            line(g.level < 12 ? "새 장비 확률 · 운명 Lv." + s.imprints.fate : "새 장비 확률 · +12 이상",
-              Game.saleGradeWeights(s, g).map((weight, i) => Game.grades[i] + " " + weight / 100 + "%").join(" · ")) +
-            line("판매 금액", fmt(Game.saleValue(g)) + " G") +
-            btn("sell", Game.saleGradeWeights(s, g)[0] === 10000 ? "판매하고 일반 +0 받기" : "판매하고 새 장비 받기", k, "primary", g.level < 1),
+          desc(Game.name(g, k) + " +" + g.level + " 장비와 별의 옵션을 팔고 새 장비를 받습니다.") +
+            line("판매 금액", fmt(300 + Math.round(Game.price(g) * (1 + g.level) * 1.6)) + " G") +
+            btn("sell", "판매하고 새 장비 받기", k, "primary", g.level < 1),
         ];
       }
       return ["", ""];
@@ -1044,7 +965,6 @@ function updateSaleQuote(reset) {
   sell.disabled = !valid;
 }
 function showModal(key) {
-  if(state?.heirloom && ["rebirth","fusion","sell-weapon","sell-armor"].includes(key)) return nav("growth");
   if (HuntWatch.active) HuntWatch.stop('일시 중단');
   if (!ready || storageError) return;
   if (!modal) lastFocus = document.activeElement;
@@ -1209,10 +1129,6 @@ document.addEventListener("click", (e) => {
   }
   if ("newGame" in d) return startNewGame();
   if (d.story) return storyInput(d.story);
-  if ("guideFocus" in d) {
-    if (modal === "huntGuide") closeModal(false);
-    return ContentGuide.focusCurrent(state);
-  }
   if (d.lesson === "locate") return focusLesson();
   if (d.lesson === "menu") return showModal("lessons");
   if (d.lesson === "hide" || d.lesson === "show")
@@ -1305,7 +1221,7 @@ addEventListener("hashchange", () => {
   }
 });
 addEventListener("storage", (e) => {
-  if ((e.key === saveKey || e.key === null) && ready && !storageError) {
+  if ((e.key === store.currentKey || e.key === null) && ready && !storageError) {
     HuntWatch.stop('일시 중단');
     repeatHunting.stop("저장 충돌");
     autoCombat.stop();
@@ -1485,8 +1401,7 @@ el("coinIcon").innerHTML = icon("coins");
 el("settingsIcon").innerHTML = icon("settings");
 locked(() => {
   state = readState();
-  if (!state) { state = Game.fresh(); MainProgression.enable(state,true); save(); }
-  else if (MainProgression.enable(state)) save("progression");
+  if (!state) { state = Game.fresh(); save(); }
   else if (store.needsMigration) save();
   resumeSaved();
 }, true);
