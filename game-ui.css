@@ -160,6 +160,15 @@ body.ui-game { grid-template-rows:auto minmax(0,1fr) auto auto; }
   border: 1px solid #987a55; border-radius: 6px; background: #fff8eb; color: #443021; font: inherit;
 }
 #shade:is([data-modal="shop"], [data-modal="relicWorkshop"]) .listrow b { color: #443021; }
+#shade[data-modal="guards"] .dialog { color: var(--text); }
+#shade[data-modal="guards"] .listrow small { color: var(--muted); }
+#shade[data-modal="guards"] .mini.active:enabled {
+  background: #e6c47d; color: #432c14; border-color: #96713e;
+}
+#shade[data-modal="guards"] .mini:disabled {
+  background: #e6ded0; color: #5f5347; border-color: #ad9e8b;
+  opacity: 1; filter: none; box-shadow: none;
+}
 #shade .shop-modes { display: grid; grid-template-columns: 1fr 1fr; margin: 8px 0; }
 #shade .shop-modes button { min-height: 44px; }
 
