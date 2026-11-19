@@ -67,6 +67,8 @@ const GameUI = (() => {
     }
     const content=tools.querySelector('.ui-utility-content');
     const titleActions=document.querySelector('#title .title-actions');
+    content.querySelector('.journey-links')?.remove();
+    content.insertAdjacentHTML('beforeend','<div class="journey-links"><a class="mini" href="heirloom.html">비교 체험</a>'+(state.heirloom && state.best>0?'<button class="mini" data-duel>오늘의 시검</button>':'')+'</div>');
     content.querySelector('.title-actions')?.remove();if(titleActions)content.prepend(titleActions);
     if(current()==='forge'&&phonePage('forge')==='work') {
       const rail=document.createElement('nav');rail.className='ui-forge-rail';rail.setAttribute('aria-label','대장간 작업');

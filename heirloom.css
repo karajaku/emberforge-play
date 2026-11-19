@@ -419,3 +419,87 @@ details.panel { display: block }
 
 .impact { position: absolute; z-index: 2; bottom: 6px; left: 50%; transform: translateX(-50%); padding: 2px 9px; border: 1px solid #e4b45e; border-radius: 4px; background: #292013eb; color: #ffdf89; white-space: nowrap; pointer-events: none }
 .duel-side .impact { bottom: 47%; color: #fff3d4; border-color: #d48669; background: #5b2420e8 }
+
+/* The main shell already paints the approved full-height portrait atlas. */
+:host { height: 100%; min-height: 0 }
+#app:is([data-tab="forge"],[data-tab="hunt"],[data-tab="rites"]) { height: 100%; padding-bottom: 0 }
+.forge-control-layout, .hunt-board, .hunt-board > .equipment, .ritual-board {
+  display: flex; flex-direction: column; min-height: 100%; height: 100%; position: relative;
+}
+.equipment { background: none; border: 0; border-radius: 0; overflow: visible }
+.bench, .altar, .clearing { flex: 1 0 auto; height: auto; min-height: 235px }
+.bench, .altar { border: 0; border-radius: 0; box-shadow: none; background: transparent }
+.bench .gear-switch { top: 4px; right: 50%; transform: translateX(50%); gap: 0; background: #26342eef; border: 1px solid #967e53; border-radius: 9px; overflow: hidden }
+#app .gear-switch button { min-width: 94px; flex-direction: row; gap: 5px; background: transparent; border: 0; border-radius: 7px }
+#app .gear-switch button[aria-pressed="true"] { background: #ae8647; color: #fff4d2; text-shadow: 0 1px #4c3824 }
+.bench .nameplate { top: auto; bottom: 3%; left: 50%; transform: translateX(-50%); max-width: 90%; text-align:center; border:0; background:#211c177a }
+.bench .nameplate small { font-size: 12px }
+.bench .nameplate h2 { font-size: 21px }
+.bench-item { bottom: 17%; height: min(62%, 355px); max-width: 78% }
+.bench-item .gear-sprite { filter: drop-shadow(0 5px 5px #1f182480) }
+.bench-rail { position: absolute; z-index: 2; left: 0; top: clamp(58px,12%,100px); display:grid; gap:8px }
+#app .bench-rail button, #app .gear-info button, #app .hunt-more button {
+  width: 55px; min-height: 54px; padding: 4px; flex-direction:column; gap:2px; font-size:11px;
+  color:#f3dfb1; background:#26342df0; border:1px solid #a48b5e; border-radius:9px;
+}
+.bench-rail .glyph,.gear-info .glyph { width: 22px; height:22px }
+.gear-info,.hunt-more { position: absolute; top: clamp(62px,12%,100px); right: 0; z-index: 2 }
+.forge-control-layout > .controls { padding: 5px 0 3px; display:grid; gap:6px; background:transparent; border:0 }
+.forge-control-layout > .controls > :is(p,h3,label,small,strong) { background: #202820ec; color:#fff0cf; padding:5px 10px; border-radius:7px }
+#app .forge-actions { grid-template-columns: 1fr minmax(130px,1.6fr) 1fr; max-width: 460px; width:100%; margin: auto }
+#app .forge-actions > .tool { min-height:66px; margin-top:18px; flex-direction:column; color:#f5dfb7; background:#29352f; border:1px solid #ab9368; border-radius:12px }
+#app .forge-actions > .tool .glyph { width:24px; height:24px }
+#app .forge-actions .forge-strike { flex-direction:column; gap:4px; min-height:clamp(98px,15dvh,140px); padding:8px; color:#fff3d2;
+  background:linear-gradient(145deg,#b88135,#865020 70%); border:2px solid #efd39a; border-radius:38% 38% 20% 20%; box-shadow:0 4px #573618 }
+#app .forge-strike b { font-size:25px }
+.forge-strike small { color:#fff1c9 }
+.forge-strike:active:enabled { transform:translateY(3px) }
+.sheet { width:min(410px,calc(100vw - 28px)); padding:16px; max-height:76dvh; overflow:auto; color:#f2e8d3; background:#242c29; border:2px solid #a48d61; border-radius:14px }
+.sheet::backdrop { background:#101410b8 }
+.sheet header { padding:0; height:auto; margin:0 0 12px; display:flex; align-items:center; justify-content:space-between }
+.sheet header button { min-width:44px; font-size:22px }
+.sheet-body { display:grid; gap:10px }
+.sheet-body .panel { padding:8px; box-shadow:none }
+.odds { display:flex; height:12px; overflow:hidden; border-radius:6px; background:#af5843 }
+.odds i:first-child { background:#6baa83 }.odds i:nth-child(2) { background:#dbaf59 }
+.hunt-board .equipment { min-height:100% }
+.clearing { border-radius:10px; background-position:77% 67%; min-height:240px }
+.duel-side.opponent { bottom: 32%; height: 33% }
+.duel-side.player { bottom: 6%; height: 49% }
+.actor .gear-sprite { width:min(100%,160px) }
+.actor .enemy-sheet,.actor img { width:min(100%,170px) }
+.airborne .actor img[src*="wingbeat"] { object-fit:cover; object-position:0% center; animation: wingbeat 540ms steps(6,jump-none) infinite }
+@keyframes wingbeat { to {object-position:100% center} }
+.hunt-more { top: auto; bottom:7px; right:3px }
+#app .hunt-more button { min-height:44px; width:44px; font-size:0 }
+.hunt-more .glyph { width:22px; height:22px }
+.hunt-board .controls { background:#1c2b24eb; border-radius:10px; border:1px solid #82744f; padding:8px }
+.hunt-board .actions { padding-right:45px }
+.hunt-stakes { display:flex; gap:14px; color:#f4d99b; font-size:13px }
+.hunt-board .controls label:has(#rank) { font-size:0 }
+#rank { font-size:14px }
+.ritual-board .stations { flex:none }
+.rite-action { display:grid; justify-items:center; padding-bottom:6px }
+#app .rite-action button { min-width:44%; min-height:60px; color:#fff1cc; background:#806035; border:2px solid #d0ae76; border-radius:14px }
+.offering { bottom:12%; height:49% }
+.offering .gear-sprite { max-height:260px; align-self:end }
+#status:not(:empty) { position:fixed; top:62px; left:50%; transform:translateX(-50%); z-index:5; width:max-content; max-width:min(410px,90vw); pointer-events:none }
+body:has(#app[data-tab]) { background:#25272b url(assets/portrait-scenes.png) 0 0 / 300% 200% fixed; }
+body:has(#app[data-tab="rites"]) { background-position:50% 100% }
+body > main #app:is([data-tab="forge"],[data-tab="hunt"],[data-tab="rites"]) { height:auto }
+body > main :is(.forge-control-layout,.hunt-board,.ritual-board) { min-height:min(70dvh,680px); height:auto }
+@media (max-height:650px) {
+  .bench,.altar,.clearing { min-height:190px }
+  #app .forge-actions .forge-strike { min-height:88px }
+  #app .bench-rail button { min-height:44px }
+}
+
+body > main #app[data-tab] :is(.bench,.clearing,.altar) { min-height: max(260px,49dvh) }
+.duel-side.player { width:43%; left:1% }
+.duel-side.opponent { width:42%; right:2% }
+
+/* Idle frames 0–5 for equipment and 0–3 for creatures match the original canvas renderer. */
+#app[data-motion="on"] .stage:not([data-effect]) .gear-sprite { background-size:1200% 100%; animation: gear-idle .96s steps(6,jump-none) infinite }
+#app[data-motion="on"] .enemy-sheet { background-size:800% 100%; animation: beast-idle .72s steps(4,jump-none) infinite }
+@keyframes gear-idle { to { background-position:45.454545% 0 } }
+@keyframes beast-idle { to { background-position:42.857143% 0 } }

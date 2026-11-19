@@ -449,9 +449,11 @@ function mountMainJourney(tab) {
     journeyElement=document.createElement("section");
     journeyElement.setAttribute("aria-label","장비 성장과 사냥");
     const root=journeyElement.attachShadow({mode:"open"});
-    root.innerHTML='<link rel="stylesheet" href="heirloom.css?v=3"><style>:host{display:block;width:100%;color:#f1e8d2;font:15px/1.5 system-ui,sans-serif}.hero{margin-top:0}#app{padding-bottom:12px}</style><div id="status" role="status"></div><div id="app"></div>';
+    root.innerHTML='<link rel="stylesheet" href="game-ui.css?v=1.53"><link rel="stylesheet" href="heirloom.css?v=4"><style>:host{display:block;width:100%;color:#f1e8d2;font:15px/1.5 system-ui,sans-serif}.hero{margin-top:0}#app{padding-bottom:12px}</style><div id="status" role="status"></div><div id="app"></div>';
     journeyScreen=createHeirloomScreen(root,{
       motionEnabled,
+      route: nav,
+      openLining: ()=>showModal("huntLining"),
       navigateRite: key=>nav(riteRoutes[key]),
       navigate: key=>nav(journeyRoutes[key]),
       claim: ()=>act("daily"),
@@ -480,10 +482,6 @@ function mountMainJourney(tab) {
   const station = Object.keys(riteRoutes).find(key => riteRoutes[key] === route);
   if (tab === "rites" && current() === "growth") el("pageNav").hidden = true;
   journeyScreen.show(tab,MainProgression.read(state),station || (current() === "forge" ? "make" : "rebirth"));
-  if(tab==="forge"){
-    const extras=go("forge/orders","대장간 의뢰","mini")+(state.best>0?'<button class="mini" data-duel>오늘의 시검</button>':'');
-    el("screen").insertAdjacentHTML("beforeend",'<div class="actions">'+extras+'</div>'+liningCard(state));
-  }
   el("apprentice").hidden=true;
 }
 function render() {
@@ -790,6 +788,7 @@ function modalData() {
           (gear === "weapon" ? swordOddsTable(g.level) : ""),
       ];
     }
+    case "huntLining": return ["숲 방호 안감", liningCard(state)];
     case "settings":
       return [
         "환경 설정",
