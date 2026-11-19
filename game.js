@@ -220,8 +220,14 @@ const Game = (() => {
     next.day = s.day; // Resetting progress does not grant another daily supply.
     return next;
   }
+  function startSwordRecord(s, origin) {
+    // A historical save can identify today's equipped blade, but not its original owner.
+    const id = origin === "equipped" ? (s._save?.generation || s.hunting.id) : globalThis.crypto.randomUUID();
+    s.weapon.recordId = id;
+    s.swordRecord = { id, origin, startLevel: s.weapon.level, hits: 0, recent: [] };
+  }
   function fresh(t = Date.now()) {
-    return {
+    const s = {
       version: 2,
       forestFiber: 0,
       huntLining: 0,
@@ -284,6 +290,8 @@ const Game = (() => {
       created: t,
       log: [],
     };
+    startSwordRecord(s, "starter");
+    return s;
   }
   function bladeStage(g) {
     return Math.max(g.grade, g.level >= 19 ? 3 : g.level >= 13 ? 2 : g.level >= 7 ? 1 : 0);
@@ -793,7 +801,15 @@ const Game = (() => {
         });
         if (random() * 100 < chances.success) {
           const previousStage = bladeStage(g);
+          const from = g.level;
+          if (type === "weapon" && !s.swordRecord) startSwordRecord(s, "equipped");
           g.level += double ? 2 : 1;
+          if (type === "weapon" && g.recordId === s.swordRecord.id) {
+            const record = s.swordRecord;
+            record.hits++;
+            record.recent.unshift({ from, to: g.level, at: t });
+            record.recent.length = Math.min(record.recent.length, 30);
+          }
           s.hits++;
           if (type === "weapon") recordWeapon(s);
           const evolved = type === "weapon" && bladeStage(g) > previousStage;
@@ -1496,6 +1512,7 @@ const Game = (() => {
   }
   return {
     forestYield, liningCosts, huntStats, hunting, settleHunting, huntingStatus, resetProgress,
+    startSwordRecord,
     migrateTraining,
     reforgeOptions,
     breakPattern,

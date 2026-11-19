@@ -593,6 +593,23 @@ function preferenceSwitch(key, label) {
   return '<button class="pref-switch" role="switch" aria-checked="' + on + '" aria-label="' + label +
     '" data-pref="' + key + '"><i aria-hidden="true"></i>' + (on ? "켜짐" : "꺼짐") + "</button>";
 }
+function swordJournal(s) {
+  const record = s.swordRecord;
+  if (!record) return "";
+  const title = record.origin === "starter" ? "첫 검의 기록" : "검의 기록";
+  const equipped = s.weapon.recordId === record.id;
+  const entries = record.recent.map(entry => {
+    const when = new Date(entry.at).toLocaleString("ko-KR", {
+      year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit",
+    });
+    return '<li><time>' + when + '</time><b>+' + fmt(entry.from) + ' → +' + fmt(entry.to) + '</b></li>';
+  }).join("");
+  return '<details class="sword-history"><summary>' + icon("sword") + title + '</summary>' +
+    line("장착 상태", equipped ? "장착 중" : "미장착") + line("기록 시작", "+" + fmt(record.startLevel)) +
+    line("기록한 강화 성공", fmt(record.hits) + "회") +
+    (entries ? '<h3>최근 강화 성공</h3><ol>' + entries + '</ol>' : desc("기록된 강화 성공이 없습니다.")) +
+    '</details>';
+}
 function modalData() {
   const s = state;
   if (modal === "companion") return ["동료 대화", storyChat(s, current())];
@@ -624,7 +641,7 @@ function modalData() {
           metric("성공", fmt(s.hits)),
           metric("파괴", fmt(s.breaks)),
         ) +
-          section("최근 활동") +
+          swordJournal(s) + section("최근 활동") +
           (s.log
             .map(
               (l) =>
