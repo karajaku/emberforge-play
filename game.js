@@ -66,6 +66,8 @@ const Game = (() => {
     luck: ["행운", 5, 1.5, 50],
     lung: ["폐활량", 10, 5, 50],
     land: ["영토", 500, 500, 5],
+    fate: ["운명", 5, 1, 105],
+    haste: ["신속", 3, 1, 60],
   };
   const journeys = {
     edge: { name: "사냥꾼의 검", task: "이끼숲 토벌" },
@@ -123,7 +125,36 @@ const Game = (() => {
   function imprintCost(s, key) {
     const level = s.imprints[key],
       def = imprints[key];
+    if (key === "fate" && level >= 100) return 4000;
     return key === "land" && !level ? 15 : Math.floor(def[1] + level * def[2]);
+  }
+  function imprintRequirement(s, key) {
+    if (key !== "fate") return "";
+    const level = s.imprints.fate;
+    if (level >= 100 && (s.rebirths < 1000 || s.imprints.haste < 60 || s.imprints.luck < 50 || s.imprints.land < 5))
+      return "환생 1,000회와 신속·행운·영토 최대 레벨 필요";
+    if (level >= 80 && s.rebirths < 500) return "환생 500회 필요";
+    if (level >= 50 && s.rebirths < 100) return "환생 100회 필요";
+    return "";
+  }
+  // Weights in hundredths of a percent, ordered by gear grade.
+  function saleGradeWeights(s, g) {
+    if (g.level >= 12) return s.foundRare ? [8000, 1650, 300, 50] : [0, 9650, 300, 50];
+    const level = s.imprints.fate ?? 0;
+    const rare = Math.min(level, 50) * 50;
+    const epic = Math.round(Math.max(0, Math.min(level - 50, 30)) * 1000 / 30);
+    const legend = Math.max(0, Math.min(level - 80, 20)) * 25;
+    return [10000 - rare - epic - legend, rare, epic, legend];
+  }
+  function saleGrade(s, g, random) {
+    const weights = saleGradeWeights(s, g);
+    const roll = Math.floor(random() * 10000);
+    let threshold = 0;
+    for (let grade = 3; grade > 0; grade--) {
+      threshold += weights[grade];
+      if (roll < threshold) return grade;
+    }
+    return 0;
   }
   function routeTask(s) {
     const r = s.weapon.route;
@@ -158,8 +189,8 @@ const Game = (() => {
   const orders = [
     [3, 1200, 1],
     [7, 4500, 2],
-    [13, 16000, 3],
-    [16, 120000, 4],
+    [13, 120000, 3],
+    [16, 320000, 4],
     [19, 500000, 5],
     [20, 1000000, 8],
     [21, 3000000, 12],
@@ -236,6 +267,7 @@ const Game = (() => {
       forgeClues: 0,
       weapon: freshGear(),
       armor: freshGear(),
+      foundRare: false,
       bag: [],
       field: [],
       best: 0,
@@ -263,7 +295,7 @@ const Game = (() => {
       rebirths: 0,
       lifeSouls: 0,
       inheritedRecipe: null,
-      imprints: { luck: 0, lung: 0, land: 0 },
+      imprints: { luck: 0, lung: 0, land: 0, fate: 0, haste: 0 },
       tower: 1,
       towerRun: null,
       lastTowerRun: null,
@@ -317,7 +349,21 @@ const Game = (() => {
     return { attack, hp };
   }
   function price(g) {
-    return Math.round((80 + 40 * g.level ** 1.8) * (1 + g.grade * 0.5));
+    const base = 1 + g.grade * 0.5;
+    const highGrade = [1, 3, 9, 25][g.grade];
+    const progress = Math.max(0, Math.min(1, (g.level - 12) / 5));
+    return Math.round((80 + 40 * g.level ** 1.8) * (base + (highGrade - base) * progress));
+  }
+  function saleValue(g) {
+    let invested = 0;
+    for (let level = 0; level < g.level; level++) invested += price({grade: g.grade, level});
+    return Math.floor(invested * 0.7);
+  }
+  function dailyGold(s) {
+    if (s.rebirths || s.best >= 20) return 1000000;
+    if (s.best >= 17) return 360000;
+    if (s.best >= 13) return 120000;
+    return s.best >= 7 ? 80000 : 48000;
   }
   function enhancementCost(s, g) {
     return s.enabled[2] && s.charms[2] > 0 ? 0 : price(g);
@@ -325,9 +371,10 @@ const Game = (() => {
   function enhancementChances(s, g, focusBonus = 0) {
     const sword = g === s.weapon ? baseSwordChances(g.level) : null;
     const base = sword?.success ?? armorRates[g.level] ?? 0;
+    const fateBonus = g.grade === 3 && g.level === 19 ? Math.max(0, (s.imprints.fate ?? 0) - 100) / 10 : 0;
     const success = Math.min(
       100,
-      (base + s.imprints.luck * 0.2 + s.heat) * (s.scrollOn && s.scrolls ? 1.1 : 1) + focusBonus,
+      (base + s.imprints.luck * 0.2 + s.heat) * (s.scrollOn && s.scrolls ? 1.1 : 1) + focusBonus + fateBonus,
     );
     const failure = 100 - success;
     // Success bonuses displace holds first on cards with explicit risks.
@@ -354,12 +401,16 @@ const Game = (() => {
     }
     return chances;
   }
-  function perMinute(g) {
-    return 6 * Math.round(
+  function fieldIntervalMs(haste = 0) {
+    return 10000 - 50 * haste;
+  }
+  function perMinute(g, haste = 0) {
+    const yieldPerCycle = Math.round(
       (income[Math.min(g.level, 20) - 13] || 0) *
         [1, 6.5, 55, 200][g.grade] *
         (1 + 0.35 * craft.count(g, "yield")) * (1 + craft.grindBonus(g.grind, 1) / 100),
     );
+    return Math.round(yieldPerCycle * 60000 / fieldIntervalMs(haste));
   }
   function knownPeak(g) {
     // A completed +15 route is also evidence on old swords without a recorded peak.
@@ -441,7 +492,7 @@ const Game = (() => {
     if (t > s.last) {
       // Settle pre-update time at the old rate before switching existing saves.
       const divisor = s.fieldIncomeVersion === 2 ? 1 : 6;
-      s.unclaimed += ((t - s.last) / 60000) * s.field.reduce((n, g) => n + perMinute(g) / divisor, 0);
+      s.unclaimed += ((t - s.last) / 60000) * s.field.reduce((n, g) => n + perMinute(g, s.imprints.haste) / divisor, 0);
       s.last = t;
     }
     s.fieldIncomeVersion = 2;
@@ -539,10 +590,6 @@ const Game = (() => {
     const g = s[type];
     const validIndex = (list, index) =>
       Number.isInteger(index) && index >= 0 && index < list.length;
-    const chanceGrade = () => {
-      const r = random();
-      return r < 0.005 ? 3 : r < 0.035 ? 2 : r < 0.2 ? 1 : 0;
-    };
     switch (act) {
       case "craftHuntLining": {
         if (!s._save || arg?.generation !== s._save.generation || arg.revision !== s._save.revision ||
@@ -925,11 +972,12 @@ const Game = (() => {
       }
       case "sell": {
         if (g.level < 1) return fail("1강 이상 장비를 판매할 수 있습니다.");
-        const value = 300 + Math.round(price(g) * (1 + g.level) * 1.6);
+        const value = saleValue(g);
         s.gold += value;
-        s[type] = freshGear(chanceGrade());
+        s[type] = freshGear(saleGrade(s, g, random));
+        if (s[type].grade > 0) s.foundRare = true;
         return success(
-          "장비 판매 +" + value.toLocaleString() + " G · " + name(s[type], type) + " 획득",
+          "장비 판매 +" + value.toLocaleString() + " G · " + grades[s[type].grade] + " " + name(s[type], type) + " +0 획득",
         );
       }
       case "keep":
@@ -978,12 +1026,12 @@ const Game = (() => {
         s.hunting.daily = s.day;
         s.hunting.free += hunting.daily;
         if (s.hunting.free >= hunting.cap) s.hunting.rechargeAt = null;
-        s.gold += 1000000;
+        s.gold += dailyGold(s);
         s.tickets += 5;
         s.tanks++;
         s.charms[0] += 3;
         s.charms[1] += 3;
-        return success("출석 · 무료 사냥권 10개, 100만 G, 입장권 5장, 산소통 1개, 가호 2종 각 3개", "win");
+        return success("출석 · 무료 사냥권 10개, " + dailyGold(s).toLocaleString("ko-KR") + " G, 입장권 5장, 산소통 1개, 가호 2종 각 3개", "win");
       case "tank":
         if (s.gold < 10000000) return fail("산소통은 1,000만 G입니다.");
         s.gold -= 10000000;
@@ -1281,6 +1329,8 @@ const Game = (() => {
         const def = imprints[arg],
           level = s.imprints[arg],
           cost = imprintCost(s, arg);
+        const required = imprintRequirement(s, arg);
+        if (required) return fail(required);
         if (level >= def[3] || s.souls < cost)
           return fail("영혼 포인트가 부족하거나 최대 단계입니다.");
         s.souls -= cost;
@@ -1504,6 +1554,11 @@ const Game = (() => {
     techniques,
     routeTask,
     imprintCost,
+    imprintRequirement,
+    fieldIntervalMs,
+    saleGradeWeights,
+    saleValue,
+    dailyGold,
     techniqueAvailable,
     enhancementNotebook,
     midRecovery,

@@ -226,7 +226,9 @@ function forgeView(s) {
   const switcher = '<div class="segment gear-switch">' + [["weapon","sword","무기"],["armor","shield","방어구"]].map(([id,ic,label]) =>
     '<button data-gear="' + id + '" aria-pressed="' + (gear === id) + '" class="' + (gear === id ? 'sel' : '') + '">' + icon(ic) + label + '</button>').join('') + '</div>';
   return '<div class="columns forge-layout"><div class="stage-side">' + switcher + scene("forge", Game.name(g, gear) + " +" + g.level,
-    "", tier(g, gear), weapon ? "blade" + (Game.bladeStage(g) || "") : "cuirass", g.grade) + '</div><section class="panel">' +
+    "", !s.foundRare ? openBtn("sell-" + gear, tier(g, gear) + " · " +
+      (g.level >= 12 ? "레어 이상 확정 교환 ›" : "첫 레어 얻기 " + g.level + "/12 ›"), "rare-offer") : tier(g, gear),
+    weapon ? "blade" + (Game.bladeStage(g) || "") : "cuirass", g.grade) + '</div><section class="panel">' +
     '<div class="stats">' + line(weapon ? "공격력" : "체력", fmt(weapon ? stat.attack : stat.hp) + (g.level >= 20 ? "" : ' <span class="mint">→ ' + fmt(weapon ? next.attack : next.hp) + '</span>')) +
     forgeChances(s, g) + '</div>' +
     (equipped.length ? '<div class="forge-blessings" role="group" aria-label="장착한 가호">' + equipped.join('') + '</div>' : '') +
@@ -480,18 +482,18 @@ function fieldView(s) {
       g.level >= 13
         ? row(
             Game.name(g) + " +" + g.level,
-            fmt(Game.perMinute(g) / 6) + " G / 10초",
+            fmt(Game.perMinute(g, s.imprints.haste) / 6) + " G / 10초",
             btn("deploy", "배치", i, "mini"), "", gearPortrait(g,"weapon"),
           )
         : "",
     )
     .filter(Boolean);
   const deployed = s.field.map((g, i) =>
-    row(Game.name(g) + " +" + g.level, fmt(Game.perMinute(g) / 6) + " G / 10초", btn("recall", "회수", i, "mini"), "", gearPortrait(g,"weapon")));
+    row(Game.name(g) + " +" + g.level, fmt(Game.perMinute(g, s.imprints.haste) / 6) + " G / 10초", btn("recall", "회수", i, "mini"), "", gearPortrait(g,"weapon")));
   return (
     metrics(
       gaugeMetric("배치 무기", s.field.length, 2 + s.imprints.land, "mint"),
-      metric("10초당 골드", brief(s.field.reduce((n, g) => n + Game.perMinute(g) / 6, 0))),
+      metric("10초당 골드", brief(s.field.reduce((n, g) => n + Game.perMinute(g, s.imprints.haste) / 6, 0))),
       metric("누적 배치 수익", '<span id="yield">' + brief(s.unclaimed) + "</span>"),
     ) +
     btn("collect", "배치 수익 수령", "", "primary") +
@@ -697,7 +699,7 @@ function bagView(s) {
                 '<div class="actions">' +
                 (k === "weapon" ? (Game.canStoreWeapon(s.weapon) ? btn("keep", "무기 보관") :
                   forgeLink) : "") +
-                openBtn("sell-" + k, s[k].level >= 1 ? "판매" : "판매 조건") +
+                openBtn("sell-" + k, "판매 · 새 등급 받기") +
                 "</div>",
             ),
           )
@@ -744,23 +746,20 @@ function bagView(s) {
 }
 function growthView(s) {
   const imprint = Object.entries(Game.imprints)
-    .map(([key, v]) =>
-      row(
-        v[0] + " Lv." + s.imprints[key],
-        { luck: "강화 성공률 +0.2%p", lung: "탐사 산소 +10", land: "사냥터 +1칸" }[key] +
-          " · 주각인 " +
-          Game.techniques[key].name +
-          " · " +
-          Game.techniques[key].text,
-        btn(
-          "imprint",
-          s.imprints[key] >= v[3] ? "최대" : Game.imprintCost(s, key) + " P",
-          key,
-          "mini",
-          s.imprints[key] >= v[3] || s.souls < Game.imprintCost(s, key),
-        ),
-      ),
-    );
+    .map(([key, v]) => {
+      const level = s.imprints[key], cost = Game.imprintCost(s, key);
+      const required = Game.imprintRequirement(s, key);
+      const tech = Game.techniques[key];
+      const effects = {
+        luck: "강화 성공률 +0.2%p", lung: "탐사 산소 +10", land: "사냥터 +1칸",
+        fate: "+1~+11 장비 판매 시 새 등급 확률 증가 · Lv.1 레어 / 51 에픽 / 81 전설 · Lv.101부터 전설 +19 강화 보너스",
+        haste: "배치 수익 간격 " + (Game.fieldIntervalMs(s.imprints.haste) / 1000) + "초 · 레벨당 0.05초 단축",
+      };
+      return row(v[0] + " Lv." + level,
+        effects[key] + (tech ? " · 주각인 " + tech.name + " · " + tech.text : "") + (required ? " · " + required : ""),
+        btn("imprint", level >= v[3] ? "최대" : cost + " P", key, "mini",
+          level >= v[3] || !!required || s.souls < cost));
+    });
   const summary = metrics(
       metric("환생 횟수", fmt(s.rebirths)),
       metric("영혼 포인트", fmt(s.souls)),

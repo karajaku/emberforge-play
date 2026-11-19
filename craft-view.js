@@ -269,7 +269,7 @@ function craftWorkshop(s) {
               : "+" +
                 Math.max(13, at) +
                 " 배치 시 " +
-                fmt(Game.perMinute({ ...example, level: Math.max(13, at) })) +
+                fmt(Game.perMinute({ ...example, level: Math.max(13, at) }, s.imprints.haste)) +
                 " G/분";
         return btn(
           "craftFinish",

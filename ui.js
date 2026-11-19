@@ -781,7 +781,7 @@ function modalData() {
         "오늘의 출석 보상",
         '<p class="desc" data-attendance-day="' + Game.day(Date.now()) + '">오늘 ' + Game.day(Date.now()) + " · 한국 시간(KST) 자정 갱신 · 로컬 기기 시각 기준</p>" +
           row("무료 사냥권 +10", "30개를 넘어 보유 가능 · 상한 이상이면 자연 충전 대기", icon("gift")) +
-          row("1,000,000 G", "무한의 탑 입장권 5장 · 산소통 1개", icon("gift")) +
+          row(fmt(Game.dailyGold(s)) + " G", "최고 강화에 따른 보급금 · 무한의 탑 입장권 5장 · 산소통 1개", icon("gift")) +
           row("가호 보급", "정령과 대장장이 가호 각 3개", icon("shield")) +
           btn(
             "daily",
@@ -924,9 +924,12 @@ function modalData() {
           g = s[k];
         return [
           "장비 판매",
-          desc(Game.name(g, k) + " +" + g.level + " 장비와 별의 옵션을 팔고 새 장비를 받습니다.") +
-            line("판매 금액", fmt(300 + Math.round(Game.price(g) * (1 + g.level) * 1.6)) + " G") +
-            btn("sell", "판매하고 새 장비 받기", k, "primary", g.level < 1),
+          (!s.foundRare ? desc("무기나 방어구를 +12까지 강화한 뒤 팔면 첫 레어 이상 장비가 확정됩니다. 운명 각인을 올리면 +1~+11 판매에서도 상위 등급을 뽑을 수 있습니다.") : "") +
+          desc(Game.name(g, k) + " +" + g.level + " 장비와 옵션을 넘기고 같은 종류의 +0 장비를 받습니다.") +
+            line(g.level < 12 ? "새 장비 확률 · 운명 Lv." + s.imprints.fate : "새 장비 확률 · +12 이상",
+              Game.saleGradeWeights(s, g).map((weight, i) => Game.grades[i] + " " + weight / 100 + "%").join(" · ")) +
+            line("판매 금액", fmt(Game.saleValue(g)) + " G") +
+            btn("sell", Game.saleGradeWeights(s, g)[0] === 10000 ? "판매하고 일반 +0 받기" : "판매하고 새 장비 받기", k, "primary", g.level < 1),
         ];
       }
       return ["", ""];

@@ -44,7 +44,7 @@ const GameUI = (() => {
     detail.setAttribute('aria-label','선택한 보관 무기');
     const projected=Game.stats({...s,weapon:selected});
     detail.innerHTML=gearPortrait(selected,'weapon')+'<div class="ui-gear-summary"><b>'+Game.name(selected)+' +'+selected.level+'</b><span>장착 시 공격력 <strong>'+fmt(projected.attack)+'</strong></span><small>'+[tier(selected,'weapon'),craftSummary(selected)].filter(Boolean).join(' · ')+'</small></div>'+
-      '<p>'+(selected.level>=13?'배치 수익 '+fmt(Game.perMinute(selected)/6)+' G / 10초':'사냥터 배치는 +13부터')+'</p>';
+      '<p>'+(selected.level>=13?'배치 수익 '+fmt(Game.perMinute(selected, s.imprints.haste)/6)+' G / 10초':'사냥터 배치는 +13부터')+'</p>';
     const actions=tiles[selectedIndex].querySelector('.actions');actions.className='actions ui-gear-actions';detail.append(actions);
     grid.className='ui-gear-grid';grid.setAttribute('aria-label','보관 무기 선택');
     tiles.forEach((tile,i)=>{

@@ -63,6 +63,13 @@ const SaveStore = (() => {
       if (object(template)) return object(actual) && Object.entries(template).every(([k, v]) => shape(actual[k], v));
       return typeof template === "number" ? Number.isFinite(actual) : typeof actual === typeof template;
     }
+    if (object(data.imprints)) {
+      for (const key of ["fate", "haste"]) {
+        if (!(key in data.imprints)) data.imprints[key] = 0;
+        const level = data.imprints[key];
+        if (!Number.isInteger(level) || level < 0 || level > game.imprints[key][3]) throw fault("corrupt");
+      }
+    }
     for (const name of ["trial", "imprints", "ore", "charms", "enabled"])
       if (name in data && !shape(data[name], defaults[name])) throw fault("corrupt");
     for (const name of ["hunt", "dive", "autoMine", "lastAutoMine", "towerRun", "lastTowerRun", "guild", "lastChest", "lastHunt", "inheritedRecipe"])
@@ -124,6 +131,8 @@ const SaveStore = (() => {
       forestFiber: data.version === 1 ? 0 : data.forestFiber, huntLining: data.version === 1 ? 0 : data.huntLining,
       fieldIncomeVersion: data.fieldIncomeVersion ?? 1,
       apprentice: apprentice.restore(data, defaults.apprentice) };
+    if (!("foundRare" in data))
+      restored.foundRare = [restored.weapon, restored.armor, ...restored.bag, ...restored.field].some(g => g.grade > 0);
     for (const [key, count] of Object.entries(restored.relicScrolls)) {
       if (!shop.scrolls.includes(shop.find(key)) || !Number.isSafeInteger(count) || count < 0) throw fault("corrupt");
     }
