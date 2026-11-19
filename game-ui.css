@@ -94,6 +94,18 @@ body.ui-game { grid-template-rows:auto minmax(0,1fr) auto auto; }
 .ui-game .ui-daily-duel { position:absolute;right:0;top:90px;z-index:4;display:grid;justify-items:center;gap:3px;min-height:52px;padding:6px 8px;border:1px solid #b89761;border-radius:10px;background:#29382fea;color:#f4dab0;font-size:12px; }
 .ui-daily-duel svg { width:22px;height:22px; }
 .ui-game .forge-layout .scene .location { top:8px; }
+[data-sword-grade="1"] { --blade-edge:#a4e1ff; --blade-light:#4aa9ed; }
+[data-sword-grade="2"] { --blade-edge:#ebbcff; --blade-light:#bd68e5; }
+[data-sword-grade="3"] { --blade-edge:#ffe19a; --blade-light:#eaa643; }
+.forge-layout .scene[data-sword-grade] canvas {
+  filter:drop-shadow(0 0 1px var(--blade-edge)) drop-shadow(0 0 5px var(--blade-light)) drop-shadow(0 7px 5px #291d3288);
+}
+.ui-game .forge-layout .scene[data-sword-grade] .location {
+  background:#1b2325f2; color:var(--blade-edge); border-color:var(--blade-light);
+}
+.feedback-forge[data-sword-grade] { --fx:var(--blade-edge); }
+.feedback-forge[data-sword-grade] .feedback-ring { border-style:double; border-width:4px; }
+.feedback-forge[data-sword-grade] .feedback-spark { background:var(--blade-edge); clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%); }
 .ui-game .forge-strike { border-radius:38% 38% 20% 20%; }
 .ui-game #mobileNav { border-top:1px solid #a68c5e;border-radius:12px 12px 0 0;background:#1f2c2cf5;box-shadow:0 -3px 12px #0004; }
 .ui-game #mobileNav .navitem { color:#c2b99f;border-radius:8px;min-height:56px; }

@@ -224,7 +224,24 @@ const Game = (() => {
     // A historical save can identify today's equipped blade, but not its original owner.
     const id = origin === "equipped" ? (s._save?.generation || s.hunting.id) : globalThis.crypto.randomUUID();
     s.weapon.recordId = id;
-    s.swordRecord = { id, origin, startLevel: s.weapon.level, hits: 0, recent: [] };
+    s.swordRecord = { id, origin, startLevel: s.weapon.level, hits: 0, recent: [], promotionVersion: 1 };
+    if (origin === "equipped") restoreSwordGrade(s);
+  }
+  function restoreSwordGrade(s) {
+    const record = s.swordRecord;
+    const sword = [s.weapon, ...s.bag, ...s.field].find(item => item.recordId === record.id);
+    if (sword) {
+      const finishedStages = craft.stages.filter((_, index) => sword.marks?.[index]);
+      const peak = Math.max(knownPeak(sword), record.startLevel,
+        ...record.recent.map(hit => hit.to), ...finishedStages.map(stage => stage.target));
+      const grade = gradeForLevel(peak);
+      if (grade > sword.grade) {
+        // Pay offline income at the rate that applied before this field sword's migration.
+        if (s.field.includes(sword)) settle(s);
+        sword.grade = grade;
+      }
+    }
+    record.promotionVersion = 1;
   }
   function fresh(t = Date.now()) {
     const s = {
@@ -293,8 +310,19 @@ const Game = (() => {
     startSwordRecord(s, "starter");
     return s;
   }
+  function gradeForLevel(level) {
+    return level >= 19 ? 3 : level >= 13 ? 2 : level >= 7 ? 1 : 0;
+  }
   function bladeStage(g) {
-    return Math.max(g.grade, g.level >= 19 ? 3 : g.level >= 13 ? 2 : g.level >= 7 ? 1 : 0);
+    return Math.max(g.grade, gradeForLevel(g.level));
+  }
+  function earnedSwordGrade(s, sword) {
+    return s.swordRecord && sword.recordId === s.swordRecord.id ? bladeStage(sword) : sword.grade;
+  }
+  function nextEnhancementStats(s, type) {
+    const next = { ...s[type], level: s[type].level + 1 };
+    if (type === "weapon") next.grade = earnedSwordGrade(s, next);
+    return stats({ ...s, [type]: next });
   }
   function name(g, type = "weapon") {
     return type === "armor" ? armors[g.grade] : swords[bladeStage(g)];
@@ -542,6 +570,14 @@ const Game = (() => {
       s.log.length = Math.min(s.log.length, 30);
       return { ok: true, message, kind };
     };
+    const swordGrowth = (message, ordinarySuffix = "") => {
+      const sword = s.weapon;
+      const from = sword.grade;
+      const to = earnedSwordGrade(s, sword);
+      if (to === from) return success(message + ordinarySuffix, "win");
+      sword.grade = to;
+      return { ...success(message + " · " + grades[to] + " 승급", "win"), promotion: { from, to } };
+    };
     const int = (a, b) => a + Math.floor(random() * (b - a + 1));
     const type = arg === "armor" ? "armor" : "weapon";
     const g = s[type];
@@ -599,7 +635,7 @@ const Game = (() => {
         if (task.target <= 7) s.weapon.route.learned = task.target;
         s.weapon.level = task.target;
         recordWeapon(s);
-        return success("전승 수련 완료 · 검 +" + task.target, "win");
+        return swordGrowth("전승 수련 완료 · 검 +" + task.target);
       }
       case "reforge": {
         const options = reforgeOptions(s);
@@ -620,12 +656,11 @@ const Game = (() => {
         w.seal = { key: p.seal, uses: 0, beats: 0 };
         delete w.pattern;
         recordWeapon(s);
-        return success(
+        return swordGrowth(
           "초벌본 재제작 · +" +
             w.level +
             " · " +
             (copy ? craft.traits[p.mark].name : "칼날 특성 새로 선택"),
-          "win",
         );
       }
       case "attune": {
@@ -654,7 +689,7 @@ const Game = (() => {
         seal.beats = 0;
         s.weapon.level++;
         recordWeapon(s);
-        return success("호흡 단조 완료 · 검 +" + s.weapon.level, "win");
+        return swordGrowth("호흡 단조 완료 · 검 +" + s.weapon.level);
       }
       case "finalStart":
         return finale.start(s, arg, price, t, random)
@@ -675,7 +710,7 @@ const Game = (() => {
           w.finishMethod = f.key;
           s.hits++;
           recordWeapon(s);
-          return success(method + " 완성 · " + name(w) + " +20", "win");
+          return swordGrowth(method + " 완성 · " + name(w) + " +20");
         }
         if (f.key === "edge") {
           w.forgePeak = 19;
@@ -725,7 +760,7 @@ const Game = (() => {
         sword.level = Math.max(sword.level, stage.target);
         recordWeapon(s);
         delete sword.work;
-        return success(
+        return swordGrowth(
           stage.title +
             (inherit ? " 전승" : " 완료") +
             " · " +
@@ -734,7 +769,6 @@ const Game = (() => {
             sword.level +
             " · " +
             craft.traits[trait].name,
-          "win",
         );
       }
       case "recoverEdge": {
@@ -746,10 +780,7 @@ const Game = (() => {
         s.gold -= recovery.cost;
         w.forgePeak = knownPeak(w);
         w.level = recovery.target;
-        return success(
-          "칼날 재단조 · +14 → +" + w.level + " · " + recovery.cost.toLocaleString() + " G",
-          "win",
-        );
+        return swordGrowth("칼날 재단조 · +14 → +" + w.level + " · " + recovery.cost.toLocaleString() + " G");
       }
       case "restorePeak": {
         if (type !== "weapon") return fail("단조 수첩은 검에만 사용할 수 있습니다.");
@@ -761,10 +792,7 @@ const Game = (() => {
         s.gold -= book.restoreGold;
         const old = s.weapon.level;
         s.weapon.level = book.peak;
-        return success(
-          "기록 복원 · +" + old + " → +" + book.peak + " · 단서 " + book.restoreCost + "개 사용",
-          "win",
-        );
+        return swordGrowth("기록 복원 · +" + old + " → +" + book.peak + " · 단서 " + book.restoreCost + "개 사용");
       }
       case "focusEnhance":
       case "doubleStrike":
@@ -813,14 +841,13 @@ const Game = (() => {
           s.hits++;
           if (type === "weapon") recordWeapon(s);
           const evolved = type === "weapon" && bladeStage(g) > previousStage;
-          return success(
+          const message =
             (double ? "쌍타 성공 · " : focused ? "집중 강화 · " : "") +
               name(g, type) +
               " +" +
-              g.level +
-              (evolved ? " · 검 외형 진화!" : " 강화 성공"),
-            "win",
-          );
+              g.level;
+          if (type === "armor") return success(message + " 강화 성공", "win");
+          return swordGrowth(message, evolved ? " · 검 외형 진화!" : " 강화 성공");
         }
         const mixedFailure = chances.destroy > 0 || (chances.drop > 0 && chances.hold > 0);
         const failureRoll = mixedFailure ? random() * (100 - chances.success) : 0;
@@ -1512,7 +1539,7 @@ const Game = (() => {
   }
   return {
     forestYield, liningCosts, huntStats, hunting, settleHunting, huntingStatus, resetProgress,
-    startSwordRecord,
+    startSwordRecord, restoreSwordGrade,
     migrateTraining,
     reforgeOptions,
     breakPattern,
@@ -1539,6 +1566,7 @@ const Game = (() => {
     settle,
     perform,
     stats,
+    nextEnhancementStats,
     price,
     odds,
     enhancementChances,

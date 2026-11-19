@@ -223,7 +223,7 @@ function notify(msg, kind = "info") {
   if (!msg) return;
   resetToastDrag();
   const titles = { "forge-success": "강화 성공", "forge-hold": "강화 유지",
-    "forge-drop": "강화 하락", "forge-destroy": "장비 파괴", loss: "주의", win: "획득 · 완료" };
+    "forge-drop": "강화 하락", "forge-destroy": "장비 파괴", "forge-promotion": "검 승급", loss: "주의", win: "획득 · 완료" };
   el("noticeTitle").textContent = titles[kind] || "알림";
   el("noticeMessage").textContent = msg;
   toast.className = "on " + kind;
@@ -377,20 +377,22 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
       } else if (action === "huntStart" || action === "flee") Impacts.clear();
     }
     if (!repeatGuard && action !== "temperStart" && !(result.ok && ["openChest", "openTowerChests"].includes(action)) && !result.battle && !result.impact && result.message)
-      notify(result.message + (shortOfGold ? " · 골드 부족으로 연속 강화 종료" : ""), forgeOutcome ? "forge-" + forgeOutcome : result.ok ? result.kind : "loss");
+      notify(result.message + (shortOfGold ? " · 골드 부족으로 연속 강화 종료" : ""), result.promotion ? "forge-promotion" : forgeOutcome ? "forge-" + forgeOutcome : result.ok ? result.kind : "loss");
     if (result.ok && action !== "temperStart") {
       const stage = document.querySelector("#screen .scene");
       const chest = ["openChest", "openTowerChests"].includes(action);
       const reward = ["collect", "daily", "order", "sell", "market", "reward"].includes(action);
       const ascension = (["rebirth", "imprint", "fuse", "polish"].includes(action) || (action === "shop" && Number(arg) === 3) || (action === "finalMove" && state.weapon.level === 20)) && result.kind === "win";
       const animate = motionEnabled();
-      if (forgeAction) {
+      if (forgeAction || result.promotion) {
         const level = state[arg === "armor" ? "armor" : "weapon"].level;
-        const label = action === "temper" ? (state.heat === 5 ? "정밀 타격" : "담금질 완료") :
+        const promotedTo = result.promotion?.to;
+        const label = promotedTo ? Game.grades[promotedTo] + " 승급" : action === "temper" ? (state.heat === 5 ? "정밀 타격" : "담금질 완료") :
           state.breaks > breaksBefore ? "장비 파괴" : level > gearBefore ? "+" + level + " 강화 성공" : level < gearBefore ? "+" + level + " · 하락" :
           result.kind === "win" ? "단조 완료" : "+" + level + " · 유지";
-        if (animate) Feedback.play("forge", stage, label, forgeOutcome, repeatStrike);
-        sound(repeatStrike && forgeOutcome === "hold" ? "forge-repeat-hold" : "forge-" + forgeOutcome, animate ? Feedback.strikeMs / 1000 : 0);
+        const outcome = promotedTo ? "success" : forgeOutcome;
+        if (animate) Feedback.play("forge", stage, label, outcome, repeatStrike, promotedTo);
+        sound(repeatStrike && outcome === "hold" ? "forge-repeat-hold" : "forge-" + outcome, animate ? Feedback.strikeMs / 1000 : 0);
       } else if (chest) {
         if (animate) Feedback.play("chest", document.querySelector(".chest-reveal .chest-art"), "+" + fmt(state.lastChest.gold) + " G");
         sound("chest", animate ? Feedback.chestMs / 1000 : 0);

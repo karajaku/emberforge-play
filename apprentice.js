@@ -81,12 +81,12 @@ const Apprentice = (() => {
       );
     }
     if (step === 0) {
-      const next = { ...s, weapon: { ...s.weapon, level: s.weapon.level + 1 } };
+      const next = Game.nextEnhancementStats(s, "weapon");
       return forge(
         "무기를 강화해 공격력을 " +
           Game.stats(s).attack +
           " → " +
-          Game.stats(next).attack +
+          next.attack +
           "으로 올리세요.",
       );
     }

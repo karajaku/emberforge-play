@@ -8,6 +8,13 @@ const GameUI = (() => {
     const panel = layout?.querySelector('.panel');
     if (!panel) return html;
     layout.classList.add('forge-control-layout');
+    const scene = layout.querySelector('.scene');
+    if (s.swordRecord && s.weapon.recordId === s.swordRecord.id && s.weapon.grade > 0 &&
+        scene.querySelector('canvas[data-sprite^="blade"]')) {
+      scene.dataset.swordGrade = s.weapon.grade;
+      const emblem = ['map-pin', 'gem', 'sparkles', 'crown'][s.weapon.grade];
+      scene.querySelector('.location svg').outerHTML = icon(emblem);
+    }
     panel.className = 'forge-console';
     const stats = panel.querySelector('.stats');
     stats.className = 'forge-readout';

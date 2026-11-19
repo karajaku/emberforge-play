@@ -73,8 +73,10 @@ const SaveStore = (() => {
       if (data[name] != null && !object(data[name])) throw fault("corrupt");
     if (data.swordRecord !== undefined) {
       const r = data.swordRecord;
+      if (r?.promotionVersion > 1) throw fault("future");
       const level = n => Number.isSafeInteger(n) && n >= 0;
       if (!object(r) || typeof r.id !== "string" || !r.id || !["starter", "equipped"].includes(r.origin) ||
+          (r.promotionVersion !== undefined && r.promotionVersion !== 1) ||
           !level(r.startLevel) || !level(r.hits) || !Array.isArray(r.recent) || r.recent.length !== Math.min(r.hits, 30) ||
           r.recent.some(e => !object(e) || !level(e.from) || !level(e.to) ||
             (e.to !== e.from + 1 && e.to !== e.from + 2) || !Number.isFinite(e.at))) throw fault("corrupt");
@@ -157,6 +159,7 @@ const SaveStore = (() => {
     restored.story = story.restore({ ...restored, story: data.story });
     try { game.migrateTraining(restored); } catch { throw fault("corrupt"); }
     if (data.swordRecord === undefined) game.startSwordRecord(restored, "equipped");
+    else if (data.swordRecord.promotionVersion === undefined) game.restoreSwordGrade(restored);
     return restored;
   }
   function storageFault(error, writing = false) {
@@ -218,7 +221,7 @@ const SaveStore = (() => {
       }
       const state = decode(expected);
       const before = JSON.parse(expected);
-      needsMigration = before.version === 1 || !before._save || !before.hunting || !before.swordRecord || !!(before.hunt && !before.hunt.id);
+      needsMigration = before.version === 1 || !before._save || !before.hunting || !before.swordRecord?.promotionVersion || !!(before.hunt && !before.hunt.id);
       lastSavedAt = state._save?.savedAt ?? state.last ?? null;
       return state;
     }

@@ -219,7 +219,7 @@ function forgeView(s) {
       notebookView(s, Game.enhancementCost(s, w), recover), legacyView(s)].filter(Boolean).join("") ||
       desc("검 +17부터 단조 수첩 · 첫 환생 이후 전승 수련"), "anvil");
   }
-  const stat = Game.stats(s), next = Game.stats({ ...s, [gear]: { ...g, level:g.level + 1 } });
+  const stat = Game.stats(s), next = Game.nextEnhancementStats(s, gear);
   const equipped = Game.blessings.flatMap((name, i) => s.enabled[i] && s.charms[i] > 0
     ? ['<span>' + name + ' <b>' + fmt(s.charms[i]) + '개 남음</b></span>'] : []);
   const finalChoice = weapon && g.level === 19 && Breakthrough.choices(g, Game.price).length > 0;
