@@ -48,7 +48,6 @@ body.ui-game { --text:#f4ead4;--muted:#c1b69e;--gold:#e4be79;--mint:#91d9b6; }
 .ui-game .wallet b { color:#f9e4b8; }
 .ui-game .wallet { flex:1;justify-content:center; }
 .ui-game .resources { gap:6px; }
-.ui-game .moss-entry { flex:none; display:grid; place-items:center; padding:0 7px; min-height:44px; border:1px solid #91a785; border-radius:10px; background:#234337; color:#f2eacb; text-decoration:none; font-size:12px; font-weight:bold; }
 .ui-game #settingsIcon { width:44px; }
 .ui-game .ui-utilities { position:relative;flex:none;z-index:50; }
 .ui-utilities summary { display:grid;place-items:center;width:44px;height:44px;padding:0;border:1px solid #947c55;border-radius:10px;background:#29342f;color:#e5c78f;list-style:none;cursor:pointer; }

@@ -177,24 +177,4 @@ body[data-motion="on"] .watch-receipt :is(.watch-receipt-head > b, .watch-receip
   display:grid; grid-template-columns:minmax(0,126px) minmax(0,134px) 72px; gap:3px;
 }
 .watch-plan > small { grid-column:1/-1; }
-.partner-pick { display:inline-flex; align-items:center; gap:5px; color:#c6e6cc; font-weight:bold; font-size:12px; }
-.watch-plan:has(.trail-replay):has(.watch-motion-hint) .partner-pick { grid-column:1/-1; justify-self:center; }
-.watch-arena .player .trail-creature { transform:scaleX(-1); }
-.ui-game[data-place="forest"] .watch-arena .player canvas:not([data-sprite^="blade"]) { transform:scaleX(-1); }
 .watch-plan .watch-motion-hint button { min-width:44px; }
-
-.field-workshop { display:grid; gap:10px; padding-bottom:8px; }
-.field-workshop .card { display:grid; gap:8px; padding:12px; }
-.net-grades { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }
-.net-grades .action { display:grid; place-content:center; width:100%; padding:6px 2px; min-width:0; gap:2px; }
-.net-grades .action b { font-size:14px; }
-.net-grades .action span,.net-grades small,.net-row small { display:block; font-size:12px; line-height:1.35; }
-.net-row,.net-setting { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.net-row { padding:6px 0; border-bottom:1px solid #88734e66; }
-.net-row .action,.net-links button { min-height:44px; flex:none; }
-.net-row small { margin:2px 0; color:#d1c8b0; }
-.net-setting select { min-height:44px; padding:5px; max-width:62%; background:#22362e; color:#ffedc7; border:1px solid #897954; border-radius:7px; }
-.net-choice { display:grid; padding:9px; gap:7px; text-align:center; border:1px solid #ab935c; border-radius:10px; background:#26372d; }
-.net-links { display:flex; justify-content:center; gap:8px; }
-.capture-ready .enemy .watch-actor[data-defeated="true"] { opacity:.8!important; }
-body[data-page="gather"] #screen { overflow-y:auto; }

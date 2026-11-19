@@ -5,7 +5,6 @@ const Game = (() => {
   const finale = typeof module !== "undefined" ? require("./breakthrough.js") : Breakthrough;
   const dice = typeof module !== "undefined" ? require("./dice-combat.js") : DiceCombat;
   const trail = typeof module !== "undefined" ? require("./hunt-trail.js") : HuntTrail;
-  const fieldcraft = typeof module !== "undefined" ? require("./fieldcraft.js") : Fieldcraft;
   const shop = typeof module !== "undefined" ? require("./relic-shop.js") : RelicShop;
   const grades = ["일반", "레어", "에픽", "전설"];
   const swords = ["순철 장검", "서리결 장검", "황혼의 마검", "태양의 성검"];
@@ -257,8 +256,6 @@ const Game = (() => {
       version: 2,
       forestFiber: 0,
       huntLining: 0,
-      companions: trail.freshTeam(),
-      fieldcraft: fieldcraft.fresh(),
       hunting: freshHunting(t),
       story: story.fresh(),
       apprentice: { visible: true, tempered: false, deployed: false, collected: false },
@@ -594,9 +591,6 @@ const Game = (() => {
     const validIndex = (list, index) =>
       Number.isInteger(index) && index >= 0 && index < list.length;
     switch (act) {
-      case "gatherMaterial": case "craftNet": case "dispatchGatherer": case "recallGatherer":
-      case "setAutoNet": case "resolveCapture":
-        return fieldcraft.perform(s, act, arg, random);
       case "craftHuntLining": {
         if (!s._save || arg?.generation !== s._save.generation || arg.revision !== s._save.revision ||
             arg.expectedLevel !== s.huntLining) return fail("제작 상태가 바뀌었습니다. 현재 단계를 확인하세요.");
@@ -610,7 +604,6 @@ const Game = (() => {
         const index = (s.chests || []).findIndex((c) => c.id === arg);
         if (index < 0) return fail("이미 열었거나 보관함에 없는 상자입니다.");
         const c = s.chests[index];
-        if (s.lastHunt?.capturePending && s.lastHunt.chestId === c.id) return fail("먼저 포획하거나 보내 주세요.");
         if (c.materialRule === 1) {
           const balance = s.forestFiber + c.fiber;
           if (!Number.isSafeInteger(balance)) return fail("섬유 보관 한도에 도달했습니다. 보물은 보관함에 남습니다.");
@@ -1044,17 +1037,6 @@ const Game = (() => {
         s.gold -= 10000000;
         s.tanks++;
         return success("산소통 1개 구입");
-      case "choosePartner": {
-        const team = s.companions;
-        if (s.fieldcraft.trips[arg]) return fail("파견 중인 동료를 먼저 복귀시켜 주세요.");
-        if (!Object.hasOwn(team.xp, arg)) {
-          if (s.fieldcraft.trips[team.active]) return fail("시작 동료를 바꾸기 전에 파견에서 복귀시켜 주세요.");
-          if (team.started || !trail.starters.includes(arg)) return fail("아직 만난 동료가 아닙니다.");
-          team.xp = { [arg]: team.xp[team.active] };
-        }
-        team.active = arg;
-        return success(trail.partner(s).name + (s.hunt ? " · 다음 토벌에 출전합니다." : " · 출전 준비 완료"));
-      }
       case "huntStart": {
         const w = s.hunting;
         const request = typeof arg === "object" && arg !== null ? arg.request : w.serial + 1;
@@ -1066,14 +1048,11 @@ const Game = (() => {
         }
         if (request !== w.serial + 1) return fail("최신 사냥 상태를 다시 확인하세요.");
         if (s.hunt) return fail("이미 교전 중입니다.");
-        if (fieldcraft.pending(s)) return fail("이전 토벌의 포획을 마쳐 주세요.");
         const rank = Number(typeof arg === "object" && arg !== null ? arg.rank : arg);
         if (!Number.isInteger(rank) || rank < 1 || rank > Math.min(60, s.huntBest + 1))
           return fail("먼저 이전 지역을 토벌하세요.");
         if (w.free + w.purchased < 1) return fail("사냥권이 부족합니다. 10분 충전·오늘의 출석을 확인하거나 대장간과 배치 수익을 이용하세요.");
-        const partner = arg?.withPartner === true ? trail.partner(s) : null;
-        if (partner && s.fieldcraft.trips[partner.kind]) return fail("출전 동료가 채집 중입니다. 복귀시키거나 다른 동료를 선택하세요.");
-        const st = partner || (arg?.combat === "trail-v1" ? huntStats(s) : stats(s)),
+        const st = arg?.combat === "trail-v1" ? huntStats(s) : stats(s),
           enemyHp = 90 + Math.round(36 * (rank - 1) ** 1.65);
         const enemy = huntEnemy(rank);
         const task = routeTask(s);
@@ -1096,7 +1075,7 @@ const Game = (() => {
           hp: st.hp,
           maxHp: st.hp,
           attack: st.attack,
-          guardReduction: partner ? 0 : craft.grindBonus(s.weapon.grind, 0),
+          guardReduction: craft.grindBonus(s.weapon.grind, 0),
           enemyHp,
           enemyMax: enemyHp,
           enemyAttack: 20 + 9 * rank,
@@ -1105,11 +1084,6 @@ const Game = (() => {
           ripostes: 0,
           last: enemy.name + " 출현 · " + enemy.trait,
         };
-        if (partner) {
-          s.companions.started = true;
-          s.hunt.partner = { kind: partner.kind, level: partner.level };
-          s.hunt.recruited = [];
-        }
         // Explicit per-battle model: old saves and untagged legacy callers retain their rules.
         if (arg?.combat === "dice-v1" || arg?.combat === "trail-v1") {
           s.hunt.diceVersion=1;s.hunt.skillVersion=1;s.hunt.skillCooldowns={heavyStrike:0,counter:0};
@@ -1128,14 +1102,12 @@ const Game = (() => {
       }
       case "huntAdvance": {
         const h = s.hunt;
-        if (h?.capturePending) return fail("먼저 포획하거나 보내 주세요.");
         if (!trail.awaitingNext(h) || arg?.id !== h.id || arg.wave !== h.wave ||
             h.wave + 1 >= trail.lineup(h.rank, h.bonusEncounter).length) return fail("이어질 조우가 없습니다.");
         trail.enter(h, h.wave + 1);
         return { ok: true, message: h.last, kind: "info" };
       }
       case "flee":
-        if (s.hunt?.capturePending) return fail("먼저 포획하거나 보내 주세요.");
         if (!s.hunt) return fail("교전 중인 적이 없습니다.");
         s.hunt = null;
         return success("숲길에서 안전하게 퇴각했습니다. 사용한 사냥권은 반환되지 않습니다.");
@@ -1166,14 +1138,7 @@ const Game = (() => {
         if (roll?roll.skill==='counter':!block&&h.counter) h.ripostes = (h.ripostes || 0) + 1;
         h.enemyHp = Math.max(0, h.enemyHp - damage);
         const trailResult = h.trailVersion ? {trailVersion:1, wave:h.wave, bonusEncounter:h.bonusEncounter} : {};
-        if (h.partner) Object.assign(trailResult, { partner: h.partner, recruited: h.recruited });
-        if (h.captureUsed) trailResult.captureUsed = true;
         if (!h.enemyHp) {
-          if (h.partner) {
-            trail.defeat(s, h);
-            fieldcraft.offer(s, h);
-            if (h.capturePending) trailResult.capturePending = true;
-          }
           if (h.trailVersion && h.wave + 1 < trail.lineup(h.rank, h.bonusEncounter).length) {
             if (h.enemyKind === "goblin") h.goblinCaught = true;
             h.counter = roll.counter;
@@ -1582,7 +1547,7 @@ const Game = (() => {
   }
   return {
     forestYield, liningCosts, huntStats, hunting, settleHunting, huntingStatus, resetProgress,
-    migrateTraining, fieldcraft,
+    migrateTraining,
     reforgeOptions,
     breakPattern,
     journeys,

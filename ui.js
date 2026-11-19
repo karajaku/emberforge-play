@@ -29,9 +29,8 @@ let huntStart = -1000,
   animationStart = -1000,
   lastFocus = null;
 const allRoutes = ["forge", "world", "bag", "growth", ...Object.keys(zones)];
-const homeRoute = "forest";
 const current = () => {
-  const id = location.hash.slice(1).split("/")[0] || homeRoute;
+  const id = location.hash.slice(1).split("/")[0];
   return allRoutes.includes(id) ? id : "forge";
 };
 const images = {};
@@ -99,12 +98,12 @@ function locked(fn, maintenance = false) {
   queue = queue.catch(() => {}).then(() => saveLock(run)).catch(failSave);
   return queue;
 }
-function reloadAtHome() {
+function reloadAtForge() {
   HuntWatch.stop('', false);
   repeatHunting.stop("초기화");
   autoCombat.stop();
   restarting = true;
-  history.replaceState(null, "", "#" + homeRoute);
+  history.replaceState(null, "", "#forge");
   location.reload();
 }
 function startNewGame() {
@@ -115,7 +114,7 @@ function startNewGame() {
     if (modal !== "confirmNewGame") return;
     state = Game.resetProgress(state);
     save("reset");
-    reloadAtHome();
+    reloadAtForge();
   });
 }
 function showSaveGuard() {
@@ -288,7 +287,6 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
     const strong = sparring && Swordcraft.heavy(state.weapon.work);
     const beforeHunt = state.hunt;
     const beforeHuntHealth = state.hunt && {...state.hunt};
-    if (action === "huntStart") arg = { ...arg, withPartner: true };
     const result = Game.perform(state, action, arg, undefined, undefined, pressedAt);
     if (!result.ok && (action === "openChest" || action === "craftHuntLining")) {
       if (repeatGuard && repeatHunting.active) repeatHunting.stop("보물 수령 실패");
@@ -490,7 +488,6 @@ function render() {
   else if (id === "bag") view = GameUI.bag(state, bagView(state));
   else if (id === "growth") view = growthView(state);
   else if (id === "forest" && phonePage(id) === "hunt") view = HuntWatch.view(state);
-  else if (id === "forest" && phonePage(id) === "gather") view = FieldcraftView.workshop(state);
   else if (zones[id]) view = zoneView(state, id);
   else if (phonePage(id) === "board")
     view = card("대장간 게시판",
@@ -528,8 +525,7 @@ function render() {
 }
 function renderLesson() {
   const host = el("apprentice");
-  host.hidden = !state.apprentice.visible || (current() === "forest" && (phonePage("forest") === "gather" ||
-    (phonePage("forest") === "hunt" && Apprentice.next(state) !== 1)));
+  host.hidden = !state.apprentice.visible;
   if (host.hidden) return;
   const step = Apprentice.next(state);
   const tip = step >= 0 ? Apprentice.guidance(state, step) : null;
@@ -558,7 +554,7 @@ function focusLesson() {
   if (tip.route === "bag") bagTab = "gear";
   if (tip.route === "forge") gear = "weapon";
   const destination = phoneLessonDestination(tip);
-  if ((location.hash.slice(1) || homeRoute) !== destination) {
+  if ((location.hash.slice(1) || "forge") !== destination) {
     pendingLessonFocus = true;
     nav(destination);
     return;
@@ -754,13 +750,14 @@ function modalData() {
           row("게임 버전", UpdateNotice.version(), "") +
           '<div class="settings-links">' + openBtn("daily", icon("gift") + "오늘의 출석 보상") +
           openBtn("lessons", icon("hammer") + "대장장이 수업 · 튜토리얼") +
-          openBtn("help", icon("book-open") + "플레이 안내") + "</div>" +
+          openBtn("help", icon("book-open") + "플레이 안내") +
+          '<a class="action" href="https://karajaku.github.io/moss-companions-play/">이끼숲 동료들 플레이 ↗</a></div>' +
           row("게임 진행", "새 게임으로 돌아갑니다.", openBtn("confirmNewGame", "처음부터 시작", "action danger")),
       ];
     case "confirmNewGame":
       return [
         "처음부터 시작할까요?",
-        desc("동료 수집과 레벨, 채집 재료·파견·포획 도구, 장비, 골드, 숲결 섬유, 숲 방호 안감, 환생과 이야기 기록을 초기화하고 첫 장면부터 시작합니다. 사냥권 잔량·충전 시간·출석 수령 기록은 유지되며 최초 30개를 다시 지급하지 않습니다. 현재 원본을 별도로 보존한 뒤 새 진행 저장이 성공해야 시작합니다.") +
+        desc("장비, 골드, 숲결 섬유, 숲 방호 안감, 환생과 이야기 기록을 초기화하고 첫 장면부터 시작합니다. 사냥권 잔량·충전 시간·출석 수령 기록은 유지되며 최초 30개를 다시 지급하지 않습니다. 현재 원본을 별도로 보존한 뒤 새 진행 저장이 성공해야 시작합니다.") +
           '<div class="actions">' + openBtn("settings", "취소") +
           '<button class="action danger" data-new-game>진행을 지우고 시작</button></div>',
       ];
@@ -1160,9 +1157,6 @@ document.addEventListener("click", (e) => {
   if (d.open) return showModal(d.open);
   if ("close" in d) return dismissModal();
   if (d.act) {
-    if (d.act === "dispatchGatherer") return act(d.act, { kind: d.arg, site: el("gatherSite").value });
-    if (d.act === "recallGatherer") return act(d.act, { kind:d.arg, start:Number(d.start), site:d.site });
-    if (d.act === "resolveCapture") return act(d.act, { tool:d.arg, id:decodeURIComponent(d.entry), wave:Number(d.wave) });
     if (d.act === "craftHuntLining") {
       if (performance.now() - lastLiningPress < 450 || !state._save) return;
       lastLiningPress = performance.now();
@@ -1302,7 +1296,6 @@ setInterval(() => {
   el("huntTickets").textContent = brief(wallet.free + wallet.purchased);
   const autoStart = document.querySelector('[data-repeat="start"]');
   HuntWatch.refreshWallet();
-  FieldcraftView.refreshTrips(state);
   if (autoStart) autoStart.disabled = wallet.free + wallet.purchased < 1;
   for (const button of document.querySelectorAll('[data-act="huntStart"]'))
     button.disabled = wallet.free + wallet.purchased < 1;
