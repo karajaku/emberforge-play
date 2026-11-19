@@ -238,6 +238,14 @@ const Game = (() => {
     }
     return w;
   }
+  function spendHuntTicket(w, rank) {
+    const source = w.free > 0 ? "free" : "purchased";
+    if (w[source] < 1) throw Error("사냥권이 부족합니다.");
+    w[source]--;
+    if (w.free < hunting.cap && w.rechargeAt === null) w.rechargeAt = w.observedAt;
+    const request = ++w.serial;
+    return w.lastStart = { request, id: w.id + "-" + request, rank, source };
+  }
   function huntingStatus(s, t = Date.now()) {
     const copy = { hunting: { ...s.hunting }, hunt: null };
     const w = settleHunting(copy, t);
@@ -359,7 +367,13 @@ const Game = (() => {
     for (let level = 0; level < g.level; level++) invested += price({grade: g.grade, level});
     return Math.floor(invested * 0.7);
   }
+  function currentOrder(s) {
+    const order=orders[s.order];
+    if(!order || !s.heirloom || order[0]<=s.heirloom.previousBest)return order;
+    return [[3,200],[7,500],[200,10000],[500,25000],[1000,50000],[2000,100000],[5000,250000],[9999,500000]][s.order].concat(order[2]);
+  }
   function dailyGold(s) {
+    if (s.heirloom) return 1000 + 10 * Math.min(s.best,9999);
     if (s.rebirths || s.best >= 20) return 1000000;
     if (s.best >= 17) return 360000;
     if (s.best >= 13) return 120000;
@@ -577,6 +591,8 @@ const Game = (() => {
     s.lastTowerRun = { ...s.towerRun, reason, finished: t };
     s.towerRun = null;
   }
+  const supersededActions = new Set(["enhance","sell","rebirth","fuse","huntStart","focusEnhance","doubleStrike",
+    "restorePeak","recoverEdge","reforge","beginPath","routeFinish","breathForge","finalStart","craftStart"]);
   function perform(s, act, arg, t = Date.now(), random = Math.random, pressedAt = t) {
     settle(s, t);
     const fail = (message) => ({ ok: false, message });
@@ -586,6 +602,8 @@ const Game = (() => {
       return { ok: true, message, kind };
     };
     const int = (a, b) => a + Math.floor(random() * (b - a + 1));
+    if (s.heirloom && ((supersededActions.has(act) && !(act==="craftStart" && s.weapon.work)) || ((s.hunt||s.heirloom.hunt) && ["keep","equip"].includes(act))))
+      return fail("현재 장비의 성장과 사냥은 대장간·숲·전승의 화로에서 진행하세요.");
     const type = arg === "armor" ? "armor" : "weapon";
     const g = s[type];
     const validIndex = (list, index) =>
@@ -960,7 +978,7 @@ const Game = (() => {
         );
       }
       case "order": {
-        const order = orders[s.order];
+        const order = currentOrder(s);
         if (!order || s.best < order[0]) return fail("목표 강화를 달성하세요.");
         s.gold += order[1];
         s.shards += order[2];
@@ -992,7 +1010,7 @@ const Game = (() => {
         if (!validIndex(s.bag, i)) return fail("무기를 선택하세요.");
         const previous = s.weapon;
         s.weapon = s.bag.splice(i, 1)[0];
-        if (previous.level || previous.grade || previous.route || previous.seal || previous.pattern)
+        if (previous.heirloom || previous.level || previous.grade || previous.route || previous.seal || previous.pattern)
           s.bag.push(previous);
         return success(name(s.weapon) + " 장착");
       }
@@ -1056,11 +1074,7 @@ const Game = (() => {
           enemyHp = 90 + Math.round(36 * (rank - 1) ** 1.65);
         const enemy = huntEnemy(rank);
         const task = routeTask(s);
-        const source = w.free > 0 ? "free" : "purchased";
-        w[source]--;
-        if (w.free < hunting.cap && w.rechargeAt === null) w.rechargeAt = w.observedAt;
-        w.serial = request;
-        w.lastStart = { request, id: w.id + "-" + request, rank, source };
+        const { source } = spendHuntTicket(w, rank);
         s.huntNumber = (s.huntNumber || 0) + 1;
         if (s.weapon.route?.trait === "edge" && task?.open && rank >= task.needed)
           s.weapon.route.hunt = s.huntNumber;
@@ -1546,7 +1560,7 @@ const Game = (() => {
     return 1 - Math.abs((elapsed % 1800) / 900 - 1);
   }
   return {
-    forestYield, liningCosts, huntStats, hunting, settleHunting, huntingStatus, resetProgress,
+    forestYield, liningCosts, huntStats, hunting, settleHunting, huntingStatus, spendHuntTicket, resetProgress,
     migrateTraining,
     reforgeOptions,
     breakPattern,
@@ -1558,7 +1572,7 @@ const Game = (() => {
     fieldIntervalMs,
     saleGradeWeights,
     saleValue,
-    dailyGold,
+    dailyGold, currentOrder,
     techniqueAvailable,
     enhancementNotebook,
     midRecovery,

@@ -83,6 +83,7 @@ function failSave(error) {
   HuntWatch.stop('', false);
   repeatHunting.stop(error.code === "conflict" ? "저장 충돌" : "저장 실패");
   autoCombat.stop();
+  journeyScreen?.stop();
   storageError = error.code || "write";
   Feedback.clear();
   GameSound.stop();
@@ -113,6 +114,7 @@ function startNewGame() {
   return locked(() => {
     if (modal !== "confirmNewGame") return;
     state = Game.resetProgress(state);
+    MainProgression.enable(state,true);
     save("reset");
     reloadAtForge();
   });
@@ -155,6 +157,7 @@ function resumeSaved() {
   repeatHunting.stop("저장 복귀");
   autoCombat.stop();
   storageError = null;
+  if(MainProgression.enable(state))save("progression");
   ready = true;
   HuntWatch.restoreReceipt();
   active = 0;
@@ -176,7 +179,7 @@ function storageAction(action) {
     if (!storageError) return; // Ignore already queued recovery/retry double-clicks.
     if (action === "recover") state = store.recover();
     else if (store.pending) save();
-    else { state = readState(); if (!state) { state = Game.fresh(); save(); } else if (store.needsMigration) save(); }
+    else { state = readState(); if (!state) { state = Game.fresh(); MainProgression.enable(state,true); save(); } else if (store.needsMigration) save(); }
     resumeSaved();
   }, true);
 }
@@ -430,6 +433,53 @@ function nav(id) {
     scrollTo(0, 0);
   } else location.hash = id;
 }
+const journeyRoutes = {forge:"forge", hunt:"forest", rites:"growth", log:"forge/training"};
+let journeyElement, journeyScreen;
+function mainJourneyTab(id,page) {
+  if(!state.heirloom)return null;
+  if(id==="forest" && page==="hunt" && !MainProgression.legacyForest(state))return "hunt";
+  if(id==="forge" && (state.weapon.work || state.weapon.finalTrial))return null;
+  if(id==="forge" && page!=="orders")return page==="training"?"log":page==="craft"?"rites":"forge";
+  if(id==="growth" && page!=="guild")return "rites";
+  return null;
+}
+function mountMainJourney(tab) {
+  if(!journeyElement){
+    journeyElement=document.createElement("section");
+    journeyElement.setAttribute("aria-label","장비 성장과 사냥");
+    const root=journeyElement.attachShadow({mode:"open"});
+    root.innerHTML='<link rel="stylesheet" href="heirloom.css"><style>:host{display:block;width:100%;color:#f1e8d2;font:15px/1.5 system-ui,sans-serif}.hero{margin-top:0}#app{padding-bottom:12px}</style><div id="status" role="status"></div><div id="app"></div>';
+    journeyScreen=createHeirloomScreen(root,{
+      navigate: key=>nav(journeyRoutes[key]),
+      claim: ()=>act("daily"),
+      async update(_slot,revision,operation) {
+        if(!operation)return MainProgression.read(state);
+        let problem,done=false;
+        const route=location.hash;
+        await locked(()=>{
+          if(!journeyElement.isConnected || document.hidden || modal || location.hash!==route)return;
+          // Only a successful domain action is committed. A failed payment cannot partially alter a save.
+          const draft=structuredClone(state);
+          try {MainProgression.apply(draft,revision,operation);}
+          catch(e){problem=e;return;}
+          state=draft;save();done=true;
+          el("gold").textContent=brief(state.gold);
+          const w=Game.huntingStatus(state);el("huntTickets").textContent=brief(w.free+w.purchased);
+        });
+        if(problem)throw problem;
+        if(!done)throw Error(storageError?"저장 상태를 확인하세요.":"화면이 바뀌어 진행을 멈췄습니다.");
+        return MainProgression.read(state);
+      }
+    });
+  }
+  el("screen").replaceChildren(journeyElement);
+  journeyScreen.show(tab,MainProgression.read(state));
+  if(tab==="forge"){
+    const extras=go("forge/orders","대장간 의뢰","mini")+(state.best>0?'<button class="mini" data-duel>오늘의 시검</button>':'');
+    el("screen").insertAdjacentHTML("beforeend",'<div class="actions">'+extras+'</div>'+liningCard(state));
+  }
+  el("apprentice").hidden=true;
+}
 function render() {
   if (!state) return;
   HuntEffects.cancel();
@@ -441,7 +491,13 @@ function render() {
   document.body.dataset.place = id;
   document.body.dataset.page = phonePage(id);
   phonePageNav(id);
-  if (id === "forest" && phonePage(id) === "hunt")
+  const journeyTab=mainJourneyTab(id,phonePage(id));
+  if(journeyTab && id!=="forest" && (state.hunt || state.heirloom?.hunt)){
+    history.replaceState(null,"","#forest");return render();
+  }
+  document.body.classList.toggle("main-journey",!!journeyTab);
+  if(!journeyTab)journeyScreen?.stop();
+  if (id === "forest" && phonePage(id) === "hunt" && !journeyTab)
     el("pageNav").insertAdjacentHTML("beforeend", openBtn("huntGuide", "토벌 안내"));
   const navHTML = navItems
     .map(
@@ -483,6 +539,11 @@ function render() {
         ? go("world", icon("arrow-left") + "모험 지도", "ghost")
         : openBtn("daily", icon("gift") + "출석 보상", "ghost")) +
     "</div></div>";
+  if(journeyTab) {
+    HuntWatch.stop("",false);
+    mountMainJourney(journeyTab);
+    GameUI.shell();syncMusic();return;
+  }
   let view;
   if (id === "forge") view = GameUI.forge(state, forgeView(state));
   else if (id === "bag") view = GameUI.bag(state, bagView(state));
@@ -525,7 +586,7 @@ function render() {
 }
 function renderLesson() {
   const host = el("apprentice");
-  host.hidden = !state.apprentice.visible;
+  host.hidden = !!state.heirloom || !state.apprentice.visible;
   if (host.hidden) return;
   const step = Apprentice.next(state);
   const tip = step >= 0 ? Apprentice.guidance(state, step) : null;
@@ -598,6 +659,10 @@ function preferenceSwitch(key, label) {
 }
 function modalData() {
   const s = state;
+  if(s.heirloom && (modal==="help" || modal==="lessons")) return ["대장장이 수업",
+    desc("숲에서 골드와 재료를 모아 검과 갑옷을 벼리세요. +7, +9, +11에서 제작 공정을 선택하고 +20에서 첫 레어 장비로 승급합니다.")+
+    desc("보조 장비를 환생하면 제작법과 각인을 얻습니다. 두 전설 검의 특성은 초월로 결합할 수 있습니다.")+
+    go("forge","대장간","mini")+go("forest","숲 사냥","mini")+go("growth","전승의 화로","mini")];
   if (modal === "companion") return ["동료 대화", storyChat(s, current())];
   if (modal === "storyScene") return storyPage();
   if (modal === "storyBook") {
@@ -974,6 +1039,7 @@ function updateSaleQuote(reset) {
   sell.disabled = !valid;
 }
 function showModal(key) {
+  if(state?.heirloom && ["rebirth","fusion","sell-weapon","sell-armor"].includes(key)) return nav("growth");
   if (HuntWatch.active) HuntWatch.stop('일시 중단');
   if (!ready || storageError) return;
   if (!modal) lastFocus = document.activeElement;
@@ -1414,7 +1480,8 @@ el("coinIcon").innerHTML = icon("coins");
 el("settingsIcon").innerHTML = icon("settings");
 locked(() => {
   state = readState();
-  if (!state) { state = Game.fresh(); save(); }
+  if (!state) { state = Game.fresh(); MainProgression.enable(state,true); save(); }
+  else if (MainProgression.enable(state)) save("progression");
   else if (store.needsMigration) save();
   resumeSaved();
 }, true);

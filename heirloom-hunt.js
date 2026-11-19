@@ -32,6 +32,7 @@ const HeirloomHunt = (() => {
     };
   }
   function recharge(s, now) {
+    if (s.externalWallet) return;
     if (s.free >= 30) {
       s.charge = now;
       return;
@@ -101,7 +102,7 @@ const HeirloomHunt = (() => {
     h.escapedDeath = false;
     h.riposte = false;
     h.guarded = false;
-    if (h.wave > 0 && h.plate === 2) h.hp = Math.min(100, h.hp + 7);
+    if (h.wave > 0 && h.plate === 2) h.hp = Math.min(h.maxHp, h.hp + 7);
   }
   function warning(h) {
     return h.turn === 0 || (h.turn + 1) % 4 === 0;
@@ -142,6 +143,7 @@ const HeirloomHunt = (() => {
       Math.max(0.18, h.attack ** 8.5) *
       (0.92 + 0.16 * rand(h)) *
       (guard ? 0.6 : actual === "counter" ? 1.45 : actual === "heavy" ? 1.19 : 1);
+    damage *= h.gearBonus ?? 1;
     if (h.work[0] === 1) {
       hit *= 0.95;
       damage *= 0.97;

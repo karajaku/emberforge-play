@@ -69,7 +69,7 @@ function storyBook(s) {
 function storyPage() {
   const { id, replay, page, answer } = storyScene;
   const chapter = CharcoalStory.chapters[id];
-  const [art, who, text] = CharcoalStory.frame(id, page, answer, state.story.firstGift);
+  const [art, who, text] = CharcoalStory.frame(id, page, answer, state.story.firstGift, !!state.heirloom);
   const volume = CharcoalStory.volumes.find(v => v.scenes.includes(id));
   const next = page < chapter.pages - 1 ? "계속 듣기" : replay ? "이야기 목록" :
     id === "intro" && !state.best ? "모루 앞으로" :

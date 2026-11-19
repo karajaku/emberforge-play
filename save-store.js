@@ -14,7 +14,14 @@ const SaveStore = (() => {
   function decode(raw) {
     let data;
     try { data = JSON.parse(raw); } catch { throw fault("corrupt"); }
-    if (data?.version > 2 || data?._save?.format > 1 || data?.hunting?.version > 1) throw fault("future");
+    if (data?.version > 2 || data?._save?.format > 1 || data?.hunting?.version > 1 || data?.heirloom?.version > 1) throw fault("future");
+    if (data?.heirloom !== undefined) {
+      const p=data.heirloom;
+      if(!object(p)||p.version!==1||!Number.isSafeInteger(p.revision)||p.revision<0||
+        !Number.isSafeInteger(p.xp)||p.xp<0||!Number.isSafeInteger(p.bundles)||p.bundles<0||
+        !["known","active","records","journal","recipes","seen","mastery"].every(k=>Array.isArray(p[k]))||
+        (p.hunt!==null&&(!object(p.hunt)||!Array.isArray(p.hunt.pack)||!Number.isInteger(p.hunt.rank)))) throw fault("corrupt");
+    }
     for (const h of [data?.hunt, data?.lastHunt]) {
       if (h?.trailVersion > 1) throw fault("future");
       const skillVersion = h?.trailVersion === 1 ? 2 : 1;

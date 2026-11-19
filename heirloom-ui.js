@@ -1,16 +1,17 @@
 "use strict";
-(async function () {
+function createHeirloomScreen(root, host) {
   const F = HeirloomForge,
     H = HeirloomHunt,
-    app = document.querySelector("#app"),
-    status = document.querySelector("#status");
+    app = root.querySelector("#app"),
+    status = root.querySelector("#status");
   const slots = {
     journey: "첫 검부터",
     base: "30단계 · 기준 장비",
     blade: "30단계 · 검 투자",
     plate: "30단계 · 갑옷 투자",
   };
-  const slot = new URLSearchParams(location.search).get("slot");
+  const slot = host ? "journey" : new URLSearchParams(location.search).get("slot");
+  const storage = host || HeirloomStore;
   const fmt = (n) => n.toLocaleString("ko-KR");
   const esc = (v) =>
     String(v).replace(
@@ -28,7 +29,7 @@
       labels.map((v, i) => [i, v]),
       selected,
     );
-  const val = (id) => document.getElementById(id).value;
+  const val = (id) => root.getElementById(id).value;
   const hero = (name, detail, brow = "", scene = "assets/forge.png") =>
     `<section class="hero" style="--scene:url(${scene})"><small>${brow}</small><h1>${name}</h1><p>${detail}</p></section>`;
   if (!Object.hasOwn(slots, slot)) {
@@ -68,7 +69,8 @@
   }
   function stats() {
     const sm = F.smith(s.xp);
-    return `<div class="stats"><span>대장장이 <b>Lv.${sm.level}</b></span><span><b>${fmt(s.gold)}</b> G</span><span>사냥권 <b>${s.free}</b></span><span>재료 <b>${fmt(s.bundles)}</b></span></div>`;
+    const wallet = host ? "" : `<span><b>${fmt(s.gold)}</b> G</span><span>사냥권 <b>${s.free}</b></span>`;
+    return `<div class="stats"><span>대장장이 <b>Lv.${sm.level}</b></span>${wallet}<span>사냥 재료 <b>${fmt(s.bundles)}</b></span></div>`;
   }
   function affordable(g) {
     const cap = F.smith(s.xp).cap;
@@ -170,7 +172,7 @@
           ? `<span class="fighter" style="background-image:url(assets/${e.sprite}-sheet.png)"></span>`
           : `<img class="enemy" alt="" src="assets/hunt/${e.sprite}.webp">`;
       content = `<div class="gearhead">${img}<div><small>${h.wave + 1}/${h.pack.length}번째 조우 · ${h.turns}턴</small><h2>${e.name}</h2></div></div>
-      <div class="hp">적 체력<meter max="${h.enemyMax}" value="${h.enemyHp}"></meter>${Math.ceil(h.enemyHp)}</div><div class="hp">내 체력<meter max="100" value="${h.hp}"></meter>${Math.ceil(h.hp)} / 100</div>
+      <div class="hp">적 체력<meter max="${h.enemyMax}" value="${h.enemyHp}"></meter>${Math.ceil(h.enemyHp)}</div><div class="hp">내 체력<meter max="${h.maxHp}" value="${h.hp}"></meter>${Math.ceil(h.hp)} / ${h.maxHp}</div>
       <p class="dangerline">${H.warning(h) ? "강한 공격 예고 · 방어 후 반격 기회" : "틈이 보입니다."}</p><p>${esc(h.log)}</p>
       <div class="actions">${["strike", "guard", "counter", "heavy"].map((k, j) => button(["공격", "방어", "반격", "강공"][j], "turn", k, "", k === "counter" && !h.riposte)).join("")}</div>
       <div class="actions">${auto ? button("자동 중지", "stop") : button("자동 진행", "auto", "once", "primary")}${button("퇴각", "retreat")}</div>`;
@@ -192,7 +194,7 @@
         n = Number(inp.value),
         fee = F.cost(g.type, g.n, n, F.smith(s.xp).cap);
       const valid = Number.isInteger(n) && n >= Number(inp.min) && n <= Number(inp.max);
-      document.querySelector("#fee-" + key).textContent = valid
+      root.querySelector("#fee-" + key).textContent = valid
         ? `재련비 ${fmt(fee)} G`
         : "목표 범위를 확인하세요.";
       for (const b of app.querySelectorAll(
@@ -200,8 +202,8 @@
       ))
         b.disabled = !valid || fee > s.gold || (b.dataset.act === "bold" && n >= 9999);
     }
-    if (document.querySelector("#newfee"))
-      document.querySelector("#newfee").textContent =
+    if (root.querySelector("#newfee"))
+      root.querySelector("#newfee").textContent =
         "제작비 " + fmt(F.step(val("kind"), Number(val("newlevel")))) + " G";
   }
   function render() {
@@ -221,7 +223,7 @@
           ? "assets/altar.png"
           : "assets/forge.png";
     app.innerHTML =
-      hero(titles[tab][0], titles[tab][1], slots[slot], scene) +
+      hero(titles[tab][0], titles[tab][1], host ? "잿불 대장간" : slots[slot], scene) +
       stats() +
       `<nav class="tabs">${Object.entries(titles)
         .map(
@@ -243,7 +245,7 @@
     busy = true;
     try {
       let result;
-      s = await HeirloomStore.update(slot, s.revision, (x) => {
+      s = await storage.update(slot, s.revision, (x) => {
         H.recharge(x, Date.now());
         result = fn(x);
       });
@@ -254,7 +256,7 @@
       stop();
       message(e.message);
       try {
-        s = await HeirloomStore.update(slot, null);
+        s = await storage.update(slot, null);
         if (s.hunt) tab = "hunt";
         render();
       } catch {
@@ -309,6 +311,7 @@
       [key, idx] = arg.split(":");
     if (action === "tab") {
       stop();
+      if (host) return host.navigate(arg);
       tab = arg;
       render();
       return;
@@ -319,7 +322,7 @@
       return;
     }
     if (action === "target") {
-      document.querySelector("#goal-" + key).value = idx === "one" ? s[key].n + 1 : affordable(s[key]);
+      root.querySelector("#goal-" + key).value = idx === "one" ? s[key].n + 1 : affordable(s[key]);
       prices();
       return;
     }
@@ -339,12 +342,13 @@
       }
       return;
     }
+    if (action === "daily" && host) return host.claim();
     if (action === "turn" || action === "retreat") stop();
     const actions = {
       forge: (x) => F.forge(x, key, Number(val("goal-" + key)), false),
       bold: (x) => F.forge(x, key, Number(val("goal-" + key)), true),
       process: (x) => F.process(x, key, Number(idx)),
-      promote: (x) => F.promote(x, key, Number(document.querySelector("#trait-" + key)?.value || 0)),
+      promote: (x) => F.promote(x, key, Number(root.querySelector("#trait-" + key)?.value || 0)),
       catchup: (x) => F.forge(x, key, F.smith(x.xp).cap, false),
       mend: (x) => F.mend(x, key),
       make: (x) => F.make(x, val("kind"), Number(val("newlevel"))),
@@ -382,15 +386,30 @@
       render();
     }
   });
-  try {
-    s = await HeirloomStore.update(slot, null);
-    H.recharge(s, Date.now());
-    if (s.hunt) {
-      tab = "hunt";
-      rank = s.hunt.rank;
+  if (host)
+    return {
+      show(nextTab, view) {
+        if (!s) rank = view.records[0]?.rank || Math.min(60, view.best + 1);
+        if (tab !== nextTab) stop();
+        tab = nextTab;
+        s = view;
+        if (s.hunt) rank = s.hunt.rank;
+        render();
+      },
+      stop,
+    };
+  (async () => {
+    try {
+      s = await storage.update(slot, null);
+      H.recharge(s, Date.now());
+      if (s.hunt) {
+        tab = "hunt";
+        rank = s.hunt.rank;
+      }
+      render();
+    } catch (e) {
+      app.textContent = "여정을 열 수 없습니다. " + e.message;
     }
-    render();
-  } catch (e) {
-    app.textContent = "여정을 열 수 없습니다. " + e.message;
-  }
-})();
+  })();
+}
+if (document.querySelector("#app")) createHeirloomScreen(document, null);

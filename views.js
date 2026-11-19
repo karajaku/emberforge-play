@@ -5,6 +5,7 @@ const icon = (n) => {
   (ICONS[n] || "") +
   "</svg>";
 };
+const gearText = (g,type) => (g.heirloom?.name || Game.name(g,type)).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
 const fmt = (n) => Math.floor(n).toLocaleString("ko-KR");
 const brief = (n) =>
   n >= 1e12 ? (n / 1e12).toFixed(1) + "조" : n >= 1e8 ? (n / 1e8).toFixed(1) + "억" : fmt(n);
@@ -155,7 +156,7 @@ function portals() {
   );
 }
 function orderView(s) {
-  const o = Game.orders[s.order];
+  const o = Game.currentOrder(s);
   if (!o) return '<div class="order">' + icon("trophy") + " 모든 대장장이 의뢰 완료</div>";
   return (
     '<div class="order"><span class="ordericon">' +
@@ -481,7 +482,7 @@ function fieldView(s) {
     .map((g, i) =>
       g.level >= 13
         ? row(
-            Game.name(g) + " +" + g.level,
+            gearText(g) + " +" + g.level,
             fmt(Game.perMinute(g, s.imprints.haste) / 6) + " G / 10초",
             btn("deploy", "배치", i, "mini"), "", gearPortrait(g,"weapon"),
           )
@@ -489,7 +490,7 @@ function fieldView(s) {
     )
     .filter(Boolean);
   const deployed = s.field.map((g, i) =>
-    row(Game.name(g) + " +" + g.level, fmt(Game.perMinute(g, s.imprints.haste) / 6) + " G / 10초", btn("recall", "회수", i, "mini"), "", gearPortrait(g,"weapon")));
+    row(gearText(g) + " +" + g.level, fmt(Game.perMinute(g, s.imprints.haste) / 6) + " G / 10초", btn("recall", "회수", i, "mini"), "", gearPortrait(g,"weapon")));
   return (
     metrics(
       gaugeMetric("배치 무기", s.field.length, 2 + s.imprints.land, "mint"),
@@ -692,14 +693,14 @@ function bagView(s) {
             card(
               k === "weapon" ? "장착 무기" : "장착 방어구",
               row(
-                Game.name(s[k], k) + " +" + s[k].level,
+                gearText(s[k], k) + " +" + s[k].level,
                 [tier(s[k], k), craftSummary(s[k])].filter(Boolean).join(" · "),
                 "", "", gearPortrait(s[k], k),
               ) +
                 '<div class="actions">' +
                 (k === "weapon" ? (Game.canStoreWeapon(s.weapon) ? btn("keep", "무기 보관") :
                   forgeLink) : "") +
-                openBtn("sell-" + k, "판매 · 새 등급 받기") +
+                (s.heirloom ? go("growth", "보조 장비 납품·전승", "mini") : openBtn("sell-" + k, "판매 · 새 등급 받기")) +
                 "</div>",
             ),
           )
@@ -709,7 +710,7 @@ function bagView(s) {
     const stored = card(
           "보관 무기 · " + s.bag.length + " / 20",
           '<div class="inventory-grid">' + s.bag.map((g,i) => '<article class="inventory-tile">' + gearPortrait(g,"weapon") +
-            '<b>' + Game.name(g) + ' +' + g.level + '</b><small>' + [tier(g,"weapon"),craftSummary(g)].filter(Boolean).join(' · ') + '</small>' +
+            '<b>' + gearText(g) + ' +' + g.level + '</b><small>' + [tier(g,"weapon"),craftSummary(g)].filter(Boolean).join(' · ') + '</small>' +
             '<div class="actions">' + btn("equip","장착",i,"mini") + (g.level >= 13 ? btn("deploy","배치",i,"mini") : '') + '</div></article>').join('') + '</div>' +
             (s.bag.length ? '' : desc("보관한 무기는 여기에서 장착하거나 +13부터 사냥터에 배치합니다.") + go("bag","장착 장비 보기","action")),
         );
