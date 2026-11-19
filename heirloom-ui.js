@@ -18,8 +18,23 @@ function createHeirloomScreen(root, host) {
       /[&<>"']/g,
       (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
     );
+  const icons = {
+    forge: "hammer", bold: "flame", mend: "anvil", catchup: "chevrons-up", process: "anvil",
+    promote: "crown", make: "hammer", rebirth: "refresh-cw", fuse: "sparkles", deliver: "hand-coins",
+    toggle: "gem", daily: "gift", relief: "coins", start: "swords", stop: "shield", auto: "refresh-cw",
+    retreat: "arrow-left", prepare: "shield", rename: "scroll-text",
+  };
+  const turnIcons = { strike: "sword", guard: "shield", counter: "swords", heavy: "hammer" };
+  function glyph(name) {
+    if (!ICONS[name]) return "";
+    return `<svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+  }
   const button = (label, action, arg = "", style = "", off = false) =>
-    `<button data-act="${action}" data-arg="${esc(arg)}" class="${style}" ${off ? "disabled" : ""}>${label}</button>`;
+    `<button data-act="${action}" data-arg="${esc(arg)}" class="${style}" ${off ? "disabled" : ""}>${glyph(action === "turn" ? turnIcons[arg] : icons[action])}${label}</button>`;
+  function gearSprite(g) {
+    const asset = g.type === "armor" ? "cuirass" : "blade" + (g.grade || "");
+    return `<span aria-hidden="true" class="gear-sprite ${g.scars ? "mended" : ""} ${g.broken ? "broken" : ""}" style="background-image:url(assets/${asset}-sheet.png)"></span>`;
+  }
   const opts = (items, sel) =>
     items
       .map(([v, label]) => `<option value="${esc(v)}" ${v === sel ? "selected" : ""}>${esc(label)}</option>`)
@@ -52,6 +67,8 @@ function createHeirloomScreen(root, host) {
   let s,
     tab = slot === "journey" ? "forge" : "hunt",
     rank = slot === "journey" ? 1 : 30,
+    selectedGear = "weapon",
+    rite = "make",
     busy = false,
     auto = "",
     timer,
@@ -88,7 +105,8 @@ function createHeirloomScreen(root, host) {
       cap = F.smith(s.xp).cap,
       ceiling = F.ceiling(g),
       max = affordable(g);
-    const head = `<div class="gearhead"><span class="fighter ${g.scars ? "mended" : ""}" style="background-image:url(assets/${g.type === "armor" ? "cuirass" : g.grade ? "blade" + g.grade : "blade"}-sheet.png)"></span><div><small>${F.grades[g.grade]} ${g.type === "armor" ? "갑옷" : "검"}</small><h2>${esc(g.name)} <b>+${fmt(g.n)}</b></h2></div></div>`;
+    const switcher = key === "spare" ? "" : `<div class="gear-switch" aria-label="작업 장비">${["weapon", "armor"].map(k => `<button aria-pressed="${key === k}" data-act="gear" data-arg="${k}">${glyph(k === "weapon" ? "sword" : "shield")}${k === "weapon" ? "검" : "갑옷"}</button>`).join("")}</div>`;
+    const head = `<div class="stage bench" aria-label="대장간 작업대"><div class="nameplate"><small>${F.grades[g.grade]} ${g.type === "armor" ? "갑옷" : "검"}${g.broken ? " · 파괴" : g.damage ? " · 손상" : ""}</small><h2>${esc(g.name)} <b>+${fmt(g.n)}</b></h2></div>${switcher}<div class="bench-item">${gearSprite(g)}</div></div>`;
     let controls = "";
     if (g.broken || g.damage)
       controls = `<p class="dangerline">${g.broken ? "파괴 · 사냥 시 보조 장비 또는 대여 장비 사용" : "손상 · 장비 성능 감소"}</p>${button("복원 · " + fmt(F.step(g.type, g.n) * (g.broken ? 2 : 1)) + " G", "mend", key, "primary")}`;
@@ -104,10 +122,10 @@ function createHeirloomScreen(root, host) {
     } else if (g.n < F.limit) {
       const end = Math.min(ceiling, g.n < 9998 ? 9998 : 9999),
         goal = Math.min(end, Math.max(g.n + 1, Math.min(max, Math.max(g.n + 10, cap))));
-      controls = `<label>목표 강화 수치<input type="number" inputmode="numeric" id="goal-${key}" data-goal="${key}" min="${g.n + 1}" max="${end}" value="${goal}"></label>
-      <div class="actions">${button("+1", "target", key + ":one")}${button("보유 골드 최대 +" + fmt(max), "target", key + ":max", "", max <= g.n)}</div>
-      <span id="fee-${key}"></span><div class="actions">${button(g.n === 9998 ? "마지막 망치질" : g.n === 19 && g.grade === 0 ? F.workNames(g)[2][g.work[2]] + " 돌파" : "안전 재련", "forge", key, "primary")}${g.n < 9998 ? button("위험 제련", "bold", key, "risk") : ""}</div>
-      <small>위험 제련 · 성공 ${80 - F.risk(s, g)}% · 손상 20% · 파괴 ${F.risk(s, g)}% · 숙련 ${s.mastery[F.band(g)]}/5${s.protection ? " · 파괴 완화 준비됨" : ""}</small>`;
+      controls = `<div class="target-line"><label>목표 강화<input type="number" inputmode="numeric" id="goal-${key}" data-goal="${key}" min="${g.n + 1}" max="${end}" value="${goal}"></label>
+      <div class="actions">${button("+1", "target", key + ":one")}${button("최대 +" + fmt(max), "target", key + ":max", "", max <= g.n)}</div></div>
+      <div class="strike-actions"><b id="fee-${key}"></b><div class="actions">${button(g.n === 9998 ? "마지막 망치질" : g.n === 19 && g.grade === 0 ? F.workNames(g)[2][g.work[2]] + " 돌파" : "안전 재련", "forge", key, "primary")}${g.n < 9998 ? button("위험 제련", "bold", key, "risk") : ""}</div></div>
+      <details><summary>성공 ${80 - F.risk(s, g)}% · 손상 20% · 파괴 ${F.risk(s, g)}%</summary><small>위험 제련 숙련 ${s.mastery[F.band(g)]}/5${s.protection ? " · 파괴 완화 준비됨" : ""}</small></details>`;
     } else controls = "<strong>마지막 망치질을 마쳤습니다.</strong>";
     if (!g.broken && !g.damage && cap > g.n && cap > ceiling)
       controls += button(
@@ -124,11 +142,11 @@ function createHeirloomScreen(root, host) {
           : "<small>받아치는 칼날은 반격, 마무리 날은 빈사 적, 끈질긴 검등은 내 체력이 낮을 때, 기세를 품은 홈은 강공에 유리합니다.</small>";
     }
     const trait = g.grade >= 2 ? (g.type === "armor" ? F.armorTraits : F.bladeTraits)[g.trait] : "";
-    return `<article class="panel">${head}<div class="pills">${trait ? "<span>" + trait + "</span>" : ""}${g.scars ? "<span>은빛 이음선 ×" + g.scars + "</span>" : ""}</div>${controls}<details><summary>이름과 기록 · 이음선 ${g.scars}</summary><label>장비 이름<input id="name-${key}" maxlength="16" value="${esc(g.name)}"></label>${button("이름 새기기", "rename", key)}<ul>${g.history.map((h) => "<li>" + esc(h) + "</li>").join("")}</ul></details></article>`;
+    return `<article class="equipment">${head}<div class="panel controls"><div class="pills">${trait ? "<span>" + trait + "</span>" : ""}${g.scars ? "<span>은빛 이음선 ×" + g.scars + "</span>" : ""}</div>${controls}<details><summary>이름과 기록 · 이음선 ${g.scars}</summary><label>장비 이름<input id="name-${key}" maxlength="16" value="${esc(g.name)}"></label>${button("이름 새기기", "rename", key)}<ul>${g.history.map((h) => "<li>" + esc(h) + "</li>").join("")}</ul></details></div></article>`;
   }
   function workshop() {
     const sm = F.smith(s.xp);
-    return `<div class="grid">${card("weapon")}${card("armor")}</div><section class="panel"><h3>대장장이 Lv.${sm.level} · 즉시 제작 +${fmt(sm.cap)}</h3><p>경험치 ${fmt(s.xp)}${sm.level < 70 ? " / " + fmt(F.xpAt(sm.level + 1)) : ""} · 사냥 재료는 다음 성공 공정에서 묶음당 10 XP가 됩니다.</p>${s.active.includes(1) ? button("호흡 단조 준비 · 재료 1", "prepare", "", "", s.protection) : ""}</section>`;
+    return `${card(selectedGear)}<details class="panel smith"><summary>${glyph("anvil")} 대장장이 Lv.${sm.level} · 즉시 제작 +${fmt(sm.cap)}</summary><p>경험치 ${fmt(s.xp)}${sm.level < 70 ? " / " + fmt(F.xpAt(sm.level + 1)) : ""} · 사냥 재료는 다음 성공 공정에서 묶음당 10 XP가 됩니다.</p>${s.active.includes(1) ? button("호흡 단조 준비 · 재료 1", "prepare", "", "", s.protection) : ""}</details>`;
   }
   function rites() {
     const sm = F.smith(s.xp),
@@ -147,17 +165,22 @@ function createHeirloomScreen(root, host) {
         .join("");
     const artGuide =
       "<details><summary>보조 검에서 이어지는 기술</summary><ul><li>받아치는 칼날 → 돌진 받아치기 · 방어로 돌진 피해를 끊습니다.</li><li>마무리 날 → 몰아베기 · 강공이나 반격으로 처치하면 다음 조우 첫 타격이 강해집니다.</li><li>끈질긴 검등 → 버티는 검등 · 직전 행동이 방어였다면 조우당 한 번 체력 1로 버팁니다.</li><li>기세를 품은 홈 → 되받는 칼끝 · 반격 기회를 한 턴 보관하거나 강공에 싣습니다.</li></ul></details>";
-    return `<div class="stack"><section class="panel"><h2>보조 장비 공방</h2><p>영혼 ${s.souls} · 제련석 ${s.stones} · 전승 제작법 ${s.recipes.length}개</p>${g ? "" : `<label>종류<select id="kind"><option value="weapon">검</option><option value="armor">갑옷</option></select></label><label>시작 단계 · 최대 +${sm.cap}<input id="newlevel" type="number" min="0" max="${sm.cap}" value="${Math.min(sm.cap, s.weapon.n)}"></label><span id="newfee"></span>${button("보조 장비 제작", "make", "", "primary")}`}</section>${g ? card("spare") : ""}
-      ${
-        g
-          ? `<section class="panel"><h3>납품과 환생</h3>${button("납품 · " + fmt(Math.floor(g.invested * 0.7)) + " G", "deliver")}<p>잔불 +200과 레어 보조 장비가 필요합니다. 선택한 제작법을 남기고 보조 장비를 화로에 바칩니다.</p><label>전승할 공정<select id="recipe">${opts(
-              g.work.map((c, j) => [j, F.workNames(g)[j][c]]),
-              0,
-            )}</select></label><label>배울 각인<select id="imprint">${choices(F.imprints)}</select></label>${button("환생 · " + fmt(25000 * (1 + s.recipes.length)) + " G", "rebirth", "", "", g.grade < 1 || s.weapon.n < 200)}</section>`
-          : ""
-      }
-      <section class="panel"><h3>대장장이 각인</h3><p>사냥꾼의 몫 · 승리 골드 +8% / 호흡 단조 · 파괴 1회 완화 / 쌍타 · 위험 성공 추가 강화 / 전승 수련 · 신규 공정 XP +25%</p><div class="actions">${list(s.known, F.imprints, s.active, "mark") || "첫 환생에서 각인을 배웁니다."}</div><small>${esc(s.recipes.join(" / "))}</small></section>
-      <section class="panel"><h3>초월 · ${i}/4</h3>${artGuide}${i < 4 ? `<p>대표 전설 검 +${fmt(F.fusionLevels[i])}, 새로운 특성의 보조 전설 검 +1,000 이상 · 영혼 5 · 제련석 ${i + 1}. 제련석은 각 5단계 우두머리 첫 토벌로 획득합니다.</p><small>${i ? "성공 80% · 전체 시도의 5%에서 보조 검 소실" : "첫 시도 확정 성공"} · 성공하면 보조 검의 무늬가 잔불에 남습니다.</small>${button("초월 · " + fmt(F.fusionFees[i]) + " G", "fuse", "", "primary", !g || g.grade < 3)}` : ""}<div class="actions">${list(s.arts, F.arts, s.equipped, "art")}</div></section></div>`;
+    const stations = [["make", "anvil", "제작"], ["rebirth", "refresh-cw", "환생"], ["marks", "gem", "각인"], ["fuse", "sparkles", "초월"]];
+    if (host) stations.push(["guild", "landmark", "길드"]);
+    const altar = `<div class="stage altar"><div class="nameplate"><h2>전승의 화로</h2></div><div class="offering">${gearSprite(s.weapon)}<span>${esc(s.weapon.name)}</span></div><div class="offering secondary">${g ? gearSprite(g) : glyph("anvil")}<span>${g ? esc(g.name) : "빈 제물 자리"}</span></div></div>`;
+    const stationsBar = `<nav class="stations" style="--count:${stations.length}" aria-label="전승 작업">${stations.map(([k,ic,n]) => `<button aria-pressed="${rite === k}" data-act="rite" data-arg="${k}">${glyph(ic)}${n}</button>`).join("")}</nav>`;
+    let content;
+    if (rite === "make") {
+      content = g ? card("spare") + button("납품 · " + fmt(Math.floor(g.invested * 0.7)) + " G", "deliver") :
+        `<section class="panel"><h3>보조 장비 제작</h3><label>종류<select id="kind"><option value="weapon">검</option><option value="armor">갑옷</option></select></label><label>시작 단계 · 최대 +${sm.cap}<input id="newlevel" type="number" min="0" max="${sm.cap}" value="${Math.min(sm.cap, s.weapon.n)}"></label><span id="newfee"></span>${button("보조 장비 제작", "make", "", "primary")}</section>`;
+    } else if (rite === "rebirth") {
+      content = `<section class="panel"><h3>환생</h3><p>대표 검 +200과 레어 보조 장비가 필요합니다. 보조 장비를 바치면 제작법과 각인이 남습니다.</p>${g ? `<label>전승할 공정<select id="recipe">${opts(g.work.map((c,j) => [j, F.workNames(g)[j][c]]), 0)}</select></label><label>배울 각인<select id="imprint">${choices(F.imprints)}</select></label>${button("환생 · " + fmt(25000 * (1 + s.recipes.length)) + " G", "rebirth", "", "primary", g.grade < 1 || s.weapon.n < 200)}` : button("보조 장비 제작으로", "rite", "make")}</section>`;
+    } else if (rite === "marks") {
+      content = `<section class="panel"><h3>대장장이 각인</h3><div class="actions">${list(s.known, F.imprints, s.active, "mark") || "첫 환생에서 각인을 배웁니다."}</div><details><summary>각인 효과와 전승 제작법</summary><p>사냥꾼의 몫 · 승리 골드 +8% / 호흡 단조 · 파괴 1회 완화 / 쌍타 · 위험 성공 추가 강화 / 전승 수련 · 신규 공정 XP +25%</p><small>${esc(s.recipes.join(" / "))}</small></details></section>`;
+    } else {
+      content = `<section class="panel"><h3>초월 · ${i}/4</h3>${i < 4 ? `<p>대표 전설 검 +${fmt(F.fusionLevels[i])}, 새로운 특성의 보조 전설 검 +1,000 이상 · 영혼 5 · 제련석 ${i + 1}</p><small>${i ? "성공 80% · 전체 시도의 5%에서 보조 검 소실" : "첫 시도 확정 성공"} · 성공하면 보조 검의 무늬가 남습니다. 제련석은 매 5단계 우두머리 첫 토벌 보상입니다.</small>${button("초월 · " + fmt(F.fusionFees[i]) + " G", "fuse", "", "primary", !g || g.grade < 3)}` : ""}${artGuide}<div class="actions">${list(s.arts, F.arts, s.equipped, "art")}</div></section>`;
+    }
+    return `${altar}${stationsBar}<div class="stats"><span>영혼 <b>${s.souls}</b></span><span>제련석 <b>${s.stones}</b></span><span>제작법 <b>${s.recipes.length}</b></span></div><div class="stack">${content}</div>`;
   }
   function forest() {
     const h = s.hunt;
@@ -165,16 +188,21 @@ function createHeirloomScreen(root, host) {
       region = HuntTrail.region(zone.rank);
     const rec = s.records.filter((r) => r.rank === zone.rank).slice(0, 20);
     const history = `<section class="panel"><h3>최근 ${rec.length}회 · ${zone.rank}단계</h3><p>${rec.length ? `${rec.filter((r) => r.won).length}승 · 권당 ${fmt(Math.round(rec.reduce((a, r) => a + r.gold, 0) / rec.length))} G · 승리 평균 ${((rec.filter((r) => r.won).reduce((a, r) => a + r.turns, 0) * 2) / (rec.filter((r) => r.won).length || 1)).toFixed(1)}초 (자동 기준)` : "아직 토벌 기록이 없습니다."}</p></section>`;
+    const enemy = HuntTrail.enemy(zone.rank, h ? h.pack[h.wave] : HuntTrail.lineup(zone.rank)[0]);
+    const moving = motionAllowed();
+    const foe = ["boar","golem","dragon"].includes(enemy.sprite)
+      ? `<span class="enemy-sheet" style="background-image:url(assets/${enemy.sprite}-sheet.png)"></span>`
+      : `<img alt="" src="assets/hunt/${enemy.sprite === "moth" && moving ? "moth-wingbeat" : enemy.sprite}.webp">`;
+    const equipped = H.kit(s, "weapon");
+    const bar = (label, hp, max) => `<div class="life"><strong>${esc(label)}</strong><meter aria-label="${esc(label)} 체력" max="${max}" value="${hp}"></meter><small>${Math.ceil(hp)} / ${Math.ceil(max)}</small></div>`;
+    const arena = `<div class="stage clearing" style="--scene:url(assets/hunt/${region.id}.webp)"><div class="nameplate"><small>${zone.rank}단계${h ? " · 조우 " + (h.wave + 1) + "/" + h.pack.length : ""}</small><h2>${zone.name}</h2></div>
+      <div class="duel-side player">${h ? bar(equipped.name || "대여 검", h.hp, h.maxHp) : ""}<div class="actor">${gearSprite(equipped)}</div></div>
+      <div class="duel-side opponent ${enemy.sprite === "moth" ? "airborne" : ""}">${h ? bar(enemy.name, h.enemyHp, h.enemyMax) : `<strong class="foe-name">${enemy.name}</strong>`}<div class="actor">${foe}</div></div>
+      ${h && H.warning(h) ? `<strong class="warning">${glyph("shield")} 강공 예고</strong>` : ""}</div>`;
     let content;
     if (h) {
-      const e = HuntTrail.enemy(h.rank, h.pack[h.wave]),
-        img = ["boar", "golem", "dragon"].includes(e.sprite)
-          ? `<span class="fighter" style="background-image:url(assets/${e.sprite}-sheet.png)"></span>`
-          : `<img class="enemy" alt="" src="assets/hunt/${e.sprite}.webp">`;
-      content = `<div class="gearhead">${img}<div><small>${h.wave + 1}/${h.pack.length}번째 조우 · ${h.turns}턴</small><h2>${e.name}</h2></div></div>
-      <div class="hp">적 체력<meter max="${h.enemyMax}" value="${h.enemyHp}"></meter>${Math.ceil(h.enemyHp)}</div><div class="hp">내 체력<meter max="${h.maxHp}" value="${h.hp}"></meter>${Math.ceil(h.hp)} / ${h.maxHp}</div>
-      <p class="dangerline">${H.warning(h) ? "강한 공격 예고 · 방어 후 반격 기회" : "틈이 보입니다."}</p><p>${esc(h.log)}</p>
-      <div class="actions">${["strike", "guard", "counter", "heavy"].map((k, j) => button(["공격", "방어", "반격", "강공"][j], "turn", k, "", k === "counter" && !h.riposte)).join("")}</div>
+      content = `<p class="battle-line"><b>${h.turns}턴</b> ${esc(h.log)}</p>
+      <div class="combat-actions">${["strike", "guard", "counter", "heavy"].map((k, j) => button(["공격", "방어", "반격", "강공"][j], "turn", k, "", k === "counter" && !h.riposte)).join("")}</div>
       <div class="actions">${auto ? button("자동 중지", "stop") : button("자동 진행", "auto", "once", "primary")}${button("퇴각", "retreat")}</div>`;
     } else {
       const upper = Math.min(60, s.best + 1);
@@ -185,7 +213,7 @@ function createHeirloomScreen(root, host) {
       <div class="actions">${auto === "repeat" ? button("반복 중지", "stop") : button("직접 사냥", "start", "manual") + button("자동 1회", "start", "once", "primary") + button("이 단계 반복", "start", "repeat")}</div>
       ${!auto && rank < upper ? button("다음 미완료 " + upper + "단계 도전", "start", "next") : ""}`;
     }
-    return `<div class="stack"><section class="panel arena" style="--arena:url(assets/hunt/${region.id}.webp)">${content}</section>${history}${!h ? `<section class="panel"><h3>여정 보급</h3><p>무료 사냥권은 10분에 1장, 최대 30장까지 충전됩니다.</p><div class="actions">${button("오늘의 보급 · 사냥권 +10", "daily")}${s.gold < 150 && !s.bundles ? button("공방 일손 돕기 · 150 G", "relief") : ""}</div></section>` : ""}</div>`;
+    return `<div class="stack"><section class="equipment">${arena}<div class="panel controls">${content}</div></section>${history}${!h ? `<section class="panel"><h3>여정 보급</h3><p>무료 사냥권은 10분에 1장, 최대 30장까지 충전됩니다.</p><div class="actions">${button("오늘의 보급 · 사냥권 +10", "daily")}${s.gold < 150 && !s.bundles ? button("공방 일손 돕기 · 150 G", "relief") : ""}</div></section>` : ""}</div>`;
   }
   function prices() {
     for (const inp of app.querySelectorAll("[data-goal]")) {
@@ -207,38 +235,51 @@ function createHeirloomScreen(root, host) {
         "제작비 " + fmt(F.step(val("kind"), Number(val("newlevel")))) + " G";
   }
   function render() {
-    const titles = {
-      forge: ["대장간", "잔불과 갑옷을 벼리고 공정의 흔적을 남기세요."],
-      hunt: [
-        "숲 사냥",
-        s.hunt ? "진행 중인 사냥은 자동 저장됩니다." : "사냥권 한 장으로 선택한 구역을 토벌합니다.",
-      ],
-      rites: ["전승의 화로", "보조 장비의 제작법과 무늬를 남기세요."],
-      log: ["장비 일지", "최근 공방 작업과 토벌 결과입니다."],
-    };
-    const scene =
-      tab === "hunt"
-        ? "assets/hunt/" + HuntTrail.region(s.hunt?.rank || rank).id + ".webp"
-        : tab === "rites"
-          ? "assets/altar.png"
-          : "assets/forge.png";
-    app.innerHTML =
-      hero(titles[tab][0], titles[tab][1], host ? "잿불 대장간" : slots[slot], scene) +
-      stats() +
-      `<nav class="tabs">${Object.entries(titles)
-        .map(
-          ([k, v]) =>
-            `<button data-act="tab" data-arg="${k}" aria-current="${k === tab}" ${s.hunt && k !== "hunt" ? "disabled" : ""}>${v[0]}</button>`,
-        )
-        .join("")}</nav>` +
+    const tabs = [["forge", "anvil", "대장간"], ["hunt", "trees", "숲 사냥"], ["rites", "flame", "전승 화로"], ["log", "scroll-text", "장비 일지"]];
+    app.innerHTML = `<nav class="tabs" aria-label="장비 여정">${tabs.map(([k, ic, label]) => `<button data-act="tab" data-arg="${k}" aria-current="${k === tab}" ${s.hunt && k !== "hunt" ? "disabled" : ""}>${glyph(ic)}${label}</button>`).join("")}</nav>` +
       (tab === "forge"
         ? workshop()
         : tab === "rites"
           ? rites()
           : tab === "hunt"
             ? forest()
-            : `<section class="panel"><ul>${s.journal.map((t) => "<li>" + esc(t) + "</li>").join("") || "<li>첫 여정이 시작되었습니다.</li>"}</ul></section>`);
+            : `<section class="panel"><h2>${glyph("scroll-text")} 장비 일지</h2><ul>${s.journal.map((t) => "<li>" + esc(t) + "</li>").join("") || "<li>첫 여정이 시작되었습니다.</li>"}</ul></section>`);
+    app.insertAdjacentHTML("beforeend", stats());
     prices();
+  }
+  function motionAllowed() {
+    return host ? host.motionEnabled() : !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+  function showImpact(action, before, key) {
+    const stage = app.querySelector(turnIcons[action] ? ".clearing" : ".bench");
+    if (!stage) return;
+    if (motionAllowed()) stage.dataset.effect = action;
+    const tag = (parent, label) => {
+      const badge = document.createElement("strong");
+      badge.className = "impact";
+      badge.textContent = label;
+      parent.append(badge);
+    };
+    if (turnIcons[action] && before.hunt) {
+      const h = s.hunt;
+      if (!h) {
+        const result = s.records[0];
+        tag(stage, result.won ? "승리 · +" + fmt(result.gold) + " G" : "패배");
+      } else if (h.wave !== before.hunt.wave) {
+        tag(stage, "다음 조우 · " + HuntTrail.enemy(h.rank, h.pack[h.wave]).name);
+      } else {
+        for (const [side, stat] of [["player","hp"], ["opponent","enemyHp"]]) {
+          const loss = Math.ceil(before.hunt[stat]) - Math.ceil(h[stat]);
+          if (loss > 0) tag(stage.querySelector("." + side), "−" + fmt(loss));
+        }
+      }
+    } else if (["forge", "bold", "mend", "promote", "catchup", "process"].includes(action)) {
+      const g = s[key];
+      const label = g.broken ? "파괴" : g.damage ? "손상" : action === "mend" ? "복원" :
+        action === "promote" ? F.grades[g.grade] + " 승급" : action === "process" ? "공정 완료" :
+        "+" + fmt(before[key].n) + " → +" + fmt(g.n);
+      tag(stage, label);
+    }
   }
   async function mutate(fn, quiet = false) {
     if (busy) return false;
@@ -276,7 +317,9 @@ function createHeirloomScreen(root, host) {
     timer = setTimeout(async () => {
       if (!auto || document.hidden) return;
       if (s.hunt) {
-        await mutate((x) => H.turn(x, H.policy(x.hunt)), true);
+        const before = s;
+        const action = H.policy(s.hunt);
+        if (await mutate((x) => H.turn(x, action), true)) showImpact(action, before);
       } else if (auto === "repeat" && s.free) {
         await mutate((x) => H.start(x, rank, seed()), true);
       } else {
@@ -309,6 +352,13 @@ function createHeirloomScreen(root, host) {
     const action = b.dataset.act,
       arg = b.dataset.arg,
       [key, idx] = arg.split(":");
+    if (action === "gear" || action === "rite") {
+      if (action === "gear") selectedGear = arg;
+      else if (host) return host.navigateRite(arg);
+      else rite = arg;
+      render();
+      return;
+    }
     if (action === "tab") {
       stop();
       if (host) return host.navigate(arg);
@@ -378,7 +428,8 @@ function createHeirloomScreen(root, host) {
         return F.note(x, "공방 품삯 +150 G");
       },
     };
-    if (actions[action]) await mutate(actions[action]);
+    const before = s;
+    if (actions[action] && await mutate(actions[action])) showImpact(action === "turn" ? arg : action, before, key);
   });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) stop();
@@ -388,7 +439,8 @@ function createHeirloomScreen(root, host) {
   });
   if (host)
     return {
-      show(nextTab, view) {
+      show(nextTab, view, station) {
+        if (nextTab === "rites") rite = station;
         if (!s) rank = view.records[0]?.rank || Math.min(60, view.best + 1);
         if (tab !== nextTab) stop();
         tab = nextTab;

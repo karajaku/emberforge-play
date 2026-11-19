@@ -322,3 +322,100 @@ ul {
     gap: 6px;
   }
 }
+
+/* Shared by the game shell and the standalone journey. */
+#app {
+  --iron: url(assets/hud/steel.webp);
+  --brass: url(assets/hud/gold.webp);
+  width: min(100%, 820px);
+  margin-inline: auto;
+}
+.glyph { display: inline-block; width: 1.25em; height: 1.25em; flex: none; vertical-align: -.22em }
+#app button {
+  display: inline-flex; align-items: center; justify-content: center; gap: .38em;
+  min-height: 44px; color: #fff0d6; background: #293439 var(--iron) center/100% 100%;
+  border: 1px solid #514e45; border-radius: 5px; text-shadow: 0 1px 2px #000;
+}
+#app button:is(.primary,.current,[aria-current="true"],[aria-pressed="true"]) {
+  color: #2e1909; background: #dfac54 var(--brass) center/100% 100%;
+  text-shadow: 0 1px #ffe4a5; border-color: #c8883c;
+}
+#app button.risk { background-image: url(assets/hud/red.webp); color: #ffebcf }
+#app button:focus-visible, #app summary:focus-visible { outline: 3px solid #ffe294; outline-offset: 2px }
+#app .tabs,.stations { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4px; margin: 4px 0 8px }
+.tabs button,.stations button { padding: 5px 3px; font-size: clamp(12px, 3.2vw, 15px) }
+.equipment { overflow: hidden; border: 2px solid #7d6547; border-radius: 7px; background: #1d1c1c }
+.stage {
+  position: relative; isolation: isolate; overflow: hidden; height: clamp(200px,29vw,278px);
+  color: #fff3d6; background: #34302c var(--scene) center 56%/cover;
+  image-rendering: pixelated; box-shadow: inset 0 0 0 2px #2f231c, inset 0 -18px 30px #130d0a66;
+}
+.bench { --scene: url(assets/hud/workshop.webp) }
+.altar { --scene: url(assets/altar.png); border: 2px solid #73667c; border-radius: 7px }
+.stage .nameplate { position: absolute; z-index: 1; left: 10px; top: 9px; max-width: 62%; padding: 4px 10px;
+  background: #191510df; border: 1px solid #9c8463; border-radius: 3px; text-shadow: 0 1px #000 }
+.nameplate small { color: #efcf91; font-size: 11px }
+.nameplate h2 { line-height: 1.25; font-size: clamp(16px,4vw,21px); overflow-wrap: anywhere }
+.nameplate h2 b { color: #ffd477; white-space: nowrap }
+.gear-switch { position: absolute; z-index: 2; top: 9px; right: 8px; display: flex; gap: 3px }
+#app .gear-switch button { flex-direction: column; gap: 0; min-width: 42px; padding: 4px; font-size: 12px }
+.gear-switch .glyph { width: 19px; height: 19px }
+.bench-item { position: absolute; left: 50%; bottom: 3%; transform: translateX(-50%); height: 78%; aspect-ratio: 128/144 }
+.gear-sprite,.enemy-sheet { display: block; position: relative; height: 100%; aspect-ratio: 128/144;
+  background-repeat: no-repeat; background-size: auto 100%; image-rendering: pixelated;
+  filter: drop-shadow(0 2px 2px #15120d) }
+.bench-item .gear-sprite { filter: drop-shadow(0 0 3px #ffe5a4) drop-shadow(0 3px 6px #2b1206) }
+.gear-sprite.broken { filter: grayscale(.9) brightness(.65) }
+.panel,.stats { background: #262221; border-color: #69573e }
+.controls { border: 0; border-top: 2px solid #776044; border-radius: 0; gap: 8px }
+.target-line,.strike-actions { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; justify-content: space-between }
+.target-line label { display:flex; align-items:center; gap:6px; font-size: 12px }
+.target-line input { width: 70px; min-height: 40px; padding: 4px; text-align: center }
+.target-line button { padding: 5px 9px; font-size: 12px }
+.strike-actions { padding: 4px 0; }
+.strike-actions b { font-size: 13px; color: #f4ca78 }
+.strike-actions .actions { flex: 1; flex-wrap: nowrap }
+.strike-actions button { flex: 1; padding: 8px; white-space: nowrap }
+#app .strike-actions .glyph { width: 23px; height: 23px }
+.smith,.stats { margin-block: 8px }
+details.panel { display: block }
+.smith summary { font-weight: bold }
+.stats { gap: 8px; font-size: 13px }
+.clearing { height: clamp(224px,35vw,315px); background-position: center 55% }
+.duel-side { position: absolute; bottom: 11%; width: 35%; height: 51%; display: flex; justify-content: center }
+.duel-side.player { left: 5% }
+.duel-side.opponent { right: 5% }
+.actor { position: relative; isolation: isolate; height: 100%; width: 100%; display: grid; place-items: end center }
+.actor::before { content:""; position:absolute; z-index:-1; bottom:0; left:22%; width:56%; height:9%; background:#16180eb0; border-radius:50%; filter:blur(2px) }
+.actor .gear-sprite, .actor .enemy-sheet, .actor img { width: auto; max-width: 100%; height: auto; max-height: 100%; align-self: end; }
+.actor .gear-sprite { width: min(100%, 123px) }
+.actor .enemy-sheet,.actor img { width: min(100%, 145px); aspect-ratio: 1 }
+.actor img { object-fit: contain; image-rendering: pixelated }
+.airborne img { transform: translateY(-14%) }
+.life,.foe-name { position: absolute; bottom: 100%; background: #101a15e8; border: 1px solid #827c5d;
+  border-radius: 3px; text-align: center; padding: 2px 7px; font-size: 12px; max-width: 100% }
+.life { width: 100%; display: grid; grid-template-columns: 1fr auto; align-items: center; line-height: 1.25 }
+.life strong { text-align:left; grid-column: 1/-1; overflow-wrap:anywhere }
+.life small { font-size: 10px; color: #ffebcd }
+.life meter { height: 13px; accent-color: #86b85f }
+.warning { position: absolute; right:8px; top:10px; background:#612619; color:#ffe199; border:1px solid #efa85f; border-radius:4px; padding:4px 7px; font-size:12px }
+.battle-line b { color: #ebbd77; margin-right: .4em }
+.offering { position: absolute; bottom: 6%; left: 18%; width: 24%; height: 66%; display: grid; justify-items: center; grid-template-rows: minmax(0,1fr) auto }
+.offering.secondary { left: 58% }
+.offering .gear-sprite { max-width: 100% }
+.offering > .glyph { align-self: center; width: 44px; height: 44px; padding: 7px; color: #f2dab4; background: #211b28c9; border: 1px dashed #aa9076; border-radius: 8px }
+.offering > span:last-child { background:#221a22e8; padding:2px 7px; font-size:12px; border:1px solid #927b65; max-width:100%; overflow-wrap:anywhere }
+.stage:is([data-effect="forge"],[data-effect="bold"],[data-effect="mend"],[data-effect="process"],[data-effect="promote"],[data-effect="catchup"]) .bench-item .gear-sprite { animation: hammer-hit .38s ease-out }
+@keyframes hammer-hit { 20% { transform: translateY(8%) rotate(-7deg); filter: drop-shadow(0 0 12px #ffe297) brightness(1.8) } }
+.clearing:is([data-effect="strike"],[data-effect="counter"],[data-effect="heavy"]) .player .actor { animation: blade-lunge .42s ease-out }
+@keyframes blade-lunge { 40% { transform: translate(35%,-6%) rotate(12deg) } }
+.clearing[data-effect="guard"] .player .actor { animation: parry .45s ease-out }
+@keyframes parry { 40% { filter: drop-shadow(0 0 9px #afedff); transform: rotate(-12deg) } }
+
+.stations { grid-template-columns: repeat(var(--count), minmax(0,1fr)) }
+.combat-actions { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4px }
+#app .combat-actions button { flex-direction: column; gap: 2px; padding: 5px 2px }
+#app .combat-actions .glyph { width: 21px; height: 21px }
+
+.impact { position: absolute; z-index: 2; bottom: 6px; left: 50%; transform: translateX(-50%); padding: 2px 9px; border: 1px solid #e4b45e; border-radius: 4px; background: #292013eb; color: #ffdf89; white-space: nowrap; pointer-events: none }
+.duel-side .impact { bottom: 47%; color: #fff3d4; border-color: #d48669; background: #5b2420e8 }
