@@ -408,7 +408,7 @@ function huntingWalletContent(s) {
   return '<div data-hunting-status="' + huntingWalletKey(s, w) + '">' + line("사냥권", "무료 " + fmt(w.free) + " / 30 · 구매 " + fmt(w.purchased)) +
     '<p class="desc" data-hunting-recharge>' + huntingRechargeText(w) + '</p>' +
     (!w.free && !w.purchased ? desc("사냥권이 부족합니다. 충전을 기다리거나 출석을 확인하세요. 제작·담금질·보관함 정리·배치 수익 수령은 계속할 수 있습니다.") +
-      '<div class="actions">' + openBtn("daily", claimed ? "출석 수령 완료" : "출석 +10 받기", "mini") + go("forge", "대장간으로", "mini") + '</div>' : "") +
+      '<div class="actions">' + openBtn("daily", claimed ? "출석 수령 완료" : "출석 +" + Game.hunting.daily + " 받기", "mini") + go("forge", "대장간으로", "mini") + '</div>' : "") +
     '<details class="hunt-wallet-help"><summary>무료 로컬 시험 안내</summary>' +
     desc("실제 구매 미지원 · 기기 시각과 저장 기준. 배치 수익은 전투와 별도로 쌓이며 사냥권을 쓰지 않습니다.") + '</details></div>';
 }

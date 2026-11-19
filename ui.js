@@ -816,7 +816,7 @@ function modalData() {
       return [
         "오늘의 출석 보상",
         '<p class="desc" data-attendance-day="' + Game.day(Date.now()) + '">오늘 ' + Game.day(Date.now()) + " · 한국 시간(KST) 자정 갱신 · 로컬 기기 시각 기준</p>" +
-          row("무료 사냥권 +10", "30개를 넘어 보유 가능 · 상한 이상이면 자연 충전 대기", icon("gift")) +
+          row("무료 사냥권 +" + Game.hunting.daily, "30개를 넘어 보유 가능 · 상한 이상이면 자연 충전 대기", icon("gift")) +
           row(fmt(Game.dailyGold(s)) + " G", "무한의 탑 입장권 5장 · 산소통 1개", icon("gift")) +
           row("가호 보급", "정령과 대장장이 가호 각 3개", icon("shield")) +
           btn(
@@ -999,7 +999,7 @@ function updateSaleQuote(reset) {
     sell.disabled = true;
     return;
   }
-  const step = item.sell === 0.5 ? 2 : 1;
+  const step = Number.isInteger(item.sell) ? 1 : 2;
   amount.min = amount.step = step;
   amount.max = RelicShop.owned(state, item);
   if (reset) amount.value = step;
@@ -1444,6 +1444,11 @@ function animate(now) {
   }
   requestAnimationFrame(animate);
 }
+window.addEventListener("emberforge-rules-updated", () => {
+  if (!ready || storageError) return;
+  render();
+  if (["daily", "huntWallet", "risk", "shop", "shopSell"].includes(modal)) displayModal();
+});
 el("brandIcon").innerHTML = icon("anvil");
 el("coinIcon").innerHTML = icon("coins");
 el("settingsIcon").innerHTML = icon("settings");

@@ -8,20 +8,9 @@ const Game = (() => {
   const trail = typeof module !== "undefined" ? require("./hunt-trail.js") : HuntTrail;
   const shop = typeof module !== "undefined" ? require("./relic-shop.js") : RelicShop;
   const grades = ["일반", "레어", "에픽", "전설"];
-  const swords = ["순철 장검", "서리결 장검", "황혼의 마검", "태양의 성검"];
-  const armors = ["순철 흉갑", "청명한 흉갑", "황혼의 흉갑", "별무리 성갑"];
-  const armorRates = [
-    100, 100, 100, 100, 100, 98, 97, 96, 95, 94, 92, 91, 90, 82, 74, 66, 56, 46, 36, 26,
-  ];
-  // Indexed by the current level. See reference/sword-raising-balance.md for provenance.
-  // Tuples are success, drop and destruction percentages. The remainder is hold.
-  const swordRates = [
-    [100,0,0], [100,0,0], [100,0,0], [95,0,0], [90,0,0],
-    [85,0,0], [80,0,0], [75,0,0], [65,3,0], [55,5,0],
-    [50,8,2], [40,10,5], [32,10,5], [24,10,5], [16,10,5],
-    [10,10,5], [6,10,5], [3,10,5], [2,10,5], [1,10,5],
-  ];
+  const live = typeof module !== "undefined" ? require("./live-data.js") : LiveData;
   function baseSwordChances(level) {
+    const swordRates = live.current.balance.swordRates;
     if (!swordRates[level]) return null;
     const [success, drop, destroy] = swordRates[level];
     return { success, hold: 100 - success - drop - destroy, drop, destroy };
@@ -181,7 +170,7 @@ const Game = (() => {
     best: 0,
     done: false,
   });
-  const hunting = { initial: 30, cap: 30, interval: 600000, daily: 10 };
+  const hunting = { initial: 30, cap: 30, interval: 600000, get daily() { return live.current.balance.dailyTickets; } };
   function freshHunting(t) {
     return { version: 1, id: globalThis.crypto.randomUUID(), free: hunting.initial, purchased: 0,
       rechargeAt: null, observedAt: t, daily: "", serial: 0, lastStart: null };
@@ -295,7 +284,7 @@ const Game = (() => {
       [...journeyOrders[s.order], order[2]];
   }
   function dailyGold(s) {
-    return s.journeyEconomy ? 1000 + 10 * Math.min(s.best, journey.limit) : 1000000;
+    return s.journeyEconomy ? live.current.balance.journeyDailyGold + 10 * Math.min(s.best, journey.limit) : live.current.balance.dailyGold;
   }
   function fresh(t = Date.now()) {
     const s = {
@@ -375,7 +364,7 @@ const Game = (() => {
     return stats({ ...s, [type]: next });
   }
   function name(g, type = "weapon") {
-    return type === "armor" ? armors[g.grade] : swords[bladeStage(g)];
+    return type === "armor" ? live.current.game.armors[g.grade] : live.current.game.swords[bladeStage(g)];
   }
   const liningCosts = Object.freeze([3, 12, 30, 75, 180]);
   const forestYield = rank => rank >= 16 ? 3 : rank >= 6 ? 2 : 1;
@@ -415,7 +404,7 @@ const Game = (() => {
     if (s.journeyEconomy && (g === s.armor || isJourneyGear(s, g)))
       return {success:100, hold:0, drop:0, destroy:0};
     const sword = g === s.weapon ? baseSwordChances(g.level) : null;
-    const base = sword?.success ?? armorRates[g.level] ?? 0;
+    const base = sword?.success ?? live.current.balance.armorRates[g.level] ?? 0;
     const success = Math.min(
       100,
       (base + s.imprints.luck * 0.2 + s.heat) * (s.scrollOn && s.scrolls ? 1.1 : 1) + focusBonus,
@@ -1135,7 +1124,7 @@ const Game = (() => {
         s.tanks++;
         s.charms[0] += 3;
         s.charms[1] += 3;
-        return success("출석 · 무료 사냥권 10개, " + dailyGold(s).toLocaleString() + " G, 입장권 5장, 산소통 1개, 가호 2종 각 3개", "win");
+        return success("출석 · 무료 사냥권 " + hunting.daily + "개, " + dailyGold(s).toLocaleString("ko-KR") + " G, 입장권 5장, 산소통 1개, 가호 2종 각 3개", "win");
       case "tank":
         if (s.gold < 10000000) return fail("산소통은 1,000만 G입니다.");
         s.gold -= 10000000;
@@ -1263,7 +1252,7 @@ const Game = (() => {
             h.turn++;
             return { ok:true, message:"", kind:"info", impact };
           }
-          const base = h.journeyBattle ? journey.area(h.rank).prize : 800 * h.rank * h.rank;
+          const base = h.journeyBattle ? journey.area(h.rank, t).prize : live.forestGold(h.rank, t);
           const bonus = !h.journeyBattle && h.ripostes ? base / 4 : 0;
           const chest = awardChest(s, "forest", h.rank, base, bonus, int, !!h.journeyBattle);
           if (h.materialRule === 1) {
@@ -1565,7 +1554,7 @@ const Game = (() => {
         if (!item?.sell || !Number.isSafeInteger(count) || count < 1 || count > shop.owned(s, item))
           return fail("판매 품목과 보유 수량을 확인하세요.");
         const payout = count * item.sell;
-        if (!Number.isSafeInteger(payout)) return fail("이 가호는 짝수 단위로 판매하세요.");
+        if (!Number.isSafeInteger(payout)) return fail("이 품목은 짝수 단위로 판매하세요.");
         shop.adjust(s, item, -count);
         s.points += payout;
         return success(item.name + " " + count + "개 판매 · +" + payout + " P", "win");

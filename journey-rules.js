@@ -1,6 +1,7 @@
 "use strict";
 // Shared forge prices, smith XP and hunting anchors from the original sword journey.
 const JourneyRules = (() => {
+  const live = typeof module !== "undefined" ? require("./live-data.js") : LiveData;
   const limit = 9999;
   const caps = [
     [1, 0],
@@ -33,7 +34,7 @@ const JourneyRules = (() => {
       [b, y] = caps[next];
     return { level, cap: Math.floor(x + ((level - a) * (y - x)) / (b - a)) };
   }
-  const step = (type, n) => (100 + 10 * n) / (type === "armor" ? 2 : 1);
+  const step = (type, n) => (live.current.balance.journeyForgeBase + 10 * n) / (type === "armor" ? 2 : 1);
   function cost(type, from, to, cap) {
     if (to <= from) return 0;
     const jump = Math.min(cap, to);
@@ -51,7 +52,7 @@ const JourneyRules = (() => {
     [50, 8500, 7800, 504000],
     [60, 9999, 9300, 560000],
   ];
-  function area(rank) {
+  function area(rank, time = Date.now()) {
     if (!Number.isInteger(rank) || rank < 1 || rank > 60) throw RangeError("Invalid hunting area");
     const hi = anchors.findIndex((a) => a[0] >= rank),
       low = anchors[Math.max(0, hi - 1)],
@@ -65,7 +66,7 @@ const JourneyRules = (() => {
       w,
       a,
       g,
-      prize: Math.round(g / expectedWins),
+      prize: Math.round(Math.round(g / expectedWins) * live.current.balance.journeyForestGold / anchors[0][3]) * live.forestMultiplier(time),
     };
   }
   return { limit, bladeTraits, processOptions, thresholds, smith, xpAt, cost, step, area };

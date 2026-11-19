@@ -1,22 +1,26 @@
 "use strict";
 const RelicShop = (() => {
+  const live = typeof module !== "undefined" ? require("./live-data.js") : LiveData;
   const catalog = [
-    { id: "0", name: "정령의 가호", price: 20, sell: 0.5, charm: 0, text: "강화 단계 하락 방지" },
-    { id: "1", name: "대장장이의 가호", price: 10, sell: 0.5, charm: 1, text: "강화 중 장비 파괴 방지" },
-    { id: "2", name: "신의 가호", price: 60, sell: 30, charm: 2, text: "강화비 무료 · 하락과 파괴 방지" },
-    { id: "3", name: "유물 뽑기", price: 30, text: "당첨 확률 80%" },
-    { id: "steady", name: "안정 주문서", price: 30, chance: 60, gain: 30 },
-    { id: "balance", name: "균형 주문서", price: 40, chance: 40, gain: 50 },
-    { id: "gamble", name: "도박 주문서", price: 60, chance: 10, gain: 80, risk: 1 },
-    { id: "option", name: "옵션부여 주문서", price: 50, text: "레이드 추가 공격력 +50~100 부여 · 유물당 한 번" },
-    { id: "fate", name: "운명 주문서", price: 100, chance: 1, gain: 120, risk: 1 },
-    { id: "white", name: "순백의 주문서", price: 200, chance: 3, recovery: 1, risk: 1 },
-    { id: "chaos", name: "혼돈의 주문서", price: 4000, chance: 50, recovery: 10 },
-    { id: "origin", name: "태초의 주문서", price: 10000, chance: 99, recovery: 10, risk: 1 },
+    { id: "0", name: "정령의 가호", sell: 0.5, charm: 0, text: "강화 단계 하락 방지" },
+    { id: "1", name: "대장장이의 가호", sell: 0.5, charm: 1, text: "강화 중 장비 파괴 방지" },
+    { id: "2", name: "신의 가호", sell: 30, charm: 2, text: "강화비 무료 · 하락과 파괴 방지" },
+    { id: "3", name: "유물 뽑기", text: "당첨 확률 80%" },
+    { id: "steady", name: "안정 주문서", chance: 60, gain: 30 },
+    { id: "balance", name: "균형 주문서", chance: 40, gain: 50 },
+    { id: "gamble", name: "도박 주문서", chance: 10, gain: 80, risk: 1 },
+    { id: "option", name: "옵션부여 주문서", text: "레이드 추가 공격력 +50~100 부여 · 유물당 한 번" },
+    { id: "fate", name: "운명 주문서", chance: 1, gain: 120, risk: 1 },
+    { id: "white", name: "순백의 주문서", chance: 3, recovery: 1, risk: 1 },
+    { id: "chaos", name: "혼돈의 주문서", chance: 50, recovery: 10 },
+    { id: "origin", name: "태초의 주문서", chance: 99, recovery: 10, risk: 1 },
   ];
+  for (const item of catalog) {
+    Object.defineProperty(item, "price", { enumerable: true, get: () => live.current.shop[item.id] });
+  }
   const scrolls = catalog.filter(item => item.charm === undefined && item.id !== "3");
   for (const item of scrolls) {
-    item.sell = item.price / 2;
+    Object.defineProperty(item, "sell", { enumerable: true, get: () => item.price / 2 });
     if (item.text) continue;
     const effect = item.gain ? "옵션별 수치 +" + item.gain + "%" :
       item.recovery === 1 ? "실패 1회 복구" : "누적 실패 전부 복구";
