@@ -441,6 +441,8 @@ function render() {
   document.body.dataset.place = id;
   document.body.dataset.page = phonePage(id);
   phonePageNav(id);
+  if (id === "forest" && phonePage(id) === "hunt")
+    el("pageNav").insertAdjacentHTML("beforeend", openBtn("huntGuide", "토벌 안내"));
   const navHTML = navItems
     .map(
       ([key, label, ic]) =>
@@ -514,7 +516,7 @@ function render() {
       "</div>" +
       orderView(state));
   const screen = el("screen");
-  screen.innerHTML = view;
+  screen.innerHTML = ContentGuide.render(state) + view;
   renderLesson();
   GameUI.shell();
   const grid = document.querySelector('.ui-gear-grid');
@@ -577,6 +579,7 @@ function lessonMenu() {
     Apprentice.lessons
       .map((lesson, i) => row(lesson[1], notes[i], done[i] ? icon("check") : ""))
       .join("") +
+      ContentGuide.index() +
       (done.every(Boolean) ? "" : lessonButton("locate", "다음 단계로 이동")) +
       (state.apprentice.visible
         ? lessonButton("hide", "수업 안내 숨기기")
@@ -606,6 +609,8 @@ function modalData() {
   if (modal === "final") return finalWorkshop(s);
   if (modal === "craft") return craftWorkshop(s);
   switch (modal) {
+    case "huntGuide":
+      return ContentGuide.hunt(s);
     case "towerRun":
       return ["고속 등반 결과", towerRunView(s)];
     case "towerRewards":
@@ -1129,6 +1134,10 @@ document.addEventListener("click", (e) => {
   }
   if ("newGame" in d) return startNewGame();
   if (d.story) return storyInput(d.story);
+  if ("guideFocus" in d) {
+    if (modal === "huntGuide") closeModal(false);
+    return ContentGuide.focusCurrent(state);
+  }
   if (d.lesson === "locate") return focusLesson();
   if (d.lesson === "menu") return showModal("lessons");
   if (d.lesson === "hide" || d.lesson === "show")

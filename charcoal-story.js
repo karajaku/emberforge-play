@@ -16,7 +16,7 @@ const CharcoalStory = (() => {
   ];
   const questions = { driver: "다친 사람은 없어요?", coal: "수레에 뭐가 실렸죠?" };
   const fresh = () => ({ intro: 0, bridge: 0, home: 0, bundle: 0, light: 0, lesson: 0,
-    firstGift: null, answer: "", quiet: false });
+    firstGift: null, soldOre: false, answer: "", quiet: false });
   function unlocked(s, id) {
     if (id === "intro") return true;
     if (id === "bridge") return s.huntBest > 0;

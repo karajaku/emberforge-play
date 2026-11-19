@@ -63,6 +63,7 @@ function storyBook(s) {
   return ["이야기", CharcoalStory.volumes.map((volume, i) =>
     '<h3 class="volume-title">' + (i + 1) + "장 · " + volume.title + "</h3>" +
     volume.scenes.map(leaf).join("")).join("") +
+    ContentGuide.index() +
     storyButton("quiet", s.story.quiet ? "이야기·동료 대화 안내 켜기" : "이야기·동료 대화 안내 끄기")];
 }
 function storyPage() {

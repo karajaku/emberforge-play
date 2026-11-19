@@ -1243,6 +1243,7 @@ const Game = (() => {
         if (!value) return fail("판매할 광물이 없습니다.");
         s.gold += value;
         s.ore.fill(0);
+        (s.story ??= story.restore(s)).soldOre = true;
         return success("광물 판매 +" + value.toLocaleString() + " G", "win");
       }
       case "altar":
