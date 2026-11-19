@@ -50,6 +50,32 @@ const HuntTrail = (() => {
   function awaitingNext(h) {
     return h?.trailVersion === 1 && (h.enemyHp === 0 || h.lastDice?.enemySkill === "escape");
   }
-  return { region, lineup, enemy, opponent, enter, awaitingNext };
+  // Species share their name and artwork with their wild encounter.
+  const companions = {
+    tree: [32, 195], moth: [39, 150], wolf: [43, 140], boar: [35, 180],
+    golem: [34, 210], tusk: [40, 195], alpha: [47, 155], wyrm: [45, 175], elder: [36, 225],
+  };
+  const starters = ["tree", "moth", "wolf"];
+  const partnerLevel = xp => 1 + Math.min(59, Math.floor(xp / 4));
+  function freshTeam(rank = 1) {
+    return { active: starters[0], started: false, xp: { tree: 4 * (Math.min(60, Math.max(1, rank)) - 1) } };
+  }
+  function partner(s, kind = s.companions.active) {
+    const xp = s.companions.xp[kind];
+    const level = partnerLevel(xp);
+    const [power, vitality] = companions[kind];
+    const attack = Math.round(power * (1 + .36 * (level - 1) ** 1.65));
+    const hp = Math.round((vitality + 38 * (level - 1)) * (1 + .04 * s.huntLining));
+    return { kind, name: enemies[kind].name, sprite: enemies[kind].sprite, level, attack, hp };
+  }
+  function defeat(s, h) {
+    const team = s.companions;
+    team.xp[h.partner.kind] = Math.min(236, team.xp[h.partner.kind] + 2);
+    if (Object.hasOwn(companions, h.enemyKind) && !Object.hasOwn(team.xp, h.enemyKind)) {
+      team.xp[h.enemyKind] = (h.partner.level - 1) * 4;
+      h.recruited.push(h.enemyKind);
+    }
+  }
+  return { region, lineup, enemy, opponent, enter, awaitingNext, companions, starters, freshTeam, partnerLevel, partner, defeat };
 })();
 if (typeof module !== "undefined") module.exports = HuntTrail;

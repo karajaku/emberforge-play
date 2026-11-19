@@ -287,6 +287,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
     const strong = sparring && Swordcraft.heavy(state.weapon.work);
     const beforeHunt = state.hunt;
     const beforeHuntHealth = state.hunt && {...state.hunt};
+    if (action === "huntStart") arg = { ...arg, withPartner: true };
     const result = Game.perform(state, action, arg, undefined, undefined, pressedAt);
     if (!result.ok && (action === "openChest" || action === "craftHuntLining")) {
       if (repeatGuard && repeatHunting.active) repeatHunting.stop("보물 수령 실패");
@@ -525,7 +526,7 @@ function render() {
 }
 function renderLesson() {
   const host = el("apprentice");
-  host.hidden = !state.apprentice.visible;
+  host.hidden = !state.apprentice.visible || (current() === "forest" && phonePage("forest") === "hunt" && Apprentice.next(state) !== 1);
   if (host.hidden) return;
   const step = Apprentice.next(state);
   const tip = step >= 0 ? Apprentice.guidance(state, step) : null;
@@ -756,7 +757,7 @@ function modalData() {
     case "confirmNewGame":
       return [
         "처음부터 시작할까요?",
-        desc("장비, 골드, 숲결 섬유, 숲 방호 안감, 환생과 이야기 기록을 초기화하고 첫 장면부터 시작합니다. 사냥권 잔량·충전 시간·출석 수령 기록은 유지되며 최초 30개를 다시 지급하지 않습니다. 현재 원본을 별도로 보존한 뒤 새 진행 저장이 성공해야 시작합니다.") +
+        desc("동료 수집과 레벨, 장비, 골드, 숲결 섬유, 숲 방호 안감, 환생과 이야기 기록을 초기화하고 첫 장면부터 시작합니다. 사냥권 잔량·충전 시간·출석 수령 기록은 유지되며 최초 30개를 다시 지급하지 않습니다. 현재 원본을 별도로 보존한 뒤 새 진행 저장이 성공해야 시작합니다.") +
           '<div class="actions">' + openBtn("settings", "취소") +
           '<button class="action danger" data-new-game>진행을 지우고 시작</button></div>',
       ];

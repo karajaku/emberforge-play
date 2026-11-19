@@ -198,8 +198,8 @@ function swordOddsTable(level) {
 }
 function liningCard(s) {
   const level = s.huntLining, cost = Game.liningCosts[level];
-  const hp = fmt(Game.huntStats(s).hp);
-  const next = cost ? ' → ' + fmt(Game.huntStats({ ...s, huntLining: level + 1 }).hp) : '';
+  const hp = fmt(Game.trail.partner(s).hp);
+  const next = cost ? ' → ' + fmt(Game.trail.partner({ ...s, huntLining: level + 1 }).hp) : '';
   return '<section class="lining-card" aria-label="숲 방호 안감"><div><b>' + icon('shield') +
     '숲 방호 안감 ' + level + '/5</b><small>사냥 HP ' + hp + next + '</small><small>' +
     icon('trees') + '숲결 섬유 ' + fmt(s.forestFiber) + (cost ? ' / ' + cost + ' · 숲 승리 보물' : '') +

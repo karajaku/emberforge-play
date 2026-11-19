@@ -256,6 +256,7 @@ const Game = (() => {
       version: 2,
       forestFiber: 0,
       huntLining: 0,
+      companions: trail.freshTeam(),
       hunting: freshHunting(t),
       story: story.fresh(),
       apprentice: { visible: true, tempered: false, deployed: false, collected: false },
@@ -1037,6 +1038,15 @@ const Game = (() => {
         s.gold -= 10000000;
         s.tanks++;
         return success("산소통 1개 구입");
+      case "choosePartner": {
+        const team = s.companions;
+        if (!Object.hasOwn(team.xp, arg)) {
+          if (team.started || !trail.starters.includes(arg)) return fail("아직 만난 동료가 아닙니다.");
+          team.xp = { [arg]: team.xp[team.active] };
+        }
+        team.active = arg;
+        return success(trail.partner(s).name + (s.hunt ? " · 다음 토벌에 출전합니다." : " · 출전 준비 완료"));
+      }
       case "huntStart": {
         const w = s.hunting;
         const request = typeof arg === "object" && arg !== null ? arg.request : w.serial + 1;
@@ -1052,7 +1062,8 @@ const Game = (() => {
         if (!Number.isInteger(rank) || rank < 1 || rank > Math.min(60, s.huntBest + 1))
           return fail("먼저 이전 지역을 토벌하세요.");
         if (w.free + w.purchased < 1) return fail("사냥권이 부족합니다. 10분 충전·오늘의 출석을 확인하거나 대장간과 배치 수익을 이용하세요.");
-        const st = arg?.combat === "trail-v1" ? huntStats(s) : stats(s),
+        const partner = arg?.withPartner === true ? trail.partner(s) : null;
+        const st = partner || (arg?.combat === "trail-v1" ? huntStats(s) : stats(s)),
           enemyHp = 90 + Math.round(36 * (rank - 1) ** 1.65);
         const enemy = huntEnemy(rank);
         const task = routeTask(s);
@@ -1075,7 +1086,7 @@ const Game = (() => {
           hp: st.hp,
           maxHp: st.hp,
           attack: st.attack,
-          guardReduction: craft.grindBonus(s.weapon.grind, 0),
+          guardReduction: partner ? 0 : craft.grindBonus(s.weapon.grind, 0),
           enemyHp,
           enemyMax: enemyHp,
           enemyAttack: 20 + 9 * rank,
@@ -1084,6 +1095,11 @@ const Game = (() => {
           ripostes: 0,
           last: enemy.name + " 출현 · " + enemy.trait,
         };
+        if (partner) {
+          s.companions.started = true;
+          s.hunt.partner = { kind: partner.kind, level: partner.level };
+          s.hunt.recruited = [];
+        }
         // Explicit per-battle model: old saves and untagged legacy callers retain their rules.
         if (arg?.combat === "dice-v1" || arg?.combat === "trail-v1") {
           s.hunt.diceVersion=1;s.hunt.skillVersion=1;s.hunt.skillCooldowns={heavyStrike:0,counter:0};
@@ -1138,7 +1154,9 @@ const Game = (() => {
         if (roll?roll.skill==='counter':!block&&h.counter) h.ripostes = (h.ripostes || 0) + 1;
         h.enemyHp = Math.max(0, h.enemyHp - damage);
         const trailResult = h.trailVersion ? {trailVersion:1, wave:h.wave, bonusEncounter:h.bonusEncounter} : {};
+        if (h.partner) Object.assign(trailResult, { partner: h.partner, recruited: h.recruited });
         if (!h.enemyHp) {
+          if (h.partner) trail.defeat(s, h);
           if (h.trailVersion && h.wave + 1 < trail.lineup(h.rank, h.bonusEncounter).length) {
             if (h.enemyKind === "goblin") h.goblinCaught = true;
             h.counter = roll.counter;

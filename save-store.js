@@ -45,6 +45,21 @@ const SaveStore = (() => {
     if (data.created !== undefined && (!Number.isFinite(data.created) || Math.abs(data.created) > 8.64e15))
       throw fault("corrupt");
     const defaults = game.fresh(data.created);
+    const trail = game.trail, team = data.companions;
+    if (team !== undefined) {
+      if (!object(team) || !object(team.xp) || typeof team.started !== "boolean" ||
+          !Object.hasOwn(team.xp, team.active) || Object.entries(team.xp).some(([kind, xp]) =>
+            !Object.hasOwn(trail.companions, kind) || !Number.isInteger(xp) || xp < 0 || xp > 236) ||
+          (!team.started && (Object.keys(team.xp).length !== 1 || !trail.starters.includes(team.active)))) throw fault("corrupt");
+    } else if (Number.isInteger(data.huntBest)) {
+      defaults.companions = trail.freshTeam(data.huntBest);
+    }
+    for (const battle of [data.hunt, data.lastHunt]) {
+      if (battle?.partner !== undefined && (!team?.started || !object(battle.partner) ||
+          !Object.hasOwn(team.xp, battle.partner.kind) || !Number.isInteger(battle.partner.level) ||
+          battle.partner.level < 1 || battle.partner.level > 60 || !Array.isArray(battle.recruited) ||
+          !battle.recruited.every(kind => Object.hasOwn(team.xp, kind)))) throw fault("corrupt");
+    }
     if (data.version === 2 && (!Number.isSafeInteger(data.forestFiber) || data.forestFiber < 0 ||
         !Number.isInteger(data.huntLining) || data.huntLining < 0 || data.huntLining > game.liningCosts.length))
       throw fault("corrupt");
@@ -174,7 +189,7 @@ const SaveStore = (() => {
       }
       const state = decode(expected);
       const before = JSON.parse(expected);
-      needsMigration = before.version === 1 || !before._save || !before.hunting || !!(before.hunt && !before.hunt.id);
+      needsMigration = before.version === 1 || !before._save || !before.hunting || !before.companions || !!(before.hunt && !before.hunt.id);
       lastSavedAt = state._save?.savedAt ?? state.last ?? null;
       return state;
     }
