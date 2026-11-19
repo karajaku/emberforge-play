@@ -21,8 +21,8 @@ const btn = (action, label, arg = "", cls = "action", disabled = false) =>
   ">" +
   label +
   "</button>";
-const openBtn = (id, label, cls = "action") =>
-  '<button class="' + cls + '" data-open="' + id + '">' + label + "</button>";
+const openBtn = (id, label, cls = "action", disabled = false) =>
+  '<button class="' + cls + '" data-open="' + id + '"' + (disabled ? ' disabled' : '') + '>' + label + "</button>";
 const go = (id, label, cls = "mini") =>
   '<button class="' + cls + '" data-go="' + id + '">' + label + "</button>";
 const metric = (label, value) =>
@@ -208,14 +208,7 @@ function liningCard(s) {
 }
 function journeyForgeControls(s, type, plan) {
   const level = plan.level, next = plan.next;
-  const grade = Game.grades[plan.targetGrade];
   const process = plan.needsProcess && Swordcraft.stages[plan.processIndex];
-  const price = fmt(plan.cost) + ' G';
-  const title = grade ? grade + ' 승급' : '최종 재련';
-  if (s.hunt) return {
-    heading: '진행 중인 숲 토벌', detail: fmt(s.hunt.rank) + '단계',
-    button: go('forest', icon('trees') + '토벌 계속', 'primary'),
-  };
   if (type === 'weapon' && s.weapon.finalTrial) return {
     heading: '진행 중인 돌파', detail: Breakthrough.methods[s.weapon.finalTrial.key].name,
     button: openBtn('final', icon('sword') + '돌파 계속', 'primary'),
@@ -224,23 +217,22 @@ function journeyForgeControls(s, type, plan) {
     heading: process.title, detail: '제작 공정 ' + (plan.processIndex + 1) + ' / ' + Swordcraft.stages.length,
     button: go('forge/craft', icon(process.icon) + '공정 열기<small>' + process.title + '</small>', 'primary'),
   };
-  if (plan.atThreshold && plan.needsHunt) return {
-    heading: title, detail: '숲 토벌 ' + fmt(Math.min(s.huntBest, plan.requiredHunt)) + ' / ' + plan.requiredHunt + '단계',
-    button: go('forest', icon('trees') + '토벌하기<small>' + plan.requiredHunt + '단계 필요</small>', 'primary'),
-  };
-  if (plan.canPromote) return {
-    heading: title, detail: '승급 조건 달성',
-    button: openBtn('swordPromotion', icon('sparkles') + title + '<small>' + (plan.targetGrade === 2 ? '특성 선택' : '검 벼리기') + '</small>', 'primary'),
-  };
+  if (plan.canPromote) {
+    const title = Game.grades[plan.targetGrade] + ' 승급';
+    const hint = s.hunt ? '전투 중' : plan.targetGrade === 2 ? '특성 선택' : '검 벼리기';
+    return { heading: title, detail: '승급 조건 달성',
+      button: openBtn('swordPromotion', icon('sparkles') + title + '<small>' + hint + '</small>', 'primary', !!s.hunt) };
+  }
   if (next <= level) return {
     heading: '최종 재련 완료', detail: '+' + fmt(level),
     button: openBtn('journal', icon('scroll-text') + '강화 기록', 'primary'),
   };
+  const shortfall = plan.cost - s.gold;
+  const hint = s.hunt ? '전투 중' : shortfall > 0 ? fmt(shortfall) + ' G 부족' : '';
+  const price = fmt(plan.cost) + ' G' + (hint ? '<span class="forge-hold-hint">' + hint + '</span>' : '');
   return {
     heading: '안전 재련 +' + fmt(level) + ' → +' + fmt(next), detail: '성공 100%',
-    button: s.gold < plan.cost
-      ? go('forest', icon('trees') + '골드 사냥<small>재련비 ' + price + '</small>', 'primary')
-      : btn('journeyForge', icon('hammer') + '재련<small>' + price + '</small>', type, 'primary'),
+    button: btn('journeyForge', icon('hammer') + '재련<small>' + price + '</small>', type, 'primary', !!s.hunt || shortfall > 0),
   };
 }
 function journeyDetails(s, type, plan) {
@@ -249,13 +241,15 @@ function journeyDetails(s, type, plan) {
   let html = line('장비', Game.name(s[type], type) + ' +' + fmt(plan.level));
   const smith = Game.journeySmith(s);
   html += line('대장장이 Lv.' + smith.level, fmt(smith.xp) + (smith.next ? ' / ' + fmt(smith.next) : '') + ' XP') +
-    line('즉시 제작 상한', '+' + fmt(smith.cap)) + line('사냥 재료', fmt(smith.bundles) + '묶음 · 재련 시 묶음당 10 XP');
+    line('즉시 제작 상한', '+' + fmt(smith.cap)) + desc('재련비 1 G를 쓸 때마다 1 XP를 얻습니다. 검이 파괴되면 그 검의 판매가만큼 XP를 얻습니다.');
   if (type === 'weapon' && Number.isInteger(s.weapon.journeyTrait)) html += line('에픽 특성', Game.journeyTraits[s.weapon.journeyTrait]);
-  if (plan.canChooseTrait) html += openBtn('swordTrait', icon('sparkles') + '에픽 특성 새기기', 'action');
+  if (plan.canChooseTrait) {
+    const lock = s.hunt ? ' · 전투 중' : s.weapon.finalTrial ? ' · 돌파 중' : '';
+    html += openBtn('swordTrait', icon('sparkles') + '에픽 특성 새기기' + lock, 'action', !!lock);
+  }
   if (type === 'weapon' && nextGrade) {
     html += line('다음 승급', nextGrade + ' · +' + fmt(plan.threshold)) +
-      line('완료한 제작 공정', (s.weapon.marks || []).length + ' / ' + Swordcraft.stages.length) +
-      (plan.requiredHunt ? line('숲 토벌', fmt(Math.min(s.huntBest, plan.requiredHunt)) + ' / ' + plan.requiredHunt + '단계') : '');
+      line('완료한 제작 공정', (s.weapon.marks || []).length + ' / ' + Swordcraft.stages.length);
   }
   if (plan.next <= plan.level) return html + line(controls.heading, controls.detail) + controls.button;
   html += line('다음 재련', '+' + fmt(plan.next) + ' · ' + fmt(plan.cost) + ' G') + line('성공 확률', '100%');
@@ -264,7 +258,7 @@ function journeyDetails(s, type, plan) {
       '" data-bulk="' + plan.bulk + '" data-bulk-cost="' + plan.bulkCost + '">+' + fmt(plan.bulk) +
       '까지 재련 · ' + fmt(plan.bulkCost) + ' G</button>';
   }
-  if (s.gold < plan.cost) html += go('forest', '숲에서 골드 벌기', 'action');
+  if (s.gold < plan.cost) html += line('부족한 골드', fmt(plan.cost - s.gold) + ' G') + go('forest', '숲에서 골드 벌기', 'action');
   return html;
 }
 function swordPromotionView(s, traitOnly = false) {
@@ -278,6 +272,18 @@ function swordPromotionView(s, traitOnly = false) {
   return [title, summary + section('검에 새길 특성') + '<div class="journey-traits">' +
     Game.journeyTraits.map((name, index) => btn(traitOnly ? 'chooseSwordTrait' : 'promoteSword', icon(['shield','sword','heart','flame'][index]) + '<b>' + name + '</b><small>' +
       ['반격 피해 약 +3%', '적 체력이 30% 미만일 때 피해 +10%', '내 체력이 35% 미만일 때 받는 피해 −13%', '강공 피해 +8%'][index] + '</small>', index)).join('') + '</div>'];
+}
+function smithExperienceBar(s) {
+  if (!s.journeyEconomy) return '';
+  const smith = Game.journeySmith(s);
+  const maximum = smith.next === null;
+  const needed = maximum ? 1 : smith.next - smith.floor;
+  const progress = maximum ? needed : smith.xp - smith.floor;
+  const amount = maximum ? '최고 레벨' : fmt(progress) + ' / ' + fmt(needed) + ' XP';
+  const label = '대장장이 Lv.' + fmt(smith.level);
+  return '<div class="smith-experience"><b>' + label + '</b><span>' + amount + '</span>' +
+    '<progress aria-label="' + label + ' 경험치" aria-valuetext="' + amount + '" value="' + progress +
+    '" max="' + needed + '"></progress></div>';
 }
 function forgeView(s) {
   const g = s[gear], weapon = gear === "weapon", page = phonePage("forge");
@@ -316,7 +322,7 @@ function forgeView(s) {
     '<div class="actions forge-support">' + openBtn("temper", icon("flame") + (s.heat ? "담금질 +" + s.heat + "%p" : "담금질")) +
     (journey ? go("forest", icon("trees") + "숲 사냥", "action") : openBtn("guards", icon("shield") + (equipped.length ? "가호 장착됨" : "가호"))) +
     '<button class="round" data-open="risk" aria-label="' + (journey ? "재련 비용과 승급 조건" : "강화 확률과 실패 조건") + '">' + icon("circle-help") + '</button></div>' +
-    (weapon ? '' : liningCard(s)) + '</section></div>';
+    (weapon ? '' : liningCard(s)) + smithExperienceBar(s) + '</section></div>';
 }
 function restoreButton(s, book) {
   return btn(
@@ -494,7 +500,7 @@ function chestReceipt(c) {
     (c.counter || c.extra || c.goblinGold ? desc("기본 " + fmt(c.base) + " G" + (c.counter ? " · 반격 +" + fmt(c.counter) + " G" : "") +
       (c.goblinGold ? " · 황금 고블린 +" + fmt(c.goblinGold) + " G" : "") +
       (c.extra ? " · 상자 보너스 +" + fmt(c.extra) + " G" : "")) : "") +
-    loot("anvil", "사냥 재료 묶음", c.journeyBundle) + loot("trees", "숲결 섬유", c.fiber) + loot("sparkles", "별의 파편", c.shards) + loot("scroll-text", "10% 주문서", c.scrolls) +
+    loot("trees", "숲결 섬유", c.fiber) + loot("sparkles", "별의 파편", c.shards) + loot("scroll-text", "10% 주문서", c.scrolls) +
     c.charms.map((n, i) => loot("gift", Game.blessings[i], n)).join("") + "</div>";
 }
 function huntResult(last, chests) {

@@ -217,6 +217,14 @@ const Game = (() => {
     s.swordRecord = { id, origin, startLevel: s.weapon.level, hits: 0, recent: [], promotionVersion: 1 };
   }
   function enableJourney(s, newGame = false) {
+    if (s.journeyEconomy?.version === 1) {
+      const old = s.journeyEconomy;
+      const pending = s.chests.filter(chest => chest.journeyBundle === 1);
+      const xp = journey.convertLegacyXp(old.xp + 10 * (old.bundles + pending.length));
+      for (const chest of pending) delete chest.journeyBundle;
+      if (s.lastChest) delete s.lastChest.journeyBundle;
+      s.journeyEconomy = { version: 2, xp, previousBest: old.previousBest };
+    }
     if (s.journeyEconomy) return;
     const recorded = [s.weapon, ...s.bag, ...s.field].find(g => g.recordId === s.swordRecord.id);
     if (recorded) {
@@ -224,7 +232,7 @@ const Game = (() => {
       if (s.field.includes(recorded)) settle(s);
       recorded.journeyBlade = true;
     }
-    s.journeyEconomy = { version: 1, xp: 0, bundles: 0, previousBest: newGame ? 0 : s.best };
+    s.journeyEconomy = { version: 2, xp: 0, previousBest: newGame ? 0 : s.best };
     s.swordRecord.promotionVersion = 2;
     if (newGame) s.gold = 1000;
   }
@@ -240,14 +248,16 @@ const Game = (() => {
     return !!s.journeyEconomy && ![s.weapon, ...s.bag, ...s.field].some(g => g.recordId === s.swordRecord.id);
   }
   function journeySmith(s) {
-    const { xp, bundles } = s.journeyEconomy;
+    const { xp } = s.journeyEconomy;
     const info = journey.smith(xp);
-    return { ...info, xp, bundles, next: info.level < 70 ? journey.xpAt(info.level + 1) : null };
+    return { ...info, xp, floor: journey.xpAt(info.level), next: info.level < 70 ? journey.xpAt(info.level + 1) : null };
   }
-  function studyJourney(s) {
-    const economy = s.journeyEconomy;
-    economy.xp += economy.bundles * 10;
-    economy.bundles = 0;
+  function earnSmithXp(s, amount) {
+    if (s.journeyEconomy) s.journeyEconomy.xp = Math.min(Number.MAX_SAFE_INTEGER, s.journeyEconomy.xp + amount);
+  }
+  function payForgeFee(s, amount) {
+    s.gold -= amount;
+    earnSmithXp(s, amount);
   }
   function journeyForge(s, type) {
     if (!s.journeyEconomy || !["weapon", "armor"].includes(type)) return null;
@@ -257,12 +267,10 @@ const Game = (() => {
     const missing = weapon ? craft.stages.findIndex((_, i) => !g.marks?.[i]) : -1;
     const targetGrade = weapon && g.grade < 3 ? g.grade + 1 : null;
     const threshold = targetGrade ? journey.thresholds[g.grade] : journey.limit;
-    const requiredHunt = targetGrade ? [0, 5, 15][g.grade] : 0;
-    const needsHunt = s.huntBest < requiredHunt;
     const needsProcess = processIndex >= 0;
     const atThreshold = !!targetGrade && g.level >= threshold;
-    const canPromote = atThreshold && !needsHunt && missing < 0;
-    const canChooseTrait = weapon && g.grade >= 2 && g.journeyTrait === undefined && g.level >= 200 && missing < 0 && s.huntBest >= 5;
+    const canPromote = atThreshold && missing < 0;
+    const canChooseTrait = weapon && g.grade >= 2 && g.journeyTrait === undefined && g.level >= 200 && missing < 0;
     const limit = journey.limit;
     const ceiling = Math.min(threshold, missing >= 0 ? craft.stages[missing].level : limit);
     const next = Math.max(g.level, Math.min(g.level + 1, ceiling));
@@ -274,8 +282,8 @@ const Game = (() => {
       if (fee(mid) <= s.gold) bulk = mid;
       else end = mid - 1;
     }
-    return { level:g.level, grade:g.grade, targetGrade, threshold, requiredHunt, processIndex,
-      needsHunt, needsProcess, atThreshold, canPromote, canChooseTrait, limit, next, cost:fee(next), bulk, bulkCost:fee(bulk) };
+    return { level:g.level, grade:g.grade, targetGrade, threshold, processIndex,
+      needsProcess, atThreshold, canPromote, canChooseTrait, limit, next, cost:fee(next), bulk, bulkCost:fee(bulk) };
   }
   const journeyOrders = [[3,200],[7,500],[200,10000],[500,25000],[1000,50000],[2000,100000],[5000,250000],[9999,500000]];
   function currentOrder(s) {
@@ -393,6 +401,15 @@ const Game = (() => {
   }
   function price(g) {
     return Math.round((80 + 40 * g.level ** 1.8) * (1 + g.grade * 0.5));
+  }
+  function saleValue(g) {
+    return 300 + Math.round(price(g) * (1 + g.level) * 1.6);
+  }
+  function brokenSwordBonus(s, sword) {
+    if (!s.journeyEconomy) return "";
+    const value = saleValue(sword);
+    earnSmithXp(s, value);
+    return " · 대장장이 +" + value.toLocaleString("ko-KR") + " XP";
   }
   function enhancementCost(s, g) {
     if (s.journeyEconomy && (g === s.armor || isJourneyGear(s, g))) {
@@ -647,7 +664,7 @@ const Game = (() => {
         const cost = bulk ? plan.bulkCost : plan.cost;
         if (to <= g.level || s.gold < cost) return fail("재련할 골드가 부족합니다.");
         const from = g.level;
-        s.gold -= cost;
+        payForgeFee(s, cost);
         g.level = to;
         if (type === "weapon") {
           recordWeapon(s);
@@ -657,14 +674,14 @@ const Game = (() => {
         } else g.journeyArmor = true;
         s.attempts++;
         s.hits++;
-        studyJourney(s);
         return success("안전 재련 · +" + from + " → +" + to + " · " + cost.toLocaleString() + " G", "win");
       }
       case "chooseSwordTrait":
       case "promoteSword": {
         const plan = journeyForge(s, "weapon");
         const choosing = act === "chooseSwordTrait";
-        if (!(choosing ? plan?.canChooseTrait : plan?.canPromote) || s.hunt || s.weapon.finalTrial) return fail("검의 공정·강화·토벌 조건을 확인하세요.");
+        if (s.hunt || s.weapon.finalTrial) return fail("진행 중인 전투나 돌파를 먼저 마치세요.");
+        if (!(choosing ? plan?.canChooseTrait : plan?.canPromote)) return fail("검의 제작 공정과 강화 단계를 확인하세요.");
         if (![0,1,2,3,"0","1","2","3"].includes(arg)) return fail("승급 선택을 확인하세요.");
         if (choosing) {
           s.weapon.journeyTrait = Number(arg);
@@ -692,7 +709,6 @@ const Game = (() => {
           const balance = s.forestFiber + c.fiber;
           if (!Number.isSafeInteger(balance)) return fail("섬유 보관 한도에 도달했습니다. 보물은 보관함에 남습니다.");
           s.forestFiber = balance;
-          if (c.journeyBundle && s.journeyEconomy) s.journeyEconomy.bundles++;
         }
         s.chests.splice(index, 1);
         s.gold += c.gold;
@@ -735,7 +751,7 @@ const Game = (() => {
           return fail("첫 연마 기록과 마감 비용이 필요합니다.");
         const w = s.weapon;
         if (copy) {
-          s.gold -= copyFee;
+          payForgeFee(s, copyFee);
           w.marks = [p.mark];
           if (p.grind) w.grind = [...p.grind];
         }
@@ -780,15 +796,18 @@ const Game = (() => {
         recordWeapon(s);
         return success("호흡 단조 완료 · 검 +" + s.weapon.level, "win");
       }
-      case "finalStart":
-        return finale.start(s, arg, price, t, random)
-          ? success(finale.methods[arg].name + " 시작")
-          : fail("검의 특성, 진행 중인 돌파, 시작 비용을 확인하세요.");
+      case "finalStart": {
+        if (!finale.start(s, arg, price, t, random)) return fail("검의 특성, 진행 중인 돌파, 시작 비용을 확인하세요.");
+        earnSmithXp(s, s.weapon.finalTrial.fee);
+        return success(finale.methods[arg].name + " 시작");
+      }
       case "finalMove": {
         const w = s.weapon,
           f = w.finalTrial;
+        const gold = s.gold;
         const result = finale.move(s, arg, price, t, pressedAt);
         if (!result) return fail("돌파 수련 상태와 보유 재료를 확인하세요.");
+        if (gold > s.gold) earnSmithXp(s, gold - s.gold);
         if (result.outcome === "continue") return { ok: true, kind: "training", message: "" };
         const method = finale.methods[f.key].name;
         delete w.finalTrial;
@@ -843,7 +862,7 @@ const Game = (() => {
         if (recorded && choice < 0) return fail("이 공정의 마감을 선택하세요.");
         const fee = craft.fee(sword, price, i);
         if (s.gold < fee) return fail("마감 비용이 부족합니다. 작업 진행은 저장됩니다.");
-        s.gold -= fee;
+        payForgeFee(s, fee);
         sword.marks = sword.marks || [];
         sword.marks[i] = trait;
         if (choice >= 0) (sword.journeyWork ??= [null, null, null])[i] = choice;
@@ -854,7 +873,6 @@ const Game = (() => {
         sword.level = Math.max(sword.level, stage.target);
         recordWeapon(s);
         delete sword.work;
-        if (isJourneyGear(s, sword)) studyJourney(s);
         return success(
           stage.title +
             (inherit ? " 전승" : " 완료") +
@@ -873,7 +891,7 @@ const Game = (() => {
         if (!recovery || Number(arg) !== recovery.target)
           return fail("현재 검에서 재단조할 수 있는 단계를 확인하세요.");
         if (s.gold < recovery.cost) return fail("재단조 비용이 부족합니다.");
-        s.gold -= recovery.cost;
+        payForgeFee(s, recovery.cost);
         w.forgePeak = knownPeak(w);
         w.level = recovery.target;
         return success("칼날 재단조 · +14 → +" + w.level + " · " + recovery.cost.toLocaleString() + " G", "win");
@@ -885,7 +903,7 @@ const Game = (() => {
         if (book.clues < book.restoreCost || s.gold < book.restoreGold)
           return fail("복원에 필요한 단서 또는 골드가 부족합니다.");
         s.forgeClues -= book.restoreCost;
-        s.gold -= book.restoreGold;
+        payForgeFee(s, book.restoreGold);
         const old = s.weapon.level;
         s.weapon.level = book.peak;
         return success("기록 복원 · +" + old + " → +" + book.peak + " · 단서 " + book.restoreCost + "개 사용", "win");
@@ -911,7 +929,7 @@ const Game = (() => {
         if (double) g.seal.uses++;
         if (focused) s.forgeClues -= book.focusCost;
         if (book && book.peak >= 15) g.forgePeak = book.peak;
-        s.gold -= cost;
+        payForgeFee(s, cost);
         s.attempts++;
         s.heat = 0;
         if (s.scrollOn && s.scrolls) {
@@ -969,6 +987,7 @@ const Game = (() => {
           );
         }
         if (destroyed && !protection.destroy) {
+          const bonus = type === "weapon" ? brokenSwordBonus(s, g) : "";
           s[type] = freshGear();
           const pattern = type === "weapon" ? breakPattern(g) : null;
           if (pattern) s.weapon.pattern = pattern;
@@ -976,7 +995,7 @@ const Game = (() => {
           return success(
             "장비가 파괴되어 순철 장비를 다시 받았습니다." +
               note +
-              (pattern ? " · 초벌본 +" + pattern.level + " 회수" : ""),
+              (pattern ? " · 초벌본 +" + pattern.level + " 회수" : "") + bonus,
             "loss",
           );
         }
@@ -1065,7 +1084,7 @@ const Game = (() => {
       case "sell": {
         if (isJourneyGear(s, g)) return fail("여정 장비는 계속 보관합니다.");
         if (g.level < 1) return fail("1강 이상 장비를 판매할 수 있습니다.");
-        const value = 300 + Math.round(price(g) * (1 + g.level) * 1.6);
+        const value = saleValue(g);
         s.gold += value;
         s[type] = freshGear(chanceGrade());
         return success(
@@ -1258,7 +1277,6 @@ const Game = (() => {
           if (h.materialRule === 1) {
             Object.assign(chest, { materialRule: 1, entryId: h.id, fiber: forestYield(h.rank) });
           }
-          if (h.journeyBattle) chest.journeyBundle = 1;
           if (h.goblinCaught && !h.journeyBattle) {
             chest.goblinGold = base / 2;
             chest.gold += chest.goblinGold;
@@ -1632,8 +1650,8 @@ const Game = (() => {
           return success("초월 성공 · +" + a.level, "win");
         }
         if (roll < rate + 15) {
-          s.bag.splice(i, 1);
-          return success("초월 실패 · 보조 무기가 파괴되었습니다.", "loss");
+          const [lostSword] = s.bag.splice(i, 1);
+          return success("초월 실패 · 보조 무기가 파괴되었습니다." + brokenSwordBonus(s, lostSword), "loss");
         }
         return success("초월 실패 · 두 무기가 유지되었습니다.", "loss");
       }
@@ -1654,7 +1672,7 @@ const Game = (() => {
   }
   return {
     forestYield, liningCosts, huntStats, hunting, settleHunting, huntingStatus, resetProgress,
-    startSwordRecord, freshJourney, enableJourney, isJourneyGear, canAdoptSword, journeyForge, journeySmith, currentOrder, dailyGold,
+    startSwordRecord, freshJourney, enableJourney, isJourneyGear, canAdoptSword, journeyForge, journeySmith, saleValue, currentOrder, dailyGold,
     journeyProcessOptions: i => journey.processOptions[i],
     huntArea: journey.area, journeyTraits: journey.bladeTraits,
     migrateTraining,

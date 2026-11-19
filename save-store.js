@@ -79,8 +79,10 @@ const SaveStore = (() => {
       if (data[name] != null && !object(data[name])) throw fault("corrupt");
     if (data.journeyEconomy !== undefined) {
       const j = data.journeyEconomy;
-      if (j?.version > 1) throw fault("future");
-      if (!j || j.version !== 1 || ![j.xp,j.bundles,j.previousBest].every(n => Number.isSafeInteger(n) && n >= 0) ||
+      if (j?.version > 2) throw fault("future");
+      const count = n => Number.isSafeInteger(n) && n >= 0;
+      if (!j || ![1,2].includes(j.version) || !count(j.xp) || !count(j.previousBest) ||
+          (j.version === 1 && !count(j.bundles)) ||
           data.swordRecord?.promotionVersion !== 2) throw fault("corrupt");
     }
     for (const r of [data.swordRecord, data.previousSwordRecord]) {
@@ -236,7 +238,7 @@ const SaveStore = (() => {
       }
       const state = decode(expected);
       const before = JSON.parse(expected);
-      needsMigration = before.version === 1 || !before._save || !before.hunting || !before.journeyEconomy || !!(before.hunt && !before.hunt.id);
+      needsMigration = before.version === 1 || !before._save || !before.hunting || before.journeyEconomy?.version !== 2 || !!(before.hunt && !before.hunt.id);
       lastSavedAt = state._save?.savedAt ?? state.last ?? null;
       return state;
     }

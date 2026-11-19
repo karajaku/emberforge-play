@@ -127,7 +127,6 @@ const HuntWatch=(()=>{
       '<div class="watch-reward" role="status">'+(detail?'<div class="trail-detail">'+detail+'</div>':'')+skills(h)+(reward?'<div class="watch-receipt"><div class="watch-receipt-head"><b>'+reward.rank+'단계 클리어</b><strong>'+icon('coins')+' +'+fmt(reward.gold)+' G</strong>'+
         (!active && reward.fiber ? '<button class="action lining-link" data-go="forge" data-gear="armor">'+icon('shield')+'안감 제작</button>' : '')+'</div><div class="watch-loot">'+
         (reward.fiber ? '<span>'+icon('trees')+'숲결 섬유 +'+reward.fiber+'</span>' : '')+
-        (reward.journeyBundle ? '<span>'+icon('anvil')+'사냥 재료 +1묶음</span>' : '')+
         (reward.goblinGold?'<span>'+icon('coins')+'고블린 +'+fmt(reward.goblinGold)+' G 포함</span>':'')+
         (reward.counter>0?'<span class="watch-counter-reward">반격 +'+fmt(reward.counter)+' G 포함</span>':'')+
         [[reward.shards,'sparkles','별의 파편'],[reward.scrolls,'scroll-text','주문서'],...[0,1,2].map(i=>[reward.charms[i],['trees','hammer','star'][i],Game.blessings[i]])].filter(([n])=>n).map(([n,ic,title])=>'<span aria-label="'+title+' '+n+'개" title="'+title+'">'+icon(ic)+' +'+n+'</span>').join('')+'</div></div>':reason&&!(h&&reason==='일시 중단')?'<b>'+reason+'</b>':'')+'</div>'+

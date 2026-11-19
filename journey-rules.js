@@ -24,7 +24,19 @@ const JourneyRules = (() => {
      {key:"ward", name:"기름 담금질", detail:"숲에서 공격 시 피해 +3%"}],
   ];
   const thresholds = [20, 200, 1000];
-  const xpAt = (level) => 7 * (level - 1) * (level + 2);
+  // Four opening strikes buy level 2. Higher tiers follow the rising cost of both equipment slots.
+  function xpAt(level) {
+    const n = level - 1;
+    return 436 * n + 64 * n ** 4;
+  }
+  function convertLegacyXp(xp) {
+    const oldAt = level => 7 * (level - 1) * (level + 2);
+    let level = 1;
+    while (level < 70 && xp >= oldAt(level + 1)) level++;
+    if (level === 70) return xpAt(level);
+    const fraction = (xp - oldAt(level)) / (oldAt(level + 1) - oldAt(level));
+    return xpAt(level) + Math.floor(fraction * (xpAt(level + 1) - xpAt(level)));
+  }
   function smith(xp) {
     let level = 1;
     while (level < 70 && xp >= xpAt(level + 1)) level++;
@@ -69,6 +81,6 @@ const JourneyRules = (() => {
       prize: Math.round(Math.round(g / expectedWins) * live.current.balance.journeyForestGold / anchors[0][3]) * live.forestMultiplier(time),
     };
   }
-  return { limit, bladeTraits, processOptions, thresholds, smith, xpAt, cost, step, area };
+  return { limit, bladeTraits, processOptions, thresholds, smith, xpAt, convertLegacyXp, cost, step, area };
 })();
 if (typeof module !== "undefined") module.exports = JourneyRules;
