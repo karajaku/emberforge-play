@@ -29,8 +29,9 @@ let huntStart = -1000,
   animationStart = -1000,
   lastFocus = null;
 const allRoutes = ["forge", "world", "bag", "growth", ...Object.keys(zones)];
+const homeRoute = "forest";
 const current = () => {
-  const id = location.hash.slice(1).split("/")[0];
+  const id = location.hash.slice(1).split("/")[0] || homeRoute;
   return allRoutes.includes(id) ? id : "forge";
 };
 const images = {};
@@ -98,12 +99,12 @@ function locked(fn, maintenance = false) {
   queue = queue.catch(() => {}).then(() => saveLock(run)).catch(failSave);
   return queue;
 }
-function reloadAtForge() {
+function reloadAtHome() {
   HuntWatch.stop('', false);
   repeatHunting.stop("초기화");
   autoCombat.stop();
   restarting = true;
-  history.replaceState(null, "", "#forge");
+  history.replaceState(null, "", "#" + homeRoute);
   location.reload();
 }
 function startNewGame() {
@@ -114,7 +115,7 @@ function startNewGame() {
     if (modal !== "confirmNewGame") return;
     state = Game.resetProgress(state);
     save("reset");
-    reloadAtForge();
+    reloadAtHome();
   });
 }
 function showSaveGuard() {
@@ -555,7 +556,7 @@ function focusLesson() {
   if (tip.route === "bag") bagTab = "gear";
   if (tip.route === "forge") gear = "weapon";
   const destination = phoneLessonDestination(tip);
-  if ((location.hash.slice(1) || "forge") !== destination) {
+  if ((location.hash.slice(1) || homeRoute) !== destination) {
     pendingLessonFocus = true;
     nav(destination);
     return;
