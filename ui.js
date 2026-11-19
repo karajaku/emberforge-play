@@ -490,6 +490,7 @@ function render() {
   else if (id === "bag") view = GameUI.bag(state, bagView(state));
   else if (id === "growth") view = growthView(state);
   else if (id === "forest" && phonePage(id) === "hunt") view = HuntWatch.view(state);
+  else if (id === "forest" && phonePage(id) === "gather") view = FieldcraftView.workshop(state);
   else if (zones[id]) view = zoneView(state, id);
   else if (phonePage(id) === "board")
     view = card("대장간 게시판",
@@ -527,7 +528,8 @@ function render() {
 }
 function renderLesson() {
   const host = el("apprentice");
-  host.hidden = !state.apprentice.visible || (current() === "forest" && phonePage("forest") === "hunt" && Apprentice.next(state) !== 1);
+  host.hidden = !state.apprentice.visible || (current() === "forest" && (phonePage("forest") === "gather" ||
+    (phonePage("forest") === "hunt" && Apprentice.next(state) !== 1)));
   if (host.hidden) return;
   const step = Apprentice.next(state);
   const tip = step >= 0 ? Apprentice.guidance(state, step) : null;
@@ -758,7 +760,7 @@ function modalData() {
     case "confirmNewGame":
       return [
         "처음부터 시작할까요?",
-        desc("동료 수집과 레벨, 장비, 골드, 숲결 섬유, 숲 방호 안감, 환생과 이야기 기록을 초기화하고 첫 장면부터 시작합니다. 사냥권 잔량·충전 시간·출석 수령 기록은 유지되며 최초 30개를 다시 지급하지 않습니다. 현재 원본을 별도로 보존한 뒤 새 진행 저장이 성공해야 시작합니다.") +
+        desc("동료 수집과 레벨, 채집 재료·파견·포획 도구, 장비, 골드, 숲결 섬유, 숲 방호 안감, 환생과 이야기 기록을 초기화하고 첫 장면부터 시작합니다. 사냥권 잔량·충전 시간·출석 수령 기록은 유지되며 최초 30개를 다시 지급하지 않습니다. 현재 원본을 별도로 보존한 뒤 새 진행 저장이 성공해야 시작합니다.") +
           '<div class="actions">' + openBtn("settings", "취소") +
           '<button class="action danger" data-new-game>진행을 지우고 시작</button></div>',
       ];
@@ -1158,6 +1160,9 @@ document.addEventListener("click", (e) => {
   if (d.open) return showModal(d.open);
   if ("close" in d) return dismissModal();
   if (d.act) {
+    if (d.act === "dispatchGatherer") return act(d.act, { kind: d.arg, site: el("gatherSite").value });
+    if (d.act === "recallGatherer") return act(d.act, { kind:d.arg, start:Number(d.start), site:d.site });
+    if (d.act === "resolveCapture") return act(d.act, { tool:d.arg, id:decodeURIComponent(d.entry), wave:Number(d.wave) });
     if (d.act === "craftHuntLining") {
       if (performance.now() - lastLiningPress < 450 || !state._save) return;
       lastLiningPress = performance.now();
@@ -1297,6 +1302,7 @@ setInterval(() => {
   el("huntTickets").textContent = brief(wallet.free + wallet.purchased);
   const autoStart = document.querySelector('[data-repeat="start"]');
   HuntWatch.refreshWallet();
+  FieldcraftView.refreshTrips(state);
   if (autoStart) autoStart.disabled = wallet.free + wallet.purchased < 1;
   for (const button of document.querySelectorAll('[data-act="huntStart"]'))
     button.disabled = wallet.free + wallet.purchased < 1;

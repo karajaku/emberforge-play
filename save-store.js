@@ -55,11 +55,17 @@ const SaveStore = (() => {
       defaults.companions = trail.freshTeam(data.huntBest);
     }
     for (const battle of [data.hunt, data.lastHunt]) {
+      if (battle?.capturePending !== undefined && (battle.capturePending !== true || battle.captureUsed ||
+          !battle.partner || battle.trailVersion !== 1 || !Object.hasOwn(trail.companions,battle.enemyKind) ||
+          !team || Object.hasOwn(team.xp,battle.enemyKind) ||
+          (battle === data.hunt ? battle.enemyHp !== 0 : data.hunt || !battle.chestId))) throw fault("corrupt");
+      if (battle?.captureUsed !== undefined && battle.captureUsed !== true) throw fault("corrupt");
       if (battle?.partner !== undefined && (!team?.started || !object(battle.partner) ||
           !Object.hasOwn(team.xp, battle.partner.kind) || !Number.isInteger(battle.partner.level) ||
           battle.partner.level < 1 || battle.partner.level > 60 || !Array.isArray(battle.recruited) ||
           !battle.recruited.every(kind => Object.hasOwn(team.xp, kind)))) throw fault("corrupt");
     }
+    if (data.fieldcraft !== undefined && !game.fieldcraft.valid(data.fieldcraft, team || defaults.companions, data.hunt)) throw fault("corrupt");
     if (data.version === 2 && (!Number.isSafeInteger(data.forestFiber) || data.forestFiber < 0 ||
         !Number.isInteger(data.huntLining) || data.huntLining < 0 || data.huntLining > game.liningCosts.length))
       throw fault("corrupt");
@@ -189,7 +195,7 @@ const SaveStore = (() => {
       }
       const state = decode(expected);
       const before = JSON.parse(expected);
-      needsMigration = before.version === 1 || !before._save || !before.hunting || !before.companions || !!(before.hunt && !before.hunt.id);
+      needsMigration = before.version === 1 || !before._save || !before.hunting || !before.companions || !before.fieldcraft || !!(before.hunt && !before.hunt.id);
       lastSavedAt = state._save?.savedAt ?? state.last ?? null;
       return state;
     }

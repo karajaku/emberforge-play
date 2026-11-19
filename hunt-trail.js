@@ -71,10 +71,6 @@ const HuntTrail = (() => {
   function defeat(s, h) {
     const team = s.companions;
     team.xp[h.partner.kind] = Math.min(236, team.xp[h.partner.kind] + 2);
-    if (Object.hasOwn(companions, h.enemyKind) && !Object.hasOwn(team.xp, h.enemyKind)) {
-      team.xp[h.enemyKind] = (h.partner.level - 1) * 4;
-      h.recruited.push(h.enemyKind);
-    }
   }
   return { region, lineup, enemy, opponent, enter, awaitingNext, companions, starters, freshTeam, partnerLevel, partner, defeat };
 })();
