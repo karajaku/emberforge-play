@@ -1,5 +1,10 @@
 "use strict";
 
+function healthAmount(n) {
+  if (n < 1000000) return fmt(n);
+  const unit = n >= 100000000 ? 100000000 : 10000;
+  return (Math.floor(n / unit * 10) / 10).toLocaleString("ko-KR") + (unit === 10000 ? "만" : "억");
+}
 function healthMeter(side, name, hp, max) {
   const scale = "scaleX(" + hp / max + ")";
   return '<div class="hp-meter" data-side="' + side + '" role="meter" aria-label="' + name +
@@ -8,7 +13,7 @@ function healthMeter(side, name, hp, max) {
     '<b class="hp-loss" aria-hidden="true"></b></div>' +
     '<div class="hp-track"><i class="hp-trail" style="transform:' + scale + '"></i>' +
     '<i class="hp-fill" style="transform:' + scale + '"></i></div>' +
-    '<div class="hp-count"><small>HP</small> <strong>' + fmt(hp) + '</strong> / ' + fmt(max) + '</div></div>';
+    '<div class="hp-count"><small>HP</small> <strong>' + healthAmount(hp) + '</strong> / ' + healthAmount(max) + '</div></div>';
 }
 
 function combatHud(hp, max, enemyHp, enemyMax, enemy) {
@@ -20,14 +25,14 @@ function combatHud(hp, max, enemyHp, enemyMax, enemy) {
 function updateHealthMeter(meter, hp, before, motion) {
   const max = Number(meter.getAttribute("aria-valuemax"));
   meter.setAttribute("aria-valuenow", hp);
-  meter.querySelector(".hp-count strong").textContent = fmt(hp);
+  meter.querySelector(".hp-count strong").textContent = healthAmount(hp);
   const fill = meter.querySelector(".hp-fill"), trail = meter.querySelector(".hp-trail");
   const end = "scaleX(" + hp / max + ")";
   fill.style.transform = trail.style.transform = end;
   const lost = before - hp;
   if (lost <= 0) return;
   const badge = meter.querySelector(".hp-loss");
-  badge.textContent = "−" + fmt(lost);
+  badge.textContent = "−" + healthAmount(lost);
   if (!motion) return;
   const start = "scaleX(" + before / max + ")";
   for (const node of [fill, trail, badge]) for (const animation of node.getAnimations()) animation.cancel();

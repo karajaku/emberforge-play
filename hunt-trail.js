@@ -1,5 +1,6 @@
 "use strict";
 const HuntTrail = (() => {
+  const journey = typeof module !== "undefined" ? require("./journey-rules.js") : JourneyRules;
   const enemies = {
     boar:     { name: "이끼등 멧돼지", sprite: "boar", skill: "charge", first: 2, interval: 3, power: 3 },
     wolf:     { name: "불갈기 늑대", sprite: "wolf", skill: "fang", first: 2, interval: 2, power: 2 },
@@ -30,19 +31,26 @@ const HuntTrail = (() => {
     const area = region(rank);
     return { ...enemies[kind], kind, habitat: area.name, elite: kind === area.boss };
   }
-  function opponent(rank, kind) {
+  function opponent(rank, kind, journeyBattle = false) {
     const base = 90 + Math.round(36 * (rank - 1) ** 1.65);
     const bossStage = rank % 5 === 0;
     const share = kind === "goblin" ? .14 : bossStage && kind !== region(rank).boss ? .25 : .5;
+    if (journeyBattle && rank > 1) {
+      const { w, a } = journey.area(rank);
+      const grade = w >= 1000 ? 3 : w >= 200 ? 2 : w >= 20 ? 1 : 0;
+      const attack = (24 + 9 * w ** 1.65) * (1 + grade * .3);
+      const health = 160 + 46 * a ** 1.6;
+      return { hp: Math.max(1, Math.round(attack * share * (bossStage ? 12.2 : 5))), attack: kind === "goblin" ? 0 : Math.round(health * (bossStage ? .0194 : .035)) };
+    }
     return { hp: Math.max(1, Math.round(base * share)), attack: kind === "goblin" ? 0 : 20 + 9 * rank };
   }
   function enter(h, wave) {
     h.wave = wave;
     h.waveTurn = 1;
     h.enemyKind = lineup(h.rank, h.bonusEncounter)[wave];
-    const def = enemies[h.enemyKind], stats = opponent(h.rank, h.enemyKind);
+    const def = enemies[h.enemyKind], stats = opponent(h.rank, h.enemyKind, h.journeyBattle === 1);
     h.enemyMax = h.enemyHp = stats.hp;
-    h.enemyAttack = stats.attack;
+    h.enemyAttack = Math.round(stats.attack * (h.journeyForce ?? 1));
     h.enemySkillState = { key: def.skill, cooldown: def.first, interval: def.interval, power: def.power };
     h.last = def.name + " 출현";
     delete h.lastDice;

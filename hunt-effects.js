@@ -1,8 +1,8 @@
 /* Presentation only: saved combat results are never delayed, rolled again or mutated. */
 const HuntEffects=(()=>{
-  let timers=[],animations=[],nodes=[],resolve=null,completion=Promise.resolve();
+  let timers=[],animations=[],nodes=[],resolve=null,completion=Promise.resolve(),timeScale=1;
   function cancel(){
-    timers.forEach(clearTimeout);timers=[];
+    timers.forEach(clearTimeout);timers=[];timeScale=1;
     animations.forEach(a=>a.cancel());animations=[];nodes.forEach(n=>n.remove());nodes=[];
     document.querySelector('.watch-arena')?.removeAttribute('data-phase');
     document.querySelectorAll('.watch-roll').forEach(n=>n.classList.remove('rolling','waiting','chosen'));
@@ -10,8 +10,8 @@ const HuntEffects=(()=>{
     document.querySelector('.watch-counter-status')?.style.removeProperty('visibility');
     if(resolve){GameSound.stop();const done=resolve;resolve=null;done();}
   }
-  const later=(fn,ms)=>timers.push(setTimeout(fn,ms));
-  function animate(node,frames,options){if(node&&motionEnabled())animations.push(node.animate(frames,options));}
+  const later=(fn,ms)=>timers.push(setTimeout(fn,ms*timeScale));
+  function animate(node,frames,options){if(node&&motionEnabled())animations.push(node.animate(frames,{...options,duration:options.duration*timeScale}));}
   const names={strike:'공격',block:'방어',heavyStrike:'강공'},icons={strike:'sword',block:'shield',heavyStrike:'hammer'};
   function faceIcon(die,face){const action=DiceCombat.actions[face-1];die.innerHTML=icon(icons[action]);die.dataset.action=action;}
   function burst(actor,kind,damage){
@@ -35,7 +35,9 @@ const HuntEffects=(()=>{
   }
   function play(hit,before,roll){
     cancel();const arena=document.querySelector('.watch-arena');if(!arena)return false;
-    const firstCounter=(roll?roll.skill==='counter':hit.kind==='counter')&&!(before.ripostes>0);
+    // Keep both dice, contact and recovery visible within the two-second journey turn.
+    timeScale=before.journeyBattle===1 ? .5 : 1;
+    const firstCounter=!before.journeyBattle&&(roll?roll.skill==='counter':hit.kind==='counter')&&!(before.ripostes>0);
     if(!motionEnabled()){if(firstCounter)counterBonus(arena);return false;}
     const bonusStatus=document.querySelector('.watch-counter-status');
     if(firstCounter&&bonusStatus)bonusStatus.style.visibility='hidden';

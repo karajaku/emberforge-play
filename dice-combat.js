@@ -29,14 +29,25 @@ const DiceCombat=(()=>{
     const power=action=>action==='block'?0:action==='heavyStrike'?1.7:1;
     const mitigation=action=>action==='block'?.25:1;
     const armor=h.enemyKind==='stone'&&player==='strike'&&skill!=='heavyStrike'?.8:1;
-    const damage=Math.min(h.enemyHp,Math.round(h.attack*(skill?skills[skill].power:power(player))*mitigation(enemy)*armor));
+    const trait = h.journeyTrait;
+    let bladePower = 1;
+    if (trait === 0 && skill === "counter") bladePower = 1 / .97;
+    if (trait === 1 && h.enemyHp < h.enemyMax * .3) bladePower = 1.1;
+    if (trait === 3 && (skill === "heavyStrike" || player === "heavyStrike")) bladePower = 1.08;
+    const work = h.journeyWork;
+    if (work?.[0] === 1) bladePower *= .97;
+    if (work?.[1] === 1 && (skill === "heavyStrike" || player === "heavyStrike")) bladePower *= 1.07;
+    if (work?.[2] === 1 && player !== "block") bladePower *= 1.03;
+    const damage=Math.min(h.enemyHp,Math.round(h.attack*(skill?skills[skill].power:power(player))*mitigation(enemy)*armor*bladePower));
     // Retain the game's player-first lethal priority; two defensive faces do no damage.
     const key = enemySkillState?.key || 'charge';
     const fires = key === 'escape' ? h.waveTurn >= 2 : charge;
     const enemySkill = fires && damage < h.enemyHp ? key : null;
     const amplified = (enemySkill === 'fang' && h.hp <= h.maxHp / 2) || (enemySkill === 'breath' && player === 'heavyStrike');
     const guard = enemySkill === 'crush' && player === 'block' ? .5 : mitigation(player);
-    const taken=damage>=h.enemyHp?0:Math.min(h.hp,Math.round(h.enemyAttack*(enemySkill?enemySkillState.power:power(enemy))*guard*(amplified?1.5:1)*(player==='block'?1-(h.guardReduction||0)/100:1)*(skill==='heavyStrike'?1.5:1)));
+    const tough = trait === 2 && h.hp < h.maxHp * .35 ? .87 : 1;
+    const opening = h.journeyBattle && h.rank % 5 === 0 && h.waveTurn === 1 ? 7 : 1;
+    const taken=damage>=h.enemyHp?0:Math.min(h.hp,Math.round(h.enemyAttack*opening*tough*(work?.[0] === 1 ? .95 : 1)*(enemySkill?enemySkillState.power:power(enemy))*guard*(amplified?1.5:1)*(player==='block'?1-(h.guardReduction||0)/100:1)*(skill==='heavyStrike'?1.5:1)));
     if(skill)cooldowns[skill]=skills[skill].cooldown;
     if(enemySkill)enemySkillState.cooldown=enemySkillState.interval;
     const guarded = player === 'block' && !!enemySkill && enemySkill !== 'escape';

@@ -176,7 +176,7 @@ function storageAction(action) {
     if (!storageError) return; // Ignore already queued recovery/retry double-clicks.
     if (action === "recover") state = store.recover();
     else if (store.pending) save();
-    else { state = readState(); if (!state) { state = Game.fresh(); save(); } else if (store.needsMigration) save(); }
+    else { state = readState(); if (!state) { state = Game.freshJourney(); save(); } else if (store.needsMigration) save(); }
     resumeSaved();
   }, true);
 }
@@ -239,6 +239,8 @@ function syncMusic() {
     { enabled: prefs.music, volume: prefs.musicVolume, hidden: document.hidden });
 }
 function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
+  const bulkQuote = action === "journeyBulk" && typeof arg === "object" ? arg : null;
+  if (bulkQuote) arg = bulkQuote.type;
   if (!repeatGuard && action === "openChest" && repeatHunting.active) {
     repeatHunting.stop("수동 전환"); autoCombat.stop();
   }
@@ -272,6 +274,15 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
       autoCombat.stop();
     }
     sync();
+    if (bulkQuote) {
+      const currentQuote = Game.journeyForge(state, arg);
+      if (!currentQuote || ["level", "bulk", "bulkCost"].some(key => currentQuote[key] !== bulkQuote[key])) {
+        render();
+        if (modal) displayModal();
+        notify("재련 단계 또는 비용이 달라졌습니다. 새 견적을 확인해 주세요.");
+        return;
+      }
+    }
     if (repeatGuard) {
       const next = repeatGuard();
       if (!next) { render(); return; }
@@ -287,6 +298,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
     const strong = sparring && Swordcraft.heavy(state.weapon.work);
     const beforeHunt = state.hunt;
     const beforeHuntHealth = state.hunt && {...state.hunt};
+    if (action === "huntStart" && arg && typeof arg === "object" && !arg.combat) arg = { ...arg, combat: "journey-v1" };
     const result = Game.perform(state, action, arg, undefined, undefined, pressedAt);
     if (!result.ok && (action === "openChest" || action === "craftHuntLining")) {
       if (repeatGuard && repeatHunting.active) repeatHunting.stop("보물 수령 실패");
@@ -316,6 +328,8 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
       "routeFinish",
       "routeSupply",
       "doubleStrike",
+      "journeyForge",
+      "journeyBulk",
       "breathForge",
       "temper",
     ].includes(action);
@@ -334,7 +348,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
     if (result.ok && action === "craftStart") modal = "craft";
     if (!repeatGuard && result.ok && ["openChest", "openTowerChests"].includes(action)) modal = "treasure";
     if (result.ok && action === "stopTower") modal = "towerRun";
-    if (result.ok && ["craftFinish", "autoMine"].includes(action)) modal = "";
+    if (result.ok && ["craftFinish", "autoMine", "promoteSword", "chooseSwordTrait", "journeyBulk"].includes(action)) modal = "";
     if (result.ok && action === "finalStart") modal = "final";
     if (result.ok && finalKey && !state.weapon.finalTrial) modal = "";
     if (
@@ -388,7 +402,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
         const level = state[arg === "armor" ? "armor" : "weapon"].level;
         const promotedTo = result.promotion?.to;
         const label = promotedTo ? Game.grades[promotedTo] + " 승급" : action === "temper" ? (state.heat === 5 ? "정밀 타격" : "담금질 완료") :
-          state.breaks > breaksBefore ? "장비 파괴" : level > gearBefore ? "+" + level + " 강화 성공" : level < gearBefore ? "+" + level + " · 하락" :
+          state.breaks > breaksBefore ? "장비 파괴" : level > gearBefore ? "+" + fmt(level) + (action === "journeyForge" || action === "journeyBulk" ? " 재련 완료" : " 강화 성공") : level < gearBefore ? "+" + level + " · 하락" :
           result.kind === "win" ? "단조 완료" : "+" + level + " · 유지";
         const outcome = promotedTo ? "success" : forgeOutcome;
         if (animate) Feedback.play("forge", stage, label, outcome, repeatStrike, promotedTo);
@@ -567,11 +581,11 @@ function focusLesson() {
 function lessonMenu() {
   const done = Apprentice.completed(state);
   const notes = [
-    "무기 탭에서 강화하기를 누르면 공격력이 오릅니다.",
+    "대장간에서 검을 벼려 공격력을 올리세요.",
     "사냥을 누르고 전투를 지켜보세요. 승리 보상 수령 후 다음 스테이지로 진행합니다.",
-    "모루를 초록 구간에서 두드리면 다음 강화에 +5%p가 붙습니다.",
-    "최고 강화 +3, +7, +13에서 대장간 의뢰 보상을 챙기세요.",
-    "+13 이상 무기를 보관함에 넣은 뒤 배치하세요.",
+    "모루를 초록 구간에서 두드려 골드를 받으세요. 일반 강화에는 확률 보너스도 붙습니다.",
+    "대장간 의뢰에서 목표 강화 단계를 확인하고 골드와 별의 파편을 받으세요.",
+    "+13 이상 보조 검을 보관함에 넣은 뒤 배치하세요.",
     "사냥터에서 모인 골드를 수령하세요. 회수한 검은 보관함에 있습니다.",
   ];
   return [
@@ -595,16 +609,16 @@ function preferenceSwitch(key, label) {
   return '<button class="pref-switch" role="switch" aria-checked="' + on + '" aria-label="' + label +
     '" data-pref="' + key + '"><i aria-hidden="true"></i>' + (on ? "켜짐" : "꺼짐") + "</button>";
 }
-function swordJournal(s) {
-  const record = s.swordRecord;
+function swordJournal(s, record = s.swordRecord) {
   if (!record) return "";
-  const title = record.origin === "starter" ? "첫 검의 기록" : "검의 기록";
+  const title = record === s.previousSwordRecord ? "이전 검의 기록" : record.origin === "starter" ? "첫 검의 기록" : "검의 기록";
   const equipped = s.weapon.recordId === record.id;
   const entries = record.recent.map(entry => {
     const when = new Date(entry.at).toLocaleString("ko-KR", {
       year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit",
     });
-    return '<li><time>' + when + '</time><b>+' + fmt(entry.from) + ' → +' + fmt(entry.to) + '</b></li>';
+    return '<li><time>' + when + '</time><b>' + (entry.safe && entry.to - entry.from > 1 ? "연속 재련 " : "") +
+      '+' + fmt(entry.from) + ' → +' + fmt(entry.to) + '</b></li>';
   }).join("");
   return '<details class="sword-history"><summary>' + icon("sword") + title + '</summary>' +
     line("장착 상태", equipped ? "장착 중" : "미장착") + line("기록 시작", "+" + fmt(record.startLevel)) +
@@ -643,7 +657,9 @@ function modalData() {
           metric("성공", fmt(s.hits)),
           metric("파괴", fmt(s.breaks)),
         ) +
-          swordJournal(s) + section("최근 활동") +
+          swordJournal(s) + (s.previousSwordRecord ? swordJournal(s, s.previousSwordRecord) : "") +
+          (Game.canAdoptSword(s) ? desc("이전 검이 사라졌습니다. 장착한 검으로 새 여정을 시작할 수 있습니다.") +
+            btn("adoptSword", "현재 검의 기록 시작", "", "action") : "") + section("최근 활동") +
           (s.log
             .map(
               (l) =>
@@ -658,6 +674,10 @@ function modalData() {
             )
             .join("") || desc("첫 강화부터 여기에 기록됩니다.")),
       ];
+    case "swordPromotion":
+      return swordPromotionView(s);
+    case "swordTrait":
+      return swordPromotionView(s, true);
     case "guards":
       return [
         "강화 가호",
@@ -703,6 +723,8 @@ function modalData() {
       ];
     case "risk": {
       const g = s[gear];
+      const plan = Game.journeyForge(s, gear);
+      if (plan) return ["재련 수첩", journeyDetails(s, gear, plan)];
       if (g.level >= 20) return ["현재 강화 조건", line("일반 강화", "최고 단계 도달") +
         (gear === "weapon" ? swordOddsTable(g.level) : "")];
       const chances = Game.enhancementChances(s, g);
@@ -783,9 +805,9 @@ function modalData() {
           desc(
             "① 대장간에서 무기와 방어구를 강화하세요. 담금질과 의뢰 보상으로 초반 골드를 마련할 수 있습니다.",
           ) +
-          desc("② 무기 +13을 보관함에 넣고 사냥터에 배치하면 접속을 종료해도 골드가 쌓입니다.") +
+          desc("② +13 이상 보조 검을 보관함에 넣고 사냥터에 배치하면 접속을 종료해도 골드가 쌓입니다.") +
           desc(
-            "③ 무기 +19 또는 레어 이상 무기로 심해 광산에 입장하세요. 20강부터는 환생하여 영구 각인을 새길 수 있습니다.",
+            "③ 기록 중인 검은 공정과 토벌을 마치고 +20·+200·+1,000에서 승급합니다. +20 보조 검은 환생 의식에 쓸 수 있습니다.",
           ) +
           desc("④ 도전의 탑에서는 무기의 공격력과 방어구의 체력이 모두 적용됩니다.") +
           "</div>",
@@ -795,7 +817,7 @@ function modalData() {
         "오늘의 출석 보상",
         '<p class="desc" data-attendance-day="' + Game.day(Date.now()) + '">오늘 ' + Game.day(Date.now()) + " · 한국 시간(KST) 자정 갱신 · 로컬 기기 시각 기준</p>" +
           row("무료 사냥권 +10", "30개를 넘어 보유 가능 · 상한 이상이면 자연 충전 대기", icon("gift")) +
-          row("1,000,000 G", "무한의 탑 입장권 5장 · 산소통 1개", icon("gift")) +
+          row(fmt(Game.dailyGold(s)) + " G", "무한의 탑 입장권 5장 · 산소통 1개", icon("gift")) +
           row("가호 보급", "정령과 대장장이 가호 각 3개", icon("shield")) +
           btn(
             "daily",
@@ -863,9 +885,11 @@ function modalData() {
     case "miningResult":
       return ["자동 탐사 정산", miningResult(s)];
     case "rebirth":
+      if (Game.isJourneyGear(s, s.weapon)) return ["환생 의식", line("필요 장비", "+20 보조 검") +
+        desc("기록 중인 검을 보관하고 환생할 보조 검을 장착하세요.") + go("bag", "장비 보기", "primary")];
       return [
         "환생 의식",
-        desc("장착한 무기와 방어구가 일반 +0으로 돌아갑니다. 보관함과 사냥터는 유지됩니다.") +
+        desc(s.armor.journeyArmor ? "장착한 보조 검을 바칩니다. 안전 재련한 방어구는 계속 착용합니다." : "장착한 보조 검과 방어구가 일반 +0으로 돌아갑니다. 보관함과 사냥터는 유지됩니다.") +
           line(
             "획득 영혼 포인트",
             s.weapon.level === 20 ? [20, 60, 200, 600][s.weapon.grade] + " P" : "20강 무기 필요",
@@ -874,9 +898,11 @@ function modalData() {
             ? line("마지막 돌파", Breakthrough.methods[s.weapon.finishMethod].name)
             : "") +
           inheritancePicker(s) +
-          btn("rebirth", "장착 장비를 바치고 환생", "", "primary", s.weapon.level !== 20),
+          btn("rebirth", s.armor.journeyArmor ? "보조 검을 바치고 환생" : "장착 장비를 바치고 환생", "", "primary", s.weapon.level !== 20),
       ];
     case "fusion": {
+      if (Game.isJourneyGear(s, s.weapon)) return ["초월 합성", desc("초월에 사용할 전설 보조 검을 장착하세요. 기록 중인 검은 대장간에서 계속 벼릴 수 있습니다.") +
+        go("bag/stored", "보관 무기 보기", "primary")];
       const i = Math.max(0, Math.min(4, s.weapon.level - 20));
       return [
         "초월 합성",
@@ -916,7 +942,7 @@ function modalData() {
     case "huntRules":
       return ["주사위 사냥", line("1~3 공격 · 4~5 방어 · 6 강공", "양쪽이 매 턴 굴립니다") +
         desc("강공은 공격력의 1.7배, 방어는 받는 피해를 75% 줄입니다. 먼저 쓰러뜨린 적은 반격하지 못합니다. 40턴 안에 쓰러뜨리지 못하면 패배합니다.") +
-        desc("사냥권 1장으로 한 무리를 연달아 상대합니다. 다섯 번째 스테이지마다 우두머리가 기다립니다. 황금 고블린이 나타나면 두 턴 안에 잡아 보세요. 클리어 상자에 기본 골드의 50%가 추가됩니다. 중단한 전투는 이어서 할 수 있습니다.")];
+        desc("사냥권 1장으로 한 무리를 연달아 상대합니다. 다섯 단계마다 우두머리가 기다립니다. 승리하면 해당 단계의 골드와 사냥 재료를 받습니다. 중단한 토벌은 이어서 할 수 있습니다.")];
     case "battle": {
       if (!battle) return ["전투 기록", ""];
       return [
@@ -1163,6 +1189,9 @@ document.addEventListener("click", (e) => {
   if (d.open) return showModal(d.open);
   if ("close" in d) return dismissModal();
   if (d.act) {
+    if (d.act === "journeyBulk") {
+      return act(d.act, { type: d.arg, level: Number(d.level), bulk: Number(d.bulk), bulkCost: Number(d.bulkCost) });
+    }
     if (d.act === "craftHuntLining") {
       if (performance.now() - lastLiningPress < 450 || !state._save) return;
       lastLiningPress = performance.now();
@@ -1420,7 +1449,7 @@ el("coinIcon").innerHTML = icon("coins");
 el("settingsIcon").innerHTML = icon("settings");
 locked(() => {
   state = readState();
-  if (!state) { state = Game.fresh(); save(); }
+  if (!state) { state = Game.freshJourney(); save(); }
   else if (store.needsMigration) save();
   resumeSaved();
 }, true);

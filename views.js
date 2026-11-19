@@ -155,7 +155,7 @@ function portals() {
   );
 }
 function orderView(s) {
-  const o = Game.orders[s.order];
+  const o = Game.currentOrder(s);
   if (!o) return '<div class="order">' + icon("trophy") + " 모든 대장장이 의뢰 완료</div>";
   return (
     '<div class="order"><span class="ordericon">' +
@@ -206,37 +206,116 @@ function liningCard(s) {
     '</small></div><button class="action" data-act="craftHuntLining" data-level="' + level + '" ' +
     (!cost || s.forestFiber < cost ? 'disabled' : '') + '>' + (!cost ? '완성' : level ? '보강' : '제작') + '</button></section>';
 }
+function journeyForgeControls(s, type, plan) {
+  const level = plan.level, next = plan.next;
+  const grade = Game.grades[plan.targetGrade];
+  const process = plan.needsProcess && Swordcraft.stages[plan.processIndex];
+  const price = fmt(plan.cost) + ' G';
+  const title = grade ? grade + ' 승급' : '최종 재련';
+  if (s.hunt) return {
+    heading: '진행 중인 숲 토벌', detail: fmt(s.hunt.rank) + '단계',
+    button: go('forest', icon('trees') + '토벌 계속', 'primary'),
+  };
+  if (type === 'weapon' && s.weapon.finalTrial) return {
+    heading: '진행 중인 돌파', detail: Breakthrough.methods[s.weapon.finalTrial.key].name,
+    button: openBtn('final', icon('sword') + '돌파 계속', 'primary'),
+  };
+  if (process) return {
+    heading: process.title, detail: '제작 공정 ' + (plan.processIndex + 1) + ' / ' + Swordcraft.stages.length,
+    button: go('forge/craft', icon(process.icon) + '공정 열기<small>' + process.title + '</small>', 'primary'),
+  };
+  if (plan.atThreshold && plan.needsHunt) return {
+    heading: title, detail: '숲 토벌 ' + fmt(Math.min(s.huntBest, plan.requiredHunt)) + ' / ' + plan.requiredHunt + '단계',
+    button: go('forest', icon('trees') + '토벌하기<small>' + plan.requiredHunt + '단계 필요</small>', 'primary'),
+  };
+  if (plan.canPromote) return {
+    heading: title, detail: '승급 조건 달성',
+    button: openBtn('swordPromotion', icon('sparkles') + title + '<small>' + (plan.targetGrade === 2 ? '특성 선택' : '검 벼리기') + '</small>', 'primary'),
+  };
+  if (next <= level) return {
+    heading: '최종 재련 완료', detail: '+' + fmt(level),
+    button: openBtn('journal', icon('scroll-text') + '강화 기록', 'primary'),
+  };
+  return {
+    heading: '안전 재련 +' + fmt(level) + ' → +' + fmt(next), detail: '성공 100%',
+    button: s.gold < plan.cost
+      ? go('forest', icon('trees') + '골드 사냥<small>재련비 ' + price + '</small>', 'primary')
+      : btn('journeyForge', icon('hammer') + '재련<small>' + price + '</small>', type, 'primary'),
+  };
+}
+function journeyDetails(s, type, plan) {
+  const controls = journeyForgeControls(s, type, plan);
+  const nextGrade = Game.grades[plan.targetGrade];
+  let html = line('장비', Game.name(s[type], type) + ' +' + fmt(plan.level));
+  const smith = Game.journeySmith(s);
+  html += line('대장장이 Lv.' + smith.level, fmt(smith.xp) + (smith.next ? ' / ' + fmt(smith.next) : '') + ' XP') +
+    line('즉시 제작 상한', '+' + fmt(smith.cap)) + line('사냥 재료', fmt(smith.bundles) + '묶음 · 재련 시 묶음당 10 XP');
+  if (type === 'weapon' && Number.isInteger(s.weapon.journeyTrait)) html += line('에픽 특성', Game.journeyTraits[s.weapon.journeyTrait]);
+  if (plan.canChooseTrait) html += openBtn('swordTrait', icon('sparkles') + '에픽 특성 새기기', 'action');
+  if (type === 'weapon' && nextGrade) {
+    html += line('다음 승급', nextGrade + ' · +' + fmt(plan.threshold)) +
+      line('완료한 제작 공정', (s.weapon.marks || []).length + ' / ' + Swordcraft.stages.length) +
+      (plan.requiredHunt ? line('숲 토벌', fmt(Math.min(s.huntBest, plan.requiredHunt)) + ' / ' + plan.requiredHunt + '단계') : '');
+  }
+  if (plan.next <= plan.level) return html + line(controls.heading, controls.detail) + controls.button;
+  html += line('다음 재련', '+' + fmt(plan.next) + ' · ' + fmt(plan.cost) + ' G') + line('성공 확률', '100%');
+  if (plan.bulk > plan.next && !s.hunt && !s[type].finalTrial) {
+    html += '<button class="primary" data-act="journeyBulk" data-arg="' + type + '" data-level="' + plan.level +
+      '" data-bulk="' + plan.bulk + '" data-bulk-cost="' + plan.bulkCost + '">+' + fmt(plan.bulk) +
+      '까지 재련 · ' + fmt(plan.bulkCost) + ' G</button>';
+  }
+  if (s.gold < plan.cost) html += go('forest', '숲에서 골드 벌기', 'action');
+  return html;
+}
+function swordPromotionView(s, traitOnly = false) {
+  const p = Game.journeyForge(s, 'weapon');
+  const available = traitOnly ? p?.canChooseTrait : p?.canPromote;
+  if (!available) return ['검의 기록', desc('대장간에서 이 검의 현재 조건을 확인하세요.')];
+  const title = traitOnly ? '에픽 특성 새기기' : Game.grades[p.targetGrade] + ' 승급';
+  const summary = line('현재 검', Game.name(s.weapon) + ' +' + fmt(p.level)) +
+    line('등급', traitOnly ? Game.grades[p.grade] : Game.grades[p.grade] + ' → ' + Game.grades[p.targetGrade]);
+  if (!traitOnly && p.targetGrade !== 2) return [title, summary + btn('promoteSword', icon('hammer') + title, 0, 'primary')];
+  return [title, summary + section('검에 새길 특성') + '<div class="journey-traits">' +
+    Game.journeyTraits.map((name, index) => btn(traitOnly ? 'chooseSwordTrait' : 'promoteSword', icon(['shield','sword','heart','flame'][index]) + '<b>' + name + '</b><small>' +
+      ['반격 피해 약 +3%', '적 체력이 30% 미만일 때 피해 +10%', '내 체력이 35% 미만일 때 받는 피해 −13%', '강공 피해 +8%'][index] + '</small>', index)).join('') + '</div>'];
+}
 function forgeView(s) {
   const g = s[gear], weapon = gear === "weapon", page = phonePage("forge");
-  const recovery = weapon ? Game.midRecovery(g) : null;
+  const plan = Game.journeyForge(s, gear);
+  const recovery = weapon && !plan ? Game.midRecovery(g) : null;
   const cost = Game.enhancementCost(s, g);
   if (page === "orders") return orderView(s);
   if (page === "craft") return scene("forge", Game.name(s.weapon) + " +" + s.weapon.level, "", "검 제작", "blade" + (Game.bladeStage(s.weapon) || "")) + card("검 제작", patternView(s) + craftEntry(s) ||
     desc("검 +7부터 칼날 연마를 시작할 수 있습니다."), "anvil");
   if (page === "training") {
+    if (plan) return card('재련 수첩', journeyDetails(s, gear, plan), 'anvil') + (legacyView(s) || '');
     const w = s.weapon, recover = Game.midRecovery(w);
     return card("단조 수첩 · 전승 수련", [recover ? recoveryView(s, recover) : "",
       notebookView(s, Game.enhancementCost(s, w), recover), legacyView(s)].filter(Boolean).join("") ||
       desc("검 +17부터 단조 수첩 · 첫 환생 이후 전승 수련"), "anvil");
   }
   const stat = Game.stats(s), next = Game.nextEnhancementStats(s, gear);
-  const equipped = Game.blessings.flatMap((name, i) => s.enabled[i] && s.charms[i] > 0
+  const equipped = plan ? [] : Game.blessings.flatMap((name, i) => s.enabled[i] && s.charms[i] > 0
     ? ['<span>' + name + ' <b>' + fmt(s.charms[i]) + '개 남음</b></span>'] : []);
-  const finalChoice = weapon && g.level === 19 && Breakthrough.choices(g, Game.price).length > 0;
+  const finalChoice = !plan && weapon && g.level === 19 && Breakthrough.choices(g, Game.price).length > 0;
+  const journey = plan && journeyForgeControls(s, gear, plan);
+  const hasNext = plan ? plan.next > g.level : g.level < 20;
   const switcher = '<div class="segment gear-switch">' + [["weapon","sword","무기"],["armor","shield","방어구"]].map(([id,ic,label]) =>
     '<button data-gear="' + id + '" aria-pressed="' + (gear === id) + '" class="' + (gear === id ? 'sel' : '') + '">' + icon(ic) + label + '</button>').join('') + '</div>';
   return '<div class="columns forge-layout"><div class="stage-side">' + switcher + scene("forge", Game.name(g, gear) + " +" + g.level,
     "", tier(g, gear), weapon ? "blade" + (Game.bladeStage(g) || "") : "cuirass", g.grade) + '</div><section class="panel">' +
-    '<div class="stats">' + line(weapon ? "공격력" : "체력", fmt(weapon ? stat.attack : stat.hp) + (g.level >= 20 ? "" : ' <span class="mint">→ ' + fmt(weapon ? next.attack : next.hp) + '</span>')) +
-    forgeChances(s, g) + '</div>' +
+    '<div class="stats">' + line(weapon ? "공격력" : "체력", fmt(weapon ? stat.attack : stat.hp) + (hasNext ? ' <span class="mint">→ ' + fmt(weapon ? next.attack : next.hp) + '</span>' : '')) +
+    (journey ? '<div class="forge-odds journey-odds"><b>' + journey.heading + '</b>' +
+      (hasNext && !s.hunt && !g.finalTrial ? '<div class="odds-bar" aria-hidden="true"><i class="odds-success"></i></div>' : '') +
+      '<span>' + journey.detail + '</span></div>' : forgeChances(s, g)) + '</div>' +
     (equipped.length ? '<div class="forge-blessings" role="group" aria-label="장착한 가호">' + equipped.join('') + '</div>' : '') +
     (recovery ? go("forge/training", "+" + recovery.target + " 확정 복구 가능 · 수련", "action") : "") +
     (finalChoice ? openBtn("final", icon("sword") + (g.finalTrial ? Breakthrough.methods[g.finalTrial.key].name + " 계속" : "+20 돌파 방식 선택"), "primary") : "") +
-    (g.level >= 20 ? go("growth", "초월 · 환생 확인", "primary") : btn("enhance", icon("hammer") +
+    (journey ? journey.button : g.level >= 20 ? go("growth", "초월 · 환생 확인", "primary") : btn("enhance", icon("hammer") +
       (recovery ? "일반 강화 +15" : finalChoice ? "일반 강화 +20" : "강화하기") + '<small>' + fmt(cost) + ' G<span class="forge-hold-hint">꾹 눌러 연속</span></small>', gear, finalChoice || recovery ? "action split" : "primary split", !!g.finalTrial)) +
     '<div class="actions forge-support">' + openBtn("temper", icon("flame") + (s.heat ? "담금질 +" + s.heat + "%p" : "담금질")) +
-    openBtn("guards", icon("shield") + (equipped.length ? "가호 장착됨" : "가호")) +
-    '<button class="round" data-open="risk" aria-label="강화 확률과 실패 조건">' + icon("circle-help") + '</button></div>' +
+    (journey ? go("forest", icon("trees") + "숲 사냥", "action") : openBtn("guards", icon("shield") + (equipped.length ? "가호 장착됨" : "가호"))) +
+    '<button class="round" data-open="risk" aria-label="' + (journey ? "재련 비용과 승급 조건" : "강화 확률과 실패 조건") + '">' + icon("circle-help") + '</button></div>' +
     (weapon ? '' : liningCard(s)) + '</section></div>';
 }
 function restoreButton(s, book) {
@@ -415,7 +494,7 @@ function chestReceipt(c) {
     (c.counter || c.extra || c.goblinGold ? desc("기본 " + fmt(c.base) + " G" + (c.counter ? " · 반격 +" + fmt(c.counter) + " G" : "") +
       (c.goblinGold ? " · 황금 고블린 +" + fmt(c.goblinGold) + " G" : "") +
       (c.extra ? " · 상자 보너스 +" + fmt(c.extra) + " G" : "")) : "") +
-    loot("trees", "숲결 섬유", c.fiber) + loot("sparkles", "별의 파편", c.shards) + loot("scroll-text", "10% 주문서", c.scrolls) +
+    loot("anvil", "사냥 재료 묶음", c.journeyBundle) + loot("trees", "숲결 섬유", c.fiber) + loot("sparkles", "별의 파편", c.shards) + loot("scroll-text", "10% 주문서", c.scrolls) +
     c.charms.map((n, i) => loot("gift", Game.blessings[i], n)).join("") + "</div>";
 }
 function huntResult(last, chests) {
@@ -477,7 +556,7 @@ function huntChoices(h) {
 function fieldView(s) {
   const candidates = s.bag
     .map((g, i) =>
-      g.level >= 13
+      g.level >= 13 && !Game.isJourneyGear(s, g)
         ? row(
             Game.name(g) + " +" + g.level,
             fmt(Game.perMinute(g) / 6) + " G / 10초",
@@ -487,7 +566,8 @@ function fieldView(s) {
     )
     .filter(Boolean);
   const deployed = s.field.map((g, i) =>
-    row(Game.name(g) + " +" + g.level, fmt(Game.perMinute(g) / 6) + " G / 10초", btn("recall", "회수", i, "mini"), "", gearPortrait(g,"weapon")));
+    row(Game.name(g) + " +" + g.level, Game.isJourneyGear(s, g) ? "기록 검 · 회수 후 재련" : fmt(Game.perMinute(g) / 6) + " G / 10초",
+      btn("recall", "회수", i, "mini"), "", gearPortrait(g,"weapon")));
   return (
     metrics(
       gaugeMetric("배치 무기", s.field.length, 2 + s.imprints.land, "mint"),
@@ -495,7 +575,7 @@ function fieldView(s) {
       metric("누적 배치 수익", '<span id="yield">' + brief(s.unclaimed) + "</span>"),
     ) +
     btn("collect", "배치 수익 수령", "", "primary") +
-    desc("13강 이상 무기를 보관한 뒤 배치하면 게임을 닫아도 배치 수익이 쌓입니다. 사냥권은 쓰지 않습니다.") +
+    desc("+13 이상 보조 검을 보관한 뒤 배치하면 게임을 닫아도 골드가 쌓입니다.") +
     '<div class="field-slots">' + deployed.join("") + Array.from({length:Math.max(0,2+s.imprints.land-s.field.length)},() => '<div class="field-empty">빈 배치 자리<br><small>+13 이상 무기</small></div>').join("") + '</div>' + (candidates.length ? section("배치할 무기") + '<div class="field-slots">' + candidates.join("") + '</div>' : "") +
     (candidates.length ? "" : go("bag/stored", "무기 보관함 " + icon("arrow-right"), "action"))
   );
@@ -697,7 +777,7 @@ function bagView(s) {
                 '<div class="actions">' +
                 (k === "weapon" ? (Game.canStoreWeapon(s.weapon) ? btn("keep", "무기 보관") :
                   forgeLink) : "") +
-                openBtn("sell-" + k, s[k].level >= 1 ? "판매" : "판매 조건") +
+                (Game.isJourneyGear(s, s[k]) ? "" : openBtn("sell-" + k, s[k].level >= 1 ? "판매" : "판매 조건")) +
                 "</div>",
             ),
           )
@@ -708,8 +788,8 @@ function bagView(s) {
           "보관 무기 · " + s.bag.length + " / 20",
           '<div class="inventory-grid">' + s.bag.map((g,i) => '<article class="inventory-tile">' + gearPortrait(g,"weapon") +
             '<b>' + Game.name(g) + ' +' + g.level + '</b><small>' + [tier(g,"weapon"),craftSummary(g)].filter(Boolean).join(' · ') + '</small>' +
-            '<div class="actions">' + btn("equip","장착",i,"mini") + (g.level >= 13 ? btn("deploy","배치",i,"mini") : '') + '</div></article>').join('') + '</div>' +
-            (s.bag.length ? '' : desc("보관한 무기는 여기에서 장착하거나 +13부터 사냥터에 배치합니다.") + go("bag","장착 장비 보기","action")),
+            '<div class="actions">' + btn("equip","장착",i,"mini") + (g.level >= 13 && !Game.isJourneyGear(s, g) ? btn("deploy","배치",i,"mini") : '') + '</div></article>').join('') + '</div>' +
+            (s.bag.length ? '' : desc("보관한 무기를 장착할 수 있습니다. +13 이상 보조 검은 사냥터에도 배치할 수 있습니다.") + go("bag","장착 장비 보기","action")),
         );
     return tabBar + shelf + (page ? "" : equipment) + stored;
   }
@@ -769,11 +849,11 @@ function growthView(s) {
   const cards = {
     rebirth: card(
       "환생",
-      line("장착 무기", "+" + s.weapon.level + " / +20") + gauge(s.weapon.level, 20) + desc(
-        "20강 무기와 장착 방어구를 초기화하고 등급에 따라 영혼 포인트를 받습니다. 보관 무기와 사냥터는 유지됩니다.",
-      ) +
+      (Game.isJourneyGear(s, s.weapon) ? line("환생 재료", "+20 보조 검") + desc("현재 검은 계속 벼릴 수 있습니다. 환생하려면 보관함에서 보조 검을 장착하세요.") :
+        line("장착 무기", "+" + s.weapon.level + " / +20") + gauge(s.weapon.level, 20) +
+        desc("장착한 +20 보조 검을 바치면 등급에 따라 영혼 포인트를 받습니다.")) +
         (s.inheritedRecipe ? line("전승 제작법", recipeName(s.inheritedRecipe)) : "") +
-        openBtn("rebirth", s.weapon.level === 20 ? "환생 의식 열기" : "환생 조건 보기", s.weapon.level === 20 ? "primary" : "action"),
+        openBtn("rebirth", s.weapon.level === 20 && !Game.isJourneyGear(s, s.weapon) ? "환생 의식 열기" : "환생 조건 보기"),
       "flame",
     ),
     imprint: card("영혼 각인", imprint.join(""), "sparkles"),

@@ -53,13 +53,17 @@ const Swordcraft = (() => {
     return stages.findIndex((s, i) => g.level >= s.level && !g.marks?.[i]);
   }
   function count(g, key) {
-    return (g.marks || []).filter((value) => value === key).length;
+    return (g.marks || []).filter((value, i) => value === key && g.journeyWork?.[i] == null).length;
   }
   function wards(g) {
     return Math.max(0, count(g, "ward") - (g.spentWards || 0));
   }
   function fee(g, price, index) {
     const s = stages[index];
+    if (g.journeyBlade) {
+      const rules = typeof module !== "undefined" ? require("./journey-rules.js") : JourneyRules;
+      return rules.cost("weapon", s.level, s.target, 0);
+    }
     return [s.level, s.level + 1].reduce((n, level) => n + price({ level, grade: g.grade }), 0);
   }
   function makeWork(i, random, t) {

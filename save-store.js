@@ -14,12 +14,18 @@ const SaveStore = (() => {
   const classicKeys = saveKeys("emberforge.classic.save.v1");
   const fault = (code) => Object.assign(new Error(code), { code });
   const object = value => value !== null && typeof value === "object" && !Array.isArray(value);
+  const validWork = w => Array.isArray(w) && w.length === 3 && w.every(v => v === null || v === 0 || v === 1);
   function decode(raw) {
     let data;
     try { data = JSON.parse(raw); } catch { throw fault("corrupt"); }
     if (data?.heirloom !== undefined) throw fault("future");
     if (data?.version > 2 || data?._save?.format > 1 || data?.hunting?.version > 1) throw fault("future");
     for (const h of [data?.hunt, data?.lastHunt]) {
+      if (h?.journeyWork !== undefined && !validWork(h.journeyWork)) throw fault("corrupt");
+      if (h?.journeyBattle > 1) throw fault("future");
+      if (h?.journeyBattle !== undefined && (h.journeyBattle !== 1 || h.trailVersion !== 1 ||
+          (h.journeyForce !== undefined && !(Number.isFinite(h.journeyForce) && h.journeyForce > 0)) ||
+          (h.journeyTrait !== undefined && ![0,1,2,3].includes(h.journeyTrait)))) throw fault("corrupt");
       if (h?.trailVersion > 1) throw fault("future");
       const skillVersion = h?.trailVersion === 1 ? 2 : 1;
       if (h?.skillVersion > skillVersion) throw fault("future");
@@ -71,17 +77,26 @@ const SaveStore = (() => {
       if (name in data && !shape(data[name], defaults[name])) throw fault("corrupt");
     for (const name of ["hunt", "dive", "autoMine", "lastAutoMine", "towerRun", "lastTowerRun", "guild", "lastChest", "lastHunt", "inheritedRecipe"])
       if (data[name] != null && !object(data[name])) throw fault("corrupt");
-    if (data.swordRecord !== undefined) {
-      const r = data.swordRecord;
-      if (r?.promotionVersion > 1) throw fault("future");
+    if (data.journeyEconomy !== undefined) {
+      const j = data.journeyEconomy;
+      if (j?.version > 1) throw fault("future");
+      if (!j || j.version !== 1 || ![j.xp,j.bundles,j.previousBest].every(n => Number.isSafeInteger(n) && n >= 0) ||
+          data.swordRecord?.promotionVersion !== 2) throw fault("corrupt");
+    }
+    for (const r of [data.swordRecord, data.previousSwordRecord]) {
+      if (r === undefined) continue;
+      if (r?.promotionVersion > 2) throw fault("future");
       const level = n => Number.isSafeInteger(n) && n >= 0;
-      if (!object(r) || typeof r.id !== "string" || !r.id || !["starter", "equipped"].includes(r.origin) ||
-          (r.promotionVersion !== undefined && r.promotionVersion !== 1) ||
+      if (!object(r) || typeof r.id !== "string" || !r.id || !["starter", "equipped", "successor"].includes(r.origin) ||
+          (r.promotionVersion !== undefined && ![1,2].includes(r.promotionVersion)) ||
           !level(r.startLevel) || !level(r.hits) || !Array.isArray(r.recent) || r.recent.length !== Math.min(r.hits, 30) ||
           r.recent.some(e => !object(e) || !level(e.from) || !level(e.to) ||
-            (e.to !== e.from + 1 && e.to !== e.from + 2) || !Number.isFinite(e.at))) throw fault("corrupt");
+            (e.safe === true ? (r.promotionVersion !== 2 || e.to <= e.from || e.to > 9999) : (e.to !== e.from + 1 && e.to !== e.from + 2)) || !Number.isFinite(e.at))) throw fault("corrupt");
     }
     for (const gear of [data.weapon, data.armor ?? defaults.armor, ...(data.bag || []), ...data.field]) {
+      if (gear?.journeyWork !== undefined && !validWork(gear.journeyWork)) throw fault("corrupt");
+      if (gear?.journeyTrait !== undefined && ![0,1,2,3].includes(gear.journeyTrait)) throw fault("corrupt");
+      if (gear?.journeyArmor !== undefined && gear.journeyArmor !== true) throw fault("corrupt");
       if (gear?.recordId !== undefined && data.swordRecord && gear.recordId !== data.swordRecord.id) throw fault("corrupt");
       if (!object(gear) || ![gear.level, gear.grade, gear.star].every(n => Number.isFinite(n) && n >= 0))
         throw fault("corrupt");
@@ -159,7 +174,7 @@ const SaveStore = (() => {
     restored.story = story.restore({ ...restored, story: data.story });
     try { game.migrateTraining(restored); } catch { throw fault("corrupt"); }
     if (data.swordRecord === undefined) game.startSwordRecord(restored, "equipped");
-    else if (data.swordRecord.promotionVersion === undefined) game.restoreSwordGrade(restored);
+    game.enableJourney(restored);
     return restored;
   }
   function storageFault(error, writing = false) {
@@ -221,7 +236,7 @@ const SaveStore = (() => {
       }
       const state = decode(expected);
       const before = JSON.parse(expected);
-      needsMigration = before.version === 1 || !before._save || !before.hunting || !before.swordRecord?.promotionVersion || !!(before.hunt && !before.hunt.id);
+      needsMigration = before.version === 1 || !before._save || !before.hunting || !before.journeyEconomy || !!(before.hunt && !before.hunt.id);
       lastSavedAt = state._save?.savedAt ?? state.last ?? null;
       return state;
     }

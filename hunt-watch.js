@@ -1,7 +1,7 @@
 /* Session-only spectator controller. Durable operations use act() and the save lock. */
 const HuntWatch=(()=>{
   let active=false,generation=0,timer=null,busy=false,reward=null,reason='',outcome=null;
-  let mode = 'progress', fixedRank = 1, replayRank = 0, saveGeneration = null;
+  let mode = 'progress', fixedRank = 1, replayRank = 0, saveGeneration = null, nextStrikeAt = 0;
   const names={strike:'공격',block:'방어',heavyStrike:'강공'};
   const icons={strike:'sword',block:'shield',heavyStrike:'hammer'};
   const allowed=()=>ready&&!storageError&&!restarting&&!document.hidden&&!modal&&current()==='forest'&&phonePage('forest')==='hunt';
@@ -30,7 +30,12 @@ const HuntWatch=(()=>{
       (mode === 'progress' ? '<option value="0">재도전 단계 선택</option>' : '') + choices + '</select>' : '';
     const task = s.weapon.route?.trait === 'edge' && Game.routeTask(s);
     const target = mode === 'repeat' ? fixedRank + '단계 반복' : s.huntBest >= 60 ? '1회 재도전' : '다음 단계 진행';
-    return '<div class="watch-plan">' + modeSelect + rankSelect + motion + '<small>' +
+    const rank = nextRank();
+    const area = validRank(rank) && Game.huntArea(rank);
+    const estimate = area && !s.hunt ? '<div class="watch-estimate" aria-label="' + rank + '단계 권장 장비와 승리 보상"><span>' +
+      (reward || held || outcome ? rank + '단계 · ' : '') + '권장 검 +' + fmt(area.w) +
+      ' · 갑옷 +' + fmt(area.a) + '</span><b>' + icon('coins') + '승리 ' + fmt(area.prize) + ' G</b></div>' : '';
+    return '<div class="watch-plan">' + modeSelect + rankSelect + motion + estimate + '<small>' +
       (held ? held.rank + '단계 정산 후 ' + target + ' · ' : '') +
       '<span data-watch-spending>'+spending(Game.huntingStatus(s))+'</span>' + (task?.open && !task.ready ? ' · 수련 ' + task.needed + '단계 이상' : '') +
       '</small></div>';
@@ -43,7 +48,7 @@ const HuntWatch=(()=>{
     return {text,empty,width:Math.min(100,Math.max(0,w.free/Game.hunting.cap*100))};
   }
   function ticketBar(w){const t=ticketInfo(w);return '<span class="watch-ticket-bar" data-empty="'+t.empty+'"><span class="watch-ticket-fill" aria-hidden="true" style="width:'+t.width+'%"></span><span class="watch-ticket-text">'+t.text+'</span></span>';}
-  function stop(why='',paint=true) {active=false;generation++;clearTimeout(timer);timer=null;reason=why;if(paint&&state)render();}
+  function stop(why='',paint=true) {active=false;generation++;clearTimeout(timer);timer=null;nextStrikeAt=0;reason=why;if(paint&&state)render();}
   function restoreReceipt() {
     mode = 'progress'; fixedRank = 1; replayRank = 0;
     reward = null;
@@ -82,12 +87,12 @@ const HuntWatch=(()=>{
   function encounterHint(h, result, enemy, rank, pack) {
     if (Game.trail.awaitingNext(h)) {
       let event = enemy.name + ' 격파';
-      if (enemy.kind === 'goblin') event = h.goblinCaught ? '돈주머니 획득' : '황금 고블린이 달아났습니다';
+      if (enemy.kind === 'goblin') event = h.goblinCaught ? (h.journeyBattle ? '황금 고블린 격파' : '돈주머니 획득') : '황금 고블린이 달아났습니다';
       return event + ' · 다음은 ' + Game.trail.enemy(rank, pack[h.wave + 1]).name;
     }
-    if (h?.enemyKind === 'goblin') return '두 턴 안에 잡으면 상자에 기본 골드 +50%';
+    if (h?.enemyKind === 'goblin') return h.journeyBattle ? '황금 고블린이 두 번째 턴에 도주합니다' : '두 턴 안에 잡으면 상자에 기본 골드 +50%';
     if (h && enemy.skill) return DiceCombat.enemySkills[enemy.skill].hint;
-    if (!h && !result) return pack.map(kind => Game.trail.enemy(rank,kind).name).join(' → ');
+    if (!h && !result) return pack.map(kind => Game.trail.enemy(rank,kind).name).join(' → ') + (rank % 5 === 0 ? ' · 조우 첫 타격 주의' : '');
     return '';
   }
   function view(s) {
@@ -103,7 +108,7 @@ const HuntWatch=(()=>{
     const useDice=h?h.diceVersion===1:true;
     const sprite='blade'+(Game.bladeStage(s.weapon)||'');
     const resultHealth=!h?(outcome||((reward||pending()||reason.startsWith('패배'))?s.lastHunt?.health:null)):null;
-    const hp=h?.hp??resultHealth?.hp??st.hp,max=h?.maxHp??resultHealth?.maxHp??st.hp,enemyHp=h?.enemyHp??resultHealth?.enemyHp??Game.trail.opponent(rank,enemy.kind).hp;
+    const hp=h?.hp??resultHealth?.hp??st.hp,max=h?.maxHp??resultHealth?.maxHp??st.hp,enemyHp=h?.enemyHp??resultHealth?.enemyHp??Game.trail.opponent(rank,enemy.kind,true).hp;
     const total=h?.enemyMax??resultHealth?.enemyMax??enemyHp;
     const fighter=(side,label,asset,width,current,maxHp)=>'<div class="watch-fighter '+side+'"'+(side==='enemy'&&enemy.elite?' data-elite="true"':'')+' data-action="'+(roll?.[side==='player'?'player':'enemy']||'')+'">'+healthMeter(side,label,current,maxHp)+
       '<div class="watch-actor'+(asset==='moth'?' airborne':'')+'"'+(current<=0?' data-defeated="true"':'')+'>'+(['wolf','moth','tree','goblin'].includes(asset)?
@@ -117,11 +122,12 @@ const HuntWatch=(()=>{
       empty ? '사냥권 충전 보기' : mode === 'repeat' ? '반복 시작' : s.huntBest >= 60 ? '1회 재도전' : '사냥';
     const area=Game.trail.region(rank);
     const detail = encounterHint(h,result,enemy,rank,pack);
-    return '<section class="watch-view"><div class="watch-stage">STAGE <b>'+rank+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+(h?.ripostes>0?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+'</div>'+
+    return '<section class="watch-view"><div class="watch-stage">STAGE <b>'+rank+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+(h?.ripostes>0 && !h.journeyBattle?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+'</div>'+
       '<div class="scene watch-arena combat-hud"'+(trail?' data-region="'+area.id+'"':'')+'>'+fighter('player','나',sprite,128,hp,max)+fighter('enemy',enemy.name,enemy.sprite||'boar',144,enemyHp,total)+'</div>'+
       '<div class="watch-reward" role="status">'+(detail?'<div class="trail-detail">'+detail+'</div>':'')+skills(h)+(reward?'<div class="watch-receipt"><div class="watch-receipt-head"><b>'+reward.rank+'단계 클리어</b><strong>'+icon('coins')+' +'+fmt(reward.gold)+' G</strong>'+
         (!active && reward.fiber ? '<button class="action lining-link" data-go="forge" data-gear="armor">'+icon('shield')+'안감 제작</button>' : '')+'</div><div class="watch-loot">'+
         (reward.fiber ? '<span>'+icon('trees')+'숲결 섬유 +'+reward.fiber+'</span>' : '')+
+        (reward.journeyBundle ? '<span>'+icon('anvil')+'사냥 재료 +1묶음</span>' : '')+
         (reward.goblinGold?'<span>'+icon('coins')+'고블린 +'+fmt(reward.goblinGold)+' G 포함</span>':'')+
         (reward.counter>0?'<span class="watch-counter-reward">반격 +'+fmt(reward.counter)+' G 포함</span>':'')+
         [[reward.shards,'sparkles','별의 파편'],[reward.scrolls,'scroll-text','주문서'],...[0,1,2].map(i=>[reward.charms[i],['trees','hammer','star'][i],Game.blessings[i]])].filter(([n])=>n).map(([n,ic,title])=>'<span aria-label="'+title+' '+n+'개" title="'+title+'">'+icon(ic)+' +'+n+'</span>').join('')+'</div></div>':reason&&!(h&&reason==='일시 중단')?'<b>'+reason+'</b>':'')+'</div>'+
@@ -159,6 +165,7 @@ const HuntWatch=(()=>{
         if(storageError)stop('저장 상태를 확인해 주세요');
       } else if(h) {
         const id=h.id,turn=h.turn,wave=h.wave;
+        if (h.journeyBattle === 1) nextStrikeAt = performance.now() + 2000;
         await act(null,'',undefined,()=>live(token)&&state.hunt?.id===id&&state.hunt.turn===turn&&state.hunt.wave===wave?
           (state.hunt.diceVersion===1?'strike':AutoCombat.choose(Game,state.hunt)):null);
         if(storageError){stop('저장 상태를 확인해 주세요');return;}
@@ -184,14 +191,21 @@ const HuntWatch=(()=>{
           await act(null,'',undefined,undefined,()=>live(token)&&!state.hunt&&!pending()&&
             mode===selectedMode&&validRank(rank)&&state.hunting.id===wallet&&state.hunting.serial===serial&&
             (state.hunting.free>0||state.hunting.purchased>0)?
-            {action:'huntStart',arg:{rank,request:serial+1,combat:"trail-v1"}}:null);
+            {action:'huntStart',arg:{rank,request:serial+1,combat:"journey-v1"}}:null);
           // The legacy repeat runner is inactive; no second controller is armed.
           autoCombat.stop();
           if(storageError){stop('저장 상태를 확인해 주세요');return;}
           if(token===generation&&!state.hunt){stop('사냥을 시작할 수 없습니다');return;}
         }
       }
-    } finally {busy=false;if(token===generation&&active)arm(reward&&!state.hunt?1800:500);else if(active)arm();}
+    } finally {
+      busy=false;
+      if (token===generation && active) {
+        const nextStrike = state.hunt?.journeyBattle === 1 && !Game.trail.awaitingNext(state.hunt);
+        const delay = nextStrike && nextStrikeAt ? Math.max(0, nextStrikeAt - performance.now()) : reward&&!state.hunt?1800:500;
+        arm(delay);
+      } else if(active)arm();
+    }
   }
   document.addEventListener('change',event=>{
     if(active || !allowed())return;

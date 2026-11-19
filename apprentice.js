@@ -38,8 +38,10 @@ const Apprentice = (() => {
 
   function guidance(s, step) {
     const target = (text, route, selector, button) => ({ text, route, selector, button });
+    const plan = Game.journeyForge(s, "weapon");
+    const deployable = g => g.level >= 13 && !Game.isJourneyGear(s, g);
     const forge = (text) =>
-      target(text, "forge", '[data-act="enhance"][data-arg="weapon"]', "강화 버튼 찾기");
+      target(text, "forge", plan ? '.forge-strike' : '[data-act="enhance"][data-arg="weapon"]', "망치 찾기");
     const forest = (text, action, button) =>
       target(text, "forest", action === "collect" ? '[data-act="collect"]' : '.watch-start', button);
     const needsWeapon =
@@ -47,19 +49,19 @@ const Apprentice = (() => {
       (step === 3 && s.best < 3) ||
       (step >= 4 &&
         !s.field.length &&
-        !s.bag.some((g) => g.level >= 13) &&
+        !s.bag.some(deployable) &&
         s.weapon.level < 13 &&
         !(step === 5 && s.unclaimed >= 1));
     const craftIndex = Swordcraft.stageIndex(s.weapon);
     const craftLesson = step >= 4 && needsWeapon && craftIndex >= 0;
     const neededGold = craftLesson
       ? Swordcraft.fee(s.weapon, Game.price, craftIndex)
-      : s.enabled[2] && s.charms[2]
+      : plan ? plan.cost : s.enabled[2] && s.charms[2]
         ? 0
         : Game.price(s.weapon);
     if (needsWeapon && s.gold < neededGold) {
       if (s.chests?.length) return target("보관함에 남겨 둔 보물상자를 열어 강화비를 마련하세요.", "bag", '[data-act="openChest"]', "상자 열기");
-      const order = Game.orders[s.order];
+      const order = Game.currentOrder(s);
       if (order && s.best >= order[0])
         return target(
           "달성한 의뢰 보상으로 강화비를 마련하세요.",
@@ -102,7 +104,7 @@ const Apprentice = (() => {
       );
     if (step === 3)
       return s.best < 3
-        ? forge("검을 +3까지 벼리세요. 첫 의뢰에서 1,200 G와 별의 파편을 받을 수 있습니다.")
+        ? forge("검을 +3까지 벼리세요. 대장간 의뢰에서 골드와 별의 파편을 받을 수 있습니다.")
         : target(
             "첫 의뢰를 달성했습니다. 대장간의 의뢰에서 수령을 누르세요.",
             "forge",
@@ -115,7 +117,7 @@ const Apprentice = (() => {
         "collect",
         "배치 수익 수령",
       );
-    const bagIndex = s.bag.findIndex((g) => g.level >= 13);
+    const bagIndex = s.bag.findIndex(deployable);
     if (bagIndex !== -1)
       return target(
         "보관 무기에서 배치를 누르세요. 이 검은 게임을 닫아도 골드를 모읍니다.",
@@ -125,12 +127,13 @@ const Apprentice = (() => {
       );
     if (s.weapon.level >= 13)
       return target(
-        "장착한 검을 먼저 보관하세요. 손에는 새 +0 검이 남고 보관한 검은 배치하거나 다시 장착할 수 있습니다.",
+        plan ? "기록 중인 검을 보관하면 새 보조 검을 받습니다. 보조 검을 +13까지 벼려 사냥터에 배치하세요." :
+          "장착한 보조 검을 보관한 뒤 사냥터에 배치하세요.",
         "bag",
         '[data-act="keep"]',
         "무기 보관",
       );
-    const o = Game.orders[s.order];
+    const o = Game.currentOrder(s);
     if (o && s.best >= o[0])
       return target(
         "달성한 의뢰 보상으로 다음 강화비를 마련하세요.",
@@ -150,6 +153,7 @@ const Apprentice = (() => {
         stage.title,
       );
     }
+    if (plan) return forge("기록 중인 검을 +7까지 안전 재련하면 칼날 연마가 열립니다.");
     return forge(
       s.weapon.level < 7
         ? "무기를 +7까지 벼려 서리결 장검으로 진화시키세요. +13부터 사냥터에 배치할 수 있습니다."

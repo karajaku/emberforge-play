@@ -7,7 +7,10 @@ function grindSummary(passes) {
 }
 function craftSummary(g) {
   if (!g.marks?.length) return "";
-  const parts = [];
+  const parts = (g.journeyWork || []).flatMap((choice, index) => {
+    const option = Number.isInteger(choice) && Game.journeyProcessOptions(index)[choice];
+    return option ? [option.name] : [];
+  });
   const attack = Swordcraft.count(g, "edge") * 10,
     income = Swordcraft.count(g, "yield") * 35;
   if (attack) parts.push("공격력 +" + attack + "%");
@@ -172,6 +175,10 @@ function craftEntry(s) {
     summary = craftSummary(g);
   if (i < 0) return summary ? '<small class="craft-summary">' + summary + "</small>" : "";
   const st = Swordcraft.stages[i];
+  const recipe = s.inheritedRecipe;
+  const inherited = recipe?.index === i && (Game.isJourneyGear(s, g)
+    ? Game.journeyProcessOptions(i).find(option => option.key === recipe.trait)
+    : Swordcraft.traits[recipe.trait]);
   return (
     '<div class="craft-entry"><div><small>검 제작 · ' +
     (i + 1) +
@@ -184,11 +191,11 @@ function craftEntry(s) {
     "검 특성 선택" +
     (summary ? " · " + summary : "") +
     "</p>" +
-    (s.inheritedRecipe?.index === i
+    (inherited
       ? btn(
           "craftInherit",
           "전승 제작 · " +
-            Swordcraft.traits[s.inheritedRecipe.trait].name +
+            inherited.name +
             " · " +
             fmt(Swordcraft.fee(g, Game.price, i)) +
             " G",
@@ -258,8 +265,11 @@ function craftWorkshop(s) {
     '" height="144"></canvas></div>';
   if (w.ready) {
     const at = Math.max(g.level, st.target);
-    const choice = Object.entries(Swordcraft.traits)
-      .map(([key, v]) => {
+    const recorded = Game.isJourneyGear(s, g);
+    const stageIcons = [["sword", "shield"], ["shield", "swords"], ["waves", "flame"]];
+    const choices = recorded
+      ? Game.journeyProcessOptions(i).map((option, j) => ({ ...option, icon: stageIcons[i][j] }))
+      : Object.entries(Swordcraft.traits).map(([key, v]) => {
         const example = { ...g, grind: w.passes || g.grind, level: at, marks: [...(g.marks || []), key] };
         const amount =
           key === "edge"
@@ -271,38 +281,25 @@ function craftWorkshop(s) {
                 " 배치 시 " +
                 fmt(Game.perMinute({ ...example, level: Math.max(13, at) })) +
                 " G/분";
-        return btn(
-          "craftFinish",
-          icon(v.icon) +
-            "<span><b>" +
-            v.name +
-            "</b><small>" +
-            v.text +
-            " · +19 " +
-            Breakthrough.methods[key].name +
-            " · " +
-            amount +
-            "</small></span>",
-          key,
-          "craft-choice",
-          s.gold < fee,
-        );
-      })
-      .join("");
+        return { key, name: v.name, icon: v.icon, detail: v.text + " · +19 " + Breakthrough.methods[key].name + " · " + amount };
+      });
+    const choice = choices.map(option => btn("craftFinish",
+      icon(option.icon) + "<span><b>" + option.name + "</b><small>" + option.detail + "</small></span>",
+      option.key, "craft-choice", s.gold < fee)).join("");
     return [
       title,
       stageScene +
         '<div class="craft-body">' +
         (w.passes ? line("연마 효과", grindSummary(w.passes)) + btn("craftMove", "마지막 연마 되돌리기", "undo", "mini") : "") +
         redesign + '<h3>이 검에 남길 특성</h3>' +
-        desc("한 가지를 고르면 +" + at + " 검이 완성됩니다. 같은 특성은 누적됩니다.") +
+        desc("한 가지를 고르면 +" + at + " 검이 완성됩니다." + (recorded ? "" : " 같은 특성은 누적됩니다.")) +
         line("마감 비용", fmt(fee) + " G") +
         (s.gold < fee
           ? desc(
               "골드가 " +
                 fmt(fee - s.gold) +
                 " G 부족합니다. 창을 닫고 돌아와도 작업은 보존됩니다.",
-            )
+            ) + go("forest", "숲에서 마감 비용 벌기", "action")
           : "") +
         choice +
         "</div>",
