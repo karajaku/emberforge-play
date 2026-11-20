@@ -95,7 +95,7 @@ function scene(id, heading, english, loc, sprite = "", grade = 0, enemy = null) 
   return (
     '<div class="scene"' + (enemy ? ' data-enemy="' + enemy.kind + '" data-depth="' + Math.min(3, Math.floor((enemy.rank - 1) / 15)) + '"' : "") + ' style="--image:url(assets/' +
     (id === "forge" ? "hud/workshop.webp" : id + ".png") +
-    ')"><span class="location">' + icon("map-pin") + loc + "</span>" +
+    ')">' + (loc ? '<span class="location">' + icon("map-pin") + loc + "</span>" : "") +
     (sprite
       ? '<canvas class="grade' +
         grade +
@@ -420,7 +420,7 @@ function huntingWalletContent(s) {
     (!w.free && !w.purchased ? desc("사냥권이 부족합니다. 충전을 기다리거나 출석을 확인하세요. 제작·담금질·보관함 정리·배치 수익 수령은 계속할 수 있습니다.") +
       '<div class="actions">' + openBtn("daily", claimed ? "출석 수령 완료" : "출석 +" + Game.hunting.daily + " 받기", "mini") + go("forge", "대장간으로", "mini") + '</div>' : "") +
     '<details class="hunt-wallet-help"><summary>무료 로컬 시험 안내</summary>' +
-    desc("실제 구매 미지원 · 기기 시각과 저장 기준. 배치 수익은 전투와 별도로 쌓이며 사냥권을 쓰지 않습니다.") + '</details></div>';
+    desc("사냥권은 무료분부터 쓰고, 소진되면 구매분을 사용합니다. 실제 구매 미지원 · 기기 시각과 저장 기준. 배치 수익은 전투와 별도로 쌓이며 사냥권을 쓰지 않습니다.") + '</details></div>';
 }
 function huntModeControls(s) {
   const r = typeof repeatHunting === "undefined" ? null : repeatHunting.summary;
@@ -585,8 +585,8 @@ function fieldView(s) {
       metric("누적 배치 수익", '<span id="yield">' + brief(s.unclaimed) + "</span>"),
     ) +
     btn("collect", "배치 수익 수령", "", "primary") +
-    desc("+13 이상 보조 검을 보관한 뒤 배치하면 게임을 닫아도 골드가 쌓입니다.") +
-    '<div class="field-slots">' + deployed.join("") + Array.from({length:Math.max(0,2+s.imprints.land-s.field.length)},() => '<div class="field-empty">빈 배치 자리<br><small>+13 이상 무기</small></div>').join("") + '</div>' + (candidates.length ? section("배치할 무기") + '<div class="field-slots">' + candidates.join("") + '</div>' : "") +
+    (!s.field.length && !candidates.length ? line("배치 조건", "+13 이상 보조 검") : "") +
+    '<div class="field-slots">' + deployed.join("") + Array.from({length:Math.max(0,2+s.imprints.land-s.field.length)},() => '<div class="field-empty">빈자리</div>').join("") + '</div>' + (candidates.length ? section("배치할 무기") + '<div class="field-slots">' + candidates.join("") + '</div>' : "") +
     (candidates.length ? "" : go("bag/stored", "무기 보관함 " + icon("arrow-right"), "action"))
   );
 }
@@ -614,7 +614,6 @@ function miningStatus(s) {
       gauge(job.completed, job.limit, "mint") +
       line("현재 산소통", '<span id="tankRemaining">' + miningTime(tankRemaining) + " 남음</span>") + feverBar +
       btn("stopAutoMine", job.stopping ? "현재 산소통 정산 후 복귀" : "탐사 중단 · 남은 산소통 반환", "", "primary", job.stopping) +
-      desc("화면을 닫아도 경과 시간만큼 탐사합니다. 산소통 한 개를 마칠 때 보상과 피버 1이 정산됩니다.") +
       '<div class="actions">' + openBtn("miningResult", "획득 내역") + openBtn("market", "심해 암시장") + '</div>';
   }
   return metrics(metric("산소통", fmt(s.tanks)), metric("수심", d ? fmt(d.depth) + " m" : "지상"),
@@ -622,8 +621,7 @@ function miningStatus(s) {
       d.oxygen <= 20 ? "red" : "mint") : "—")) + feverBar +
     (d ? btn("mine", icon("pickaxe") + (d.fever ? "피버 ×10 · " : "") + "50 m 하강 · " + Math.ceil(d.oxygen / 10) + "회 남음", "", "primary")
       : btn("dive", fever >= rules.feverCost ? "피버 탐사 ×10 · 산소통 1개 + 피버 100" : "직접 탐사 · 산소통 1개", "", "primary", !allowed || !s.tanks)) +
-    desc(d?.fever ? "이번 산소통의 광물과 추가 드롭이 10배입니다. 산소를 다 쓰면 복귀합니다."
-      : "무기 +19 또는 레어부터 입장 · 50 m당 산소 10 · 자동 탐사로 피버 적립") +
+    (!allowed && !d ? line("입장 조건", "무기 +19 또는 레어") : "") +
     '<div class="actions">' +
     (d ? btn("air", "산소 보충", "", "action", d.fever || !s.tanks) + btn("surface", "지상 복귀")
       : openBtn("autoMineSetup", "자동 탐사 예약")) +
@@ -668,9 +666,8 @@ function towerView(s) {
         ? line("고속 등반 중", s.towerRun.cleared + "층 돌파 · 상자 " + s.towerRun.chests.length + "개") +
           btn("stopTower", "등반 중단하고 결과 보기", "", "primary")
         : btn("fastTower", icon("chevrons-up") + "고속 등반 · 입장권 1장", "", "primary", !s.tickets)) +
-    desc(tr
-      ? "매 층 체력이 회복됩니다. 20턴 안에 처치해야 승리하며 보상 셋 중 하나를 고릅니다. 매주 월요일 0시(한국 시간) 초기화."
-      : "입장 시 능력치로 패배·중단까지 등반합니다. 재접속하면 이어집니다.") +
+    (tr ? '<details><summary>시련 규칙</summary>' +
+      desc("매 층 체력 회복 · 20턴 이내 승리 · 보상 3개 중 1개 선택. 매주 월요일 0시(한국 시간)에 초기화됩니다.") + '</details>' : "") +
     (tr ? openBtn("restart", "1층부터 다시 도전")
       : line("보유 입장권", s.tickets + "장") +
         line(Game.towerReward(f).name, brief(Game.towerReward(f).minGold) + "~" + brief(Game.towerReward(f).maxGold) + " G") +
@@ -718,11 +715,9 @@ function altarView(s) {
       metric("무기 공격 옵션", "+" + s.weapon.star),
       metric("방어구 체력 옵션", "+" + s.armor.star),
     ) +
-    desc(
-      "별의 파편 1개로 장착 장비의 옵션을 다시 새깁니다. 무기는 공격력 +200~600, 방어구는 체력 +400~1,200 중 하나의 값이 정해집니다.",
-    ) +
-    btn("altar", icon("sword") + "무기 옵션 새기기", "weapon", "primary", !s.shards) +
-    btn("altar", icon("shield") + "방어구 옵션 새기기", "armor", "action", !s.shards)
+    line("다시 새기기 비용", "별의 파편 1개") +
+    btn("altar", icon("sword") + "공격력 다시 새기기 · +200~600", "weapon", "primary", !s.shards) +
+    btn("altar", icon("shield") + "체력 다시 새기기 · +400~1,200", "armor", "action", !s.shards)
   );
 }
 function zoneView(s, id) {
@@ -742,7 +737,7 @@ function zoneView(s, id) {
           ? Game.bosses[Math.min(19, Math.floor((f - 1) / 5))]
           : z[3],
       z[1],
-      enemy ? enemy.habitat + " · " + enemy.rank + "구역" : z[0],
+      enemy ? enemy.habitat + " · " + enemy.rank + "구역" : "",
       enemy ? "boar" : id === "tower" ? creature(f) : "",
       0,
       enemy,
@@ -799,7 +794,7 @@ function bagView(s) {
           '<div class="inventory-grid">' + s.bag.map((g,i) => '<article class="inventory-tile">' + gearPortrait(g,"weapon") +
             '<b>' + Game.name(g) + ' +' + g.level + '</b><small>' + [tier(g,"weapon"),craftSummary(g)].filter(Boolean).join(' · ') + '</small>' +
             '<div class="actions">' + btn("equip","장착",i,"mini") + (g.level >= 13 && !Game.isJourneyGear(s, g) ? btn("deploy","배치",i,"mini") : '') + '</div></article>').join('') + '</div>' +
-            (s.bag.length ? '' : desc("보관한 무기를 장착할 수 있습니다. +13 이상 보조 검은 사냥터에도 배치할 수 있습니다.") + go("bag","장착 장비 보기","action")),
+            (s.bag.length ? '' : go("bag","장착 장비 보기","action")),
         );
     return tabBar + shelf + (page ? "" : equipment) + stored;
   }
@@ -815,9 +810,6 @@ function bagView(s) {
           )
         : card(
             "유물 보관함 · " + s.relics.length + " / 20",
-            desc(
-              "대표 유물의 공격력 보너스는 길드 레이드에 적용됩니다. 별의 파편 1개로 60% 확률 강화에 도전할 수 있습니다.",
-            ) +
               phoneList(s.relics
                 .map((r, i) =>
                   row(
@@ -859,9 +851,8 @@ function growthView(s) {
   const cards = {
     rebirth: card(
       "환생",
-      (Game.isJourneyGear(s, s.weapon) ? line("환생 재료", "+20 보조 검") + desc("현재 검은 계속 벼릴 수 있습니다. 환생하려면 보관함에서 보조 검을 장착하세요.") :
-        line("장착 무기", "+" + s.weapon.level + " / +20") + gauge(s.weapon.level, 20) +
-        desc("장착한 +20 보조 검을 바치면 등급에 따라 영혼 포인트를 받습니다.")) +
+      (Game.isJourneyGear(s, s.weapon) ? line("환생 재료", "+20 보조 검") :
+        line("장착 무기", "+" + s.weapon.level + " / +20") + gauge(s.weapon.level, 20)) +
         (s.inheritedRecipe ? line("전승 제작법", recipeName(s.inheritedRecipe)) : "") +
         openBtn("rebirth", s.weapon.level === 20 && !Game.isJourneyGear(s, s.weapon) ? "환생 의식 열기" : "환생 조건 보기"),
       "flame",
@@ -869,18 +860,13 @@ function growthView(s) {
     imprint: card("영혼 각인", imprint.join(""), "sparkles"),
     fusion: card(
       "초월 합성",
-      desc(
-        "환생 2,000회부터 장착한 전설 +20~24 무기와 보관 중인 같은 단계 전설 무기를 합성합니다.",
-      ) + openBtn("fusion", "합성 재료 보기"),
+      line("개방 조건", "환생 2,000회") + openBtn("fusion", "합성 재료 보기"),
       "anvil",
     ),
     guild: card(
       "길드 레이드",
-      desc(
-        s.guild
-          ? s.guild.name + " · 누적 레이드 " + s.guild.raids + "회"
-          : "개인 길드를 창설해 매일 레이드 보상에 도전합니다. 광산에서 징표를 모으세요.",
-      ) + openBtn("guild", s.guild ? "레이드 입장" : "길드 창설"),
+      (s.guild ? line(s.guild.name, "레이드 " + s.guild.raids + "회") : "") +
+        openBtn("guild", s.guild ? "레이드 입장" : "길드 창설"),
       "castle",
     ),
   };

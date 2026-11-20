@@ -495,6 +495,8 @@ function render() {
     openBtn("lessons", icon("circle-help") + "튜토리얼", "ghost") +
     (id === "forge"
       ? openBtn("journal", icon("scroll-text") + "강화 기록", "ghost")
+      : id === "forest" && phonePage(id) === "hunt"
+        ? openBtn("huntRules", icon("swords") + "사냥 규칙", "ghost")
       : zones[id]
         ? go("world/map", icon("compass") + "모험 지도", "ghost")
         : openBtn("daily", icon("gift") + "출석 보상", "ghost")) +
@@ -539,23 +541,23 @@ function render() {
   if (grid && gridScroll !== undefined) grid.scrollTop = gridScroll;
   syncMusic();
 }
+// Only the lesson explicitly located from the tutorial can appear during play.
+let guidedLesson = -1;
 function renderLesson() {
   const host = el("apprentice");
-  host.hidden = !state.apprentice.visible;
-  if (host.hidden) return;
   const step = Apprentice.next(state);
-  const tip = step >= 0 ? Apprentice.guidance(state, step) : null;
-  const title = step < 0 ? "수업 완료" : Apprentice.lessons[step][1];
-  const target = tip && current() === tip.route ? el("screen").querySelector(tip.selector) : null;
-  const progress = step < 0 ? Apprentice.lessons.length : step + 1;
-  host.innerHTML = '<button class="lesson-copy" data-lesson="menu" aria-labelledby="lesson-title" aria-describedby="lesson-action-hint">' +
-    '<strong id="lesson-title">' + icon("circle-help") + ' 튜토리얼 ' + progress + '/' + Apprentice.lessons.length + ' · ' + title + '</strong>' +
-    '<span id="lesson-action-hint">' + (tip ? tip.text : "첫 사냥터를 운영했습니다. 이제 새 검을 벼리거나 탑에 도전해 보세요.") +
-    '</span></button>';
-  if (target) {
-    target.classList.add("lesson-target");
-    target.setAttribute("aria-describedby", "lesson-action-hint");
+  const tip = guidedLesson === step && step >= 0 ? Apprentice.guidance(state, step) : null;
+  const target = tip && current() === tip.route && el("screen").querySelector(tip.selector);
+  host.hidden = !target;
+  if (!target) {
+    guidedLesson = -1;
+    host.replaceChildren();
+    return;
   }
+  host.innerHTML = '<button class="lesson-copy" data-open="lessons" aria-label="튜토리얼 열기">' +
+    '<span id="lesson-action-hint">' + tip.text + '</span></button>';
+  target.classList.add("lesson-target");
+  target.setAttribute("aria-describedby", "lesson-action-hint");
 }
 function lessonButton(action, label) {
   return '<button class="mini" data-lesson="' + action + '">' + label + "</button>";
@@ -575,6 +577,7 @@ function focusLesson() {
     nav(destination);
     return;
   }
+  guidedLesson = n;
   render();
   const target = el("screen").querySelector(tip.selector);
   target?.scrollIntoView({ block: "center" });
@@ -582,6 +585,8 @@ function focusLesson() {
 }
 function lessonMenu() {
   const done = Apprentice.completed(state);
+  const step = Apprentice.next(state);
+  const tip = step >= 0 ? Apprentice.guidance(state, step) : null;
   const notes = [
     "대장간에서 검을 벼려 공격력을 올리세요.",
     "사냥을 누르고 전투를 지켜보세요. 승리 보상 수령 후 다음 스테이지로 진행합니다.",
@@ -591,14 +596,12 @@ function lessonMenu() {
     "사냥터에서 모인 골드를 수령하세요. 회수한 검은 보관함에 있습니다.",
   ];
   return [
-    "대장장이 수업 · 튜토리얼",
-    Apprentice.lessons
-      .map((lesson, i) => row(lesson[1], notes[i], done[i] ? icon("check") : ""))
-      .join("") +
-      (done.every(Boolean) ? "" : lessonButton("locate", "다음 단계로 이동")) +
-      (state.apprentice.visible
-        ? lessonButton("hide", "수업 안내 숨기기")
-        : lessonButton("show", done.every(Boolean) ? "완료 기록 보기" : "이어서 배우기")),
+    "튜토리얼",
+    Apprentice.lessons.map((lesson, i) =>
+      row(lesson[1], i === step ? tip.text : notes[i], done[i] ? icon("check") : "")
+    ).join("") +
+      (tip ? lessonButton("locate", tip.button) : "") +
+      (guidedLesson >= 0 ? lessonButton("hide", "목표 안내 닫기") : ""),
   ];
 }
 const guardLabels = [
@@ -647,7 +650,7 @@ function modalData() {
       return ["무한의 탑 보물상자", Game.towerRewards.map((reward, i) =>
         line((i ? Game.towerRewards[i - 1].max + 1 : 1) + (Number.isFinite(reward.max) ? "~" + reward.max : "+") + "층 · " + reward.name,
           (reward.minGold >= 1e8 ? brief(reward.minGold) : fmt(reward.minGold / 10000) + "만") + "~" + (reward.maxGold >= 1e8 ? brief(reward.maxGold) : fmt(reward.maxGold / 10000) + "만") + " G")).join("") +
-        desc("층을 돌파할 때 상자 한 개를 얻습니다. 표시된 범위의 골드와 추가 아이템은 개봉할 때 지급됩니다.")];
+        desc("입장 시 능력치로 패배하거나 중단할 때까지 등반합니다. 재접속하면 이어집니다. 층마다 상자 한 개를 얻고 개봉할 때 골드와 아이템이 지급됩니다.")];
     case "treasure":
       return ["상자 개봉", chestReceipt(s.lastChest) +
         (s.chests.length ? chestButton(s.chests[0]) : "") + '<button class="primary" data-close>확인</button>'];
@@ -876,11 +879,11 @@ function modalData() {
       const tankMs = Math.floor((100 + 10 * s.imprints.lung) / 10) * Game.mining.stepMs;
       return ["자동 탐사 예약",
         line("보유 산소통", fmt(s.tanks) + "개") +
-        line("자동 하강", "50 m마다 " + Game.mining.stepMs / 1000 + "초") +
+        line("자동 하강", "50 m마다 산소 10 · " + Game.mining.stepMs / 1000 + "초") +
         line("산소통 한 개", miningTime(tankMs) + " · 피버 +1") +
         '<label for="autoTankCount">사용할 산소통 (1~' + max + '개)</label>' +
         '<input id="autoTankCount" type="number" inputmode="numeric" min="1" max="' + max + '" step="1" value="' + Math.min(10, max) + '">' +
-        desc("예약한 산소통을 먼저 맡깁니다. 중단하면 현재 산소통까지 마치고, 아직 사용하지 않은 예약분은 돌려받습니다.") +
+        desc("화면을 닫아도 탐사가 이어집니다. 예약한 산소통을 먼저 맡기며, 중단하면 현재 산소통까지 마치고 남은 예약분을 돌려받습니다.") +
         desc("피버 100을 모은 뒤 직접 탐사를 시작하면 그 산소통의 드롭 보상이 10배가 됩니다.") +
         btn("autoMine", "자동 탐사 시작", "", "primary", !max || !Game.canDive(s.weapon) || !!s.dive || !!s.autoMine)];
     }
@@ -944,6 +947,7 @@ function modalData() {
     case "huntRules":
       return ["주사위 사냥", line("1~3 공격 · 4~5 방어 · 6 강공", "양쪽이 매 턴 굴립니다") +
         desc("강공은 공격력의 1.7배, 방어는 받는 피해를 75% 줄입니다. 먼저 쓰러뜨린 적은 반격하지 못합니다. 40턴 안에 쓰러뜨리지 못하면 패배합니다.") +
+        desc("공격 주사위에 준비된 스킬이 자동 발동합니다. 강공은 2단계에서 열리고 기세 2가 필요합니다. 적 스킬을 방어하면 반격을 준비합니다.") +
         desc("사냥권 1장으로 한 무리를 연달아 상대합니다. 다섯 단계마다 우두머리가 기다립니다. 승리하면 해당 단계의 골드와 숲결 섬유를 받습니다. 중단한 토벌은 이어서 할 수 있습니다.")];
     case "battle": {
       if (!battle) return ["전투 기록", ""];
@@ -1177,15 +1181,12 @@ document.addEventListener("click", (e) => {
   if ("newGame" in d) return startNewGame();
   if (d.story) return storyInput(d.story);
   if (d.lesson === "locate") return focusLesson();
-  if (d.lesson === "menu") return showModal("lessons");
-  if (d.lesson === "hide" || d.lesson === "show")
-    return locked(() => {
-      sync();
-      state.apprentice.visible = d.lesson === "show";
-      save();
-      closeModal(false);
-      render();
-    });
+  if (d.lesson === "hide") {
+    guidedLesson = -1;
+    closeModal(false);
+    render();
+    return;
+  }
   if (d.gear) gear = d.gear;
   if (d.go) return nav(d.go);
   if (d.open) return showModal(d.open);

@@ -14,10 +14,10 @@
   background:linear-gradient(0deg,#08171155,transparent 35%),var(--habitat) var(--ground-x) var(--ground-y) / cover no-repeat!important;
   border:1px solid #857750;border-radius:12px;
 }
-.watch-arena[data-region="moss"], body:has(.watch-home [data-region="moss"]) { --habitat:url('assets/hunt/moss.webp'); }
-.watch-arena[data-region="maple"], body:has(.watch-home [data-region="maple"]) { --habitat:url('assets/hunt/maple.webp'); }
-.watch-arena[data-region="gorge"], body:has(.watch-home [data-region="gorge"]) { --habitat:url('assets/hunt/gorge.webp'); }
-.watch-arena[data-region="heart"], body:has(.watch-home [data-region="heart"]) { --habitat:url('assets/hunt/heart.webp'); }
+.watch-arena[data-region="moss"], body:has(.watch-ground [data-region="moss"]) { --habitat:url('assets/hunt/moss.webp'); }
+.watch-arena[data-region="maple"], body:has(.watch-ground [data-region="maple"]) { --habitat:url('assets/hunt/maple.webp'); }
+.watch-arena[data-region="gorge"], body:has(.watch-ground [data-region="gorge"]) { --habitat:url('assets/hunt/gorge.webp'); }
+.watch-arena[data-region="heart"], body:has(.watch-ground [data-region="heart"]) { --habitat:url('assets/hunt/heart.webp'); }
 .trail-creature { display:block;width:100%;height:auto;filter:drop-shadow(0 4px 3px #102017); }
 .trail-detail { color:#ffedc7;font-size:13px;line-height:1.4;text-wrap:balance; }
 .trail-replay { align-self:center;max-width:100%;padding:6px 10px;border-radius:6px;background:#26372f;color:#f2dfbb; }
@@ -105,10 +105,9 @@ body[data-motion="on"] .watch-roll.rolling .watch-die { animation:watch-roll .3s
 .watch-skill { display:grid;gap:5px;padding:8px 10px;border:1px solid #849a8a;border-radius:8px;background:#172b26f5;color:#e2eadd;text-align:left; }
 .watch-skill-heading { display:flex;align-items:center;gap:6px; }.watch-skill-heading svg { width:22px;height:22px;flex:none; }.watch-skill-heading b { font-size:16px;white-space:nowrap; }
 .watch-skill em,.watch-enemy-skill em { margin-left:auto;font-style:normal;font-size:13px;font-weight:800;white-space:nowrap; }
-.watch-skill-condition { color:#bfcebf;font-size:12px;line-height:1.2; }
 .watch-skill-clock { display:flex;gap:4px; }.watch-skill-clock i { flex:1;height:4px;border-radius:2px;background:#061b16;box-shadow:inset 0 0 0 1px #87927f55; }.watch-skill-clock .filled { background:#a9c0ab; }
 .watch-skill[data-state="cooldown"] em { color:#c8dfef; }.watch-skill[data-state="condition"] em { color:#c3c6b3; }.watch-skill[data-state="locked"] { opacity:.7; }
-.watch-skill[data-ready="true"] { color:#fff2b4;border:2px solid #e7c16a;padding:7px 9px;background:#363822f5;box-shadow:0 0 12px #eac66b66; }.watch-skill[data-ready="true"] .watch-skill-condition { color:#f5e9bc; }.watch-skill[data-ready="true"] .filled { background:#f0cb72; }
+.watch-skill[data-ready="true"] { color:#fff2b4;border:2px solid #e7c16a;padding:7px 9px;background:#363822f5;box-shadow:0 0 12px #eac66b66; }.watch-skill[data-ready="true"] .filled { background:#f0cb72; }
 .watch-skill-flare { position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);display:flex;align-items:center;gap:8px;z-index:10;padding:8px 18px;color:#fff0c6;border:1px solid #e7bd6a;border-radius:8px;background:#372810ef;pointer-events:none;animation:skill-flare .65s ease-out both; }
 .watch-skill-flare.counter { color:#c5ffec;border-color:#68efbf;background:#10382def; }.watch-skill-flare svg { width:27px;height:27px; }
 .watch-skill-flare.enemy { top:27%;color:#ffe1c5;border-color:#ef9768;background:#48271bef; }
@@ -134,7 +133,7 @@ body[data-motion="on"] .watch-receipt :is(.watch-receipt-head > b, .watch-receip
 @keyframes hunt-reward { from{transform:translateY(20px) scale(.75);opacity:0;filter:brightness(1.8)}to{transform:translateY(0) scale(1);opacity:1;filter:brightness(1)} }
 .ui-game[data-place="forest"][data-page="hunt"] .watch-view .action { flex:none; }
 @media(max-height:760px){.player .watch-actor{width:43%;bottom:23%}.enemy .watch-actor{width:35%;top:16%}.watch-die{width:48px;height:48px;padding:7px;gap:4px}.watch-view{gap:6px}.watch-roll>span{font-size:12px}}
-@media(max-height:760px){.watch-roll .watch-die svg{width:30px;height:30px}.watch-skill{padding:5px 8px;gap:3px}.watch-skill[data-ready="true"]{padding:4px 7px}.watch-skill-heading{gap:4px}.watch-skill-heading b{font-size:14px}.watch-skill-heading svg{width:18px;height:18px}.watch-skill-condition{font-size:11px}.watch-skill-clock i{height:3px}}
+@media(max-height:760px){.watch-roll .watch-die svg{width:30px;height:30px}.watch-skill{padding:5px 8px;gap:3px}.watch-skill[data-ready="true"]{padding:4px 7px}.watch-skill-heading{gap:4px}.watch-skill-heading b{font-size:14px}.watch-skill-heading svg{width:18px;height:18px}.watch-skill-clock i{height:3px}}
 /* Compact only when the allocated scene is short (for example, lessons plus
    rewards and the motion control). Tall scenes keep their existing framing. */
 @container (max-height:250px) {
@@ -183,53 +182,53 @@ body[data-motion="on"] .watch-receipt :is(.watch-receipt-head > b, .watch-receip
 .watch-plan .watch-motion-hint button { min-width:44px; }
 /* The hunting ground is a single illustrated scene. Reserve its left edge for
    the same destination controls the forge uses for its workstations. */
-.ui-game:has(.watch-home) #pageNav { display:none; }
+.ui-game:has(.watch-ground) #pageNav { display:none; }
 /* Frame the clearing under the fighters and carry its uninterrupted foreground
    behind the controls. The waterfall in the maple illustration rises higher. */
-body.ui-game:has(.watch-home)::before {
+body.ui-game:has(.watch-ground)::before {
   position:fixed; inset:0;
   background:var(--habitat) 64% bottom / auto max(100vw,var(--forest-height,146dvh)) no-repeat;
 }
-body:has(.watch-home [data-region="maple"]) { --forest-height:183dvh; }
-body.ui-game:has(.watch-home)::after {
+body:has(.watch-ground [data-region="maple"]) { --forest-height:183dvh; }
+body.ui-game:has(.watch-ground)::after {
   position:fixed;
   background:linear-gradient(to bottom,#12221935,transparent 29%,transparent 56%,#12221970);
 }
-.ui-game:has(.watch-home) #mobileNav { background:#15271cbd; }
-.ui-game:has(.watch-home) #mobileNav .navitem:not(.active) { color:#f3e8cc; }
-.ui-game:has(.watch-home) main { padding-inline:0; }
-.ui-game:has(.watch-home) #screen { padding-inline:0; }
-.ui-game .watch-home { position:relative; isolation:isolate; max-height:none; padding:0 13px 2px; }
-.ui-game .watch-home .watch-arena { background:transparent!important; border:0; }
-.watch-home .watch-version { color:#d5c5a3; font-size:11px; }
-.watch-home > :is(.watch-stage,.watch-reward,.watch-plan,.watch-home-actions) { position:relative; z-index:1; }
-.ui-game .watch-home .watch-stage {
-  justify-self:center; display:flex; align-items:center; gap:5px; margin:2px 0; padding:5px 10px;
+.ui-game:has(.watch-ground) #mobileNav { background:#15271cbd; }
+.ui-game:has(.watch-ground) #mobileNav .navitem:not(.active) { color:#f3e8cc; }
+.ui-game:has(.watch-ground) main { padding-inline:0; }
+.ui-game:has(.watch-ground) #screen { padding-inline:0; }
+.ui-game .watch-ground { position:relative; isolation:isolate; max-height:none; padding:0 13px 2px; }
+.ui-game .watch-ground .watch-arena { background:transparent!important; border:0; }
+.watch-ground .watch-version { color:#d5c5a3; font-size:11px; }
+.watch-ground > :is(.watch-stage,.watch-reward,.watch-plan,.watch-home-actions) { position:relative; z-index:1; }
+.ui-game .watch-ground .watch-stage {
+  justify-self:center; display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:5px; margin:2px 0; padding:5px 10px;
   border:1px solid #ad9367; border-radius:16px; background:#182920e8; color:#e8d7b2; letter-spacing:0;
 }
 .watch-stage-name { display:inline-flex; align-items:center; gap:4px; font-weight:700; }
 .watch-stage-name svg { width:14px; height:14px; }
-.watch-home .watch-stage b { font-size:14px; }
-.watch-home .watch-stage :is(.trail-wave,.trail-region) { margin:0; }
-.watch-home .watch-stage .trail-wave { border-left:1px solid #887856; padding-left:6px; }
-.ui-game .watch-home .watch-destinations {
+.watch-ground .watch-stage b { font-size:14px; }
+.watch-ground .watch-stage :is(.trail-wave,.trail-region) { margin:0; }
+.watch-ground .watch-stage .trail-wave { border-left:1px solid #887856; padding-left:6px; }
+.ui-game .watch-ground .watch-destinations {
   left:0; top:clamp(64px,calc(50% - 79px),40%); gap:5px;
 }
 .watch-destinations button { width:62px; min-height:48px; padding:3px; white-space:nowrap; }
 .watch-destinations svg { width:21px; height:21px; }
-.ui-game .watch-home .watch-fighter .hp-meter { padding:4px 6px; }
-.watch-home .hp-name svg { width:16px; height:16px; }
-.watch-home .hp-track { height:7px; margin:2px 0; }
-.watch-home .player .watch-actor { left:16%; bottom:16%; width:41%; }
-.ui-game .watch-home .watch-roll { bottom:1%; }
-.ui-game .watch-home .player .watch-roll { left:21%; }
-.watch-home .watch-die { width:41px; height:41px; padding:6px; }
-.watch-home .watch-roll .watch-die svg { width:26px; height:26px; }
-.watch-home .watch-roll { gap:3px; }
-.watch-home .watch-roll > span { font-size:11px; }
-.ui-game .watch-home .watch-reward { min-height:22px; }
-.watch-home .trail-detail { padding:2px 8px; background:#14231dda; border-radius:6px; }
-.watch-home .watch-plan { padding:5px 8px; border:1px solid #95805b; border-radius:9px; background:#1d2a22ec; }
+.ui-game .watch-ground .watch-fighter .hp-meter { padding:4px 6px; }
+.watch-ground .hp-name svg { width:16px; height:16px; }
+.watch-ground .hp-track { height:7px; margin:2px 0; }
+.watch-ground .player .watch-actor { left:16%; bottom:16%; width:41%; }
+.ui-game .watch-ground .watch-roll { bottom:1%; }
+.ui-game .watch-ground .player .watch-roll { left:21%; }
+.watch-ground .watch-die { width:41px; height:41px; padding:6px; }
+.watch-ground .watch-roll .watch-die svg { width:26px; height:26px; }
+.watch-ground .watch-roll { gap:3px; }
+.watch-ground .watch-roll > span { font-size:11px; }
+.watch-ground :is(.watch-plan,.watch-reward):empty, .watch-roll > span:empty { display:none; }
+.watch-ground .trail-detail { padding:2px 8px; background:#14231dda; border-radius:6px; }
+.watch-ground .watch-plan { padding:5px 8px; border:1px solid #95805b; border-radius:9px; background:#1d2a22ec; }
 .watch-home-actions {
   display:grid; grid-template-columns:minmax(0,1fr) minmax(140px,1.7fr) minmax(0,1fr);
   align-items:center; gap:7px; padding:0 2px 4px;
@@ -245,11 +244,11 @@ body.ui-game:has(.watch-home)::after {
   border-radius:38% 38% 20% 20%; color:#fff3cf; background:linear-gradient(145deg,#9b7839,#6f5123);
   box-shadow:inset 0 0 0 3px #533f245c,0 4px #48351c,0 6px 12px #111c17a6;
 }
-.watch-home .watch-start-label { flex-direction:column; gap:2px; line-height:1.15; font-size:19px; }
-.watch-home .watch-start-label svg { width:29px; height:29px; }
-.watch-home .watch-ticket-bar { max-width:122px; font-size:10px; }
+.watch-ground .watch-start-label { flex-direction:column; gap:2px; line-height:1.15; font-size:19px; }
+.watch-ground .watch-start-label svg { width:29px; height:29px; }
+.watch-ground .watch-ticket-bar { max-width:122px; font-size:10px; }
 @media (max-height:760px) {
   .ui-game .watch-home-actions .watch-start { min-height:88px!important; }
-  .watch-home .watch-start-label { font-size:17px; }
-  .watch-home .watch-start-label svg { width:23px; height:23px; }
+  .watch-ground .watch-start-label { font-size:17px; }
+  .watch-ground .watch-start-label svg { width:23px; height:23px; }
 }
