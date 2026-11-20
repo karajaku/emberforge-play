@@ -177,6 +177,7 @@ const SaveStore = (() => {
     try { game.migrateTraining(restored); } catch { throw fault("corrupt"); }
     if (data.swordRecord === undefined) game.startSwordRecord(restored, "equipped");
     game.enableJourney(restored);
+    game.restoreHuntWeapon(restored);
     return restored;
   }
   function storageFault(error, writing = false) {
