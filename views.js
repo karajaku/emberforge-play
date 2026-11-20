@@ -411,12 +411,16 @@ function huntingRechargeText(w) {
   const time = Math.floor(seconds / 60) + "분 " + seconds % 60 + "초";
   return w.remaining === null ? "자연 충전 대기 · 무료 30개 미만부터 충전" : "다음 무료 충전 " + time + " · 10분마다 1개";
 }
+function dailyAvailable(s) {
+  const today = Game.day(Date.now());
+  return !(s.day >= today || s.hunting.daily >= today);
+}
 function huntingWalletKey(s, w) {
-  return [w.free, w.purchased, s.day >= Game.day(Date.now()) || w.daily >= Game.day(Date.now())].join(":");
+  return [w.free, w.purchased, !dailyAvailable(s)].join(":");
 }
 function huntingWalletContent(s) {
   const w = Game.huntingStatus(s);
-  const claimed = s.day >= Game.day(Date.now()) || w.daily >= Game.day(Date.now());
+  const claimed = !dailyAvailable(s);
   return '<div data-hunting-status="' + huntingWalletKey(s, w) + '">' + line("사냥권", "무료 " + fmt(w.free) + " / 30 · 구매 " + fmt(w.purchased)) +
     '<p class="desc" data-hunting-recharge>' + huntingRechargeText(w) + '</p>' +
     (!w.free && !w.purchased ? desc("사냥권이 부족합니다. 충전을 기다리거나 출석을 확인하세요. 제작·담금질·보관함 정리·배치 수익 수령은 계속할 수 있습니다.") +
@@ -667,7 +671,9 @@ function towerView(s) {
       : s.towerRun
         ? line("고속 등반 중", s.towerRun.cleared + "층 돌파 · 상자 " + s.towerRun.chests.length + "개") +
           btn("stopTower", "등반 중단하고 결과 보기", "", "primary")
-        : btn("fastTower", icon("chevrons-up") + "고속 등반 · 입장권 1장", "", "primary", !s.tickets)) +
+        : !s.tickets && dailyAvailable(s)
+          ? openBtn("daily", icon("gift") + "출석 보상 · 입장권 5장", "primary")
+          : btn("fastTower", icon("chevrons-up") + "고속 등반 · 입장권 1장", "", "primary", !s.tickets)) +
     (tr ? '<details><summary>시련 규칙</summary>' +
       desc("매 층 체력 회복 · 20턴 이내 승리 · 보상 3개 중 1개 선택. 매주 월요일 0시(한국 시간)에 초기화됩니다.") + '</details>' : "") +
     (tr ? openBtn("restart", "1층부터 다시 도전")
@@ -762,11 +768,7 @@ function growthView(s) {
     .map(([key, v]) =>
       row(
         v[0] + " Lv." + s.imprints[key],
-        { luck: "강화 성공률 +0.2%p", lung: "탐사 산소 +10", land: "사냥터 +1칸" }[key] +
-          " · 주각인 " +
-          Game.techniques[key].name +
-          " · " +
-          Game.techniques[key].text,
+        { luck: "강화 성공률 +0.2%p", lung: "탐사 산소 +10", land: "사냥터 +1칸" }[key],
         btn(
           "imprint",
           s.imprints[key] >= v[3] ? "최대" : Game.imprintCost(s, key) + " P",
@@ -790,7 +792,10 @@ function growthView(s) {
         openBtn("rebirth", s.weapon.level === 20 && !Game.isJourneyGear(s, s.weapon) ? "환생 의식 열기" : "환생 조건 보기"),
       "flame",
     ),
-    imprint: card("영혼 각인", imprint.join(""), "sparkles"),
+    imprint: card("영혼 각인", imprint.join("") +
+      '<details class="imprint-techniques"><summary>주각인 효과</summary>' +
+      Object.entries(Game.techniques).map(([key, technique]) =>
+        row(Game.imprints[key][0] + " · " + technique.name, technique.text, "")).join("") + '</details>', "sparkles"),
     fusion: card(
       "초월 합성",
       line("개방 조건", "환생 2,000회") + openBtn("fusion", "합성 재료 보기"),

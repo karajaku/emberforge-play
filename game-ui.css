@@ -154,7 +154,7 @@ body.ui-game { grid-template-rows:auto minmax(0,1fr) auto auto; }
 .ui-game #screen .field-slots .listrow { background:#27372de8;border-color:#8b865c;color:#e3dabd; }
 .ui-game .progression-stage { display:grid;place-items:center;min-height:112px;flex:0 0 112px!important;background:radial-gradient(ellipse,#d6c37a26,transparent 65%); }
 .ui-game .progression-stage svg { width:62px;height:62px;color:#eee1a0;filter:drop-shadow(0 0 12px #d7cf82); }
-.ui-game .dialog { --text:#443021;--muted:#735d49;--gold:#805011;--mint:#187652; }
+.ui-game .dialog { --text:#443021;--muted:#735d49;--gold:#805011;--mint:#187652; color:var(--text); }
 @media(max-height:760px) {
  .ui-game header .headwrap { height:54px; }
  .ui-game .ui-forge-rail { top:80px;gap:8px; }
@@ -169,7 +169,6 @@ body.ui-game { grid-template-rows:auto minmax(0,1fr) auto auto; }
   box-sizing: border-box; width: 100%; min-height: 44px; padding: 6px 10px;
   border: 1px solid #987a55; border-radius: 6px; background: #fff8eb; color: #443021; font: inherit;
 }
-#shade:is([data-modal="shop"], [data-modal="relicWorkshop"]) .listrow b { color: #443021; }
 #shade .shop-modes { display: grid; grid-template-columns: 1fr 1fr; margin: 8px 0; }
 #shade .shop-modes button { min-height: 44px; }
 
@@ -179,7 +178,6 @@ body.ui-game { grid-template-rows:auto minmax(0,1fr) auto auto; }
 .lining-card svg { width:16px; height:16px; }
 .lining-card .action { min-height:44px; }
 
-#shade[data-modal="journal"] #modalBody { color:var(--text); }
 #shade[data-modal="craft"] .craft-body h3 { color:#56391f; }
 .sword-history summary { min-height:44px; padding:11px 0; cursor:pointer; font-weight:700; }
 .sword-history summary svg { width:18px; height:18px; vertical-align:middle; margin:0 5px 2px 2px; }
@@ -214,6 +212,12 @@ body.ui-game {
 .ui-game #screen :is(.metric small,.desc,.listrow .grow small,.field-empty,.legacy-card p,.craft-entry p,
     .forge-notebook p,.craft-choice small,.legacy-card small,.forge-notebook small,.inventory-tile small) { color:#f1e7cf; }
 .ui-game #screen :is(.line,.listrow) { border:0; }
+.ui-game #screen .order .progress { color:var(--text); }
+.imprint-techniques summary { padding:12px 0; cursor:pointer; font-weight:700; }
+[data-act="imprint"] { min-width:44px; }
+@media (max-height:720px) {
+  #screen > .adventure-map .map-pin { min-height:100px; }
+}
 .ui-game #mobileNav, .ui-game #pageNav:not([hidden]), .ui-game #screen .segment { gap:5px; }
 .ui-game #mobileNav .navitem:not(.active),
 .ui-game #pageNav button:not([aria-current]),

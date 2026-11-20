@@ -67,8 +67,16 @@ const GameUI = (() => {
     const growth=document.querySelector('.progression-stage');if(growth)growth.innerHTML=icon('sparkles');
   }
   document.addEventListener('click',event=>{
-    if(event.target.closest('[data-go],[data-open],[data-lesson]')) document.querySelector('.ui-utilities')?.removeAttribute('open');
+    const menu = document.querySelector('.ui-utilities[open]');
+    if (menu && (!menu.contains(event.target) || event.target.closest('[data-go],[data-open],[data-lesson]'))) menu.open = false;
   },true);
-  document.addEventListener('keydown',event=>{if(event.key==='Escape')document.querySelector('.ui-utilities')?.removeAttribute('open');});
+  document.addEventListener('keydown',event=>{
+    const menu = document.querySelector('.ui-utilities[open]');
+    if (event.key === 'Escape' && menu) {
+      menu.open = false;
+      menu.querySelector('summary').focus({preventScroll:true});
+      event.preventDefault();
+    }
+  });
   return {forge, shell};
 })();

@@ -451,7 +451,11 @@ function nav(id) {
     render();
     document.querySelector("main").scrollTop = 0;
     scrollTo(0, 0);
-  } else location.hash = id;
+  } else {
+    const fromMap = location.hash === "#world/map" && Object.hasOwn(zones, id);
+    location.hash = id;
+    if (fromMap) history.replaceState({ ...history.state, fromAdventureMap: true }, "");
+  }
 }
 function render() {
   if (!state) return;
@@ -819,7 +823,8 @@ function modalData() {
           desc("④ 도전의 탑에서는 무기의 공격력과 방어구의 체력이 모두 적용됩니다.") +
           "</div>",
       ];
-    case "daily":
+    case "daily": {
+      const claimed = !dailyAvailable(s);
       return [
         "오늘의 출석 보상",
         '<p class="desc" data-attendance-day="' + Game.day(Date.now()) + '">오늘 ' + Game.day(Date.now()) + " · 한국 시간(KST) 자정 갱신 · 로컬 기기 시각 기준</p>" +
@@ -828,12 +833,13 @@ function modalData() {
           row("가호 보급", "정령과 대장장이 가호 각 3개", icon("shield")) +
           btn(
             "daily",
-            s.day >= Game.day(Date.now()) || s.hunting.daily >= Game.day(Date.now()) ? "오늘 수령 완료" : "보급품 받기",
+            claimed ? "오늘 수령 완료" : "보급품 받기",
             "",
             "primary",
-            s.day >= Game.day(Date.now()) || s.hunting.daily >= Game.day(Date.now()),
+            claimed,
           ),
       ];
+    }
     case "market":
       return [
         "심해 암시장",
@@ -1019,12 +1025,11 @@ function updateSaleQuote(reset) {
     (valid ? " · 받을 포인트 " + fmt(count * item.sell) + " P" : " · 판매 가능한 수량을 입력하세요.");
   sell.disabled = !valid;
 }
-function showModal(key) {
+function showModal(key, trigger = document.activeElement) {
   if (HuntWatch.active) HuntWatch.stop('일시 중단');
   if (!ready || storageError) return;
   if (!modal) {
-    const menu = key === "huntPlan" ? document.activeElement?.closest(".ui-utilities") : null;
-    lastFocus = menu?.querySelector("summary") || document.activeElement;
+    lastFocus = trigger?.closest(".ui-utilities")?.querySelector("summary") || trigger;
   }
   if (key === "temper") {
     act("temperStart");
@@ -1043,11 +1048,18 @@ function closeModal(focus = true) {
   el("shade").hidden = true;
   document.body.style.overflow = "";
   syncMusic();
-  if (focus && lastFocus?.isConnected) lastFocus.focus({ preventScroll: true });
-  else if (focus && lastFocus?.classList.contains("bag-slot")) {
-    const item = el("screen").querySelector('[data-open="' + CSS.escape(lastFocus.dataset.open) + '"]');
-    (item || el("screen").querySelector(".bag-slot") || el("pageNav").querySelector("[aria-current]"))?.focus({ preventScroll: true });
-  }
+  if (!focus) return;
+  const key = lastFocus?.dataset.open;
+  const targets = [
+    lastFocus,
+    key && el("screen").querySelector('[data-open="' + CSS.escape(key) + '"]'),
+    lastFocus?.classList.contains("bag-slot") && el("screen").querySelector(".bag-slot"),
+    key === "daily" && el("screen").querySelector('[data-act="fastTower"]'),
+    el("pageNav").querySelector("[aria-current]"),
+    el("mobileNav").querySelector("[aria-current]"),
+  ];
+  targets.find(node => node && node !== document.body && !node.disabled && node.getClientRects().length)
+    ?.focus({ preventScroll: true });
 }
 function dismissModal() {
   Feedback.clear();
@@ -1059,6 +1071,10 @@ function dismissModal() {
 function back() {
   if (modal) {
     dismissModal();
+    return true;
+  }
+  if (history.state?.fromAdventureMap && zones[current()]) {
+    history.back();
     return true;
   }
   if (location.hash.includes("/")) {
@@ -1200,7 +1216,7 @@ document.addEventListener("click", (e) => {
   }
   if (d.gear) gear = d.gear;
   if (d.go) return nav(d.go);
-  if (d.open) return showModal(d.open);
+  if (d.open) return showModal(d.open, b);
   if ("close" in d) return dismissModal();
   if (d.act) {
     if (modal.startsWith("inventory-")) {
@@ -1362,6 +1378,8 @@ setInterval(() => {
     else el("huntingWallet").querySelector("[data-hunting-recharge]").textContent = huntingRechargeText(w);
   }
   if (modal === "daily" && document.querySelector("[data-attendance-day]")?.dataset.attendanceDay !== Game.day(Date.now())) displayModal();
+  if (current() === "tower" && !state.tickets && dailyAvailable(state) &&
+      el("screen").querySelector('[data-act="fastTower"]:disabled')) render();
   if (state.autoMine) {
     locked(() => {
       const settled = sync();
