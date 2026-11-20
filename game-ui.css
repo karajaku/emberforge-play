@@ -221,6 +221,8 @@ body.ui-game {
   color:#f6e7c8; background:#24322deb; border:1px solid #a08b64; text-shadow:none;
 }
 
+.bag-section + .bag-section { margin-top: 5px; }
+.bag-section h2 { margin: 0 3px 2px; font-size: 15px; line-height: 1.3; color: #f5dfac; }
 .bag-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 77px), 1fr));

@@ -99,11 +99,24 @@ const InventoryView = (() => {
       (item.mark ? '<span class="bag-slot-mark">' + escapeHtml(item.mark) + '</span>' : '') + '</button>';
   }
 
+  function grid(items) {
+    return '<div class="bag-grid">' + items.map(tile).join("") + '</div>';
+  }
+
   function view(s) {
     const page = phonePage("bag");
-    const list = entries(s).filter(item => page === "all" || page === item.group ||
+    const items = entries(s);
+    if (page === "all") {
+      return phonePages.bag.slice(1).map(([group, title]) => {
+        const section = items.filter(item => item.group === group);
+        if (!section.length) return "";
+        return '<section class="bag-section" aria-labelledby="bag-title-' + group + '">' +
+          '<h2 id="bag-title-' + group + '">' + title + '</h2>' + grid(section) + '</section>';
+      }).join("");
+    }
+    const list = items.filter(item => page === item.group ||
       (page === "stored" && item.key.startsWith("stored-")));
-    let html = list.length ? '<div class="bag-grid" aria-label="보유 아이템">' + list.map(tile).join("") + '</div>' :
+    let html = list.length ? grid(list) :
       desc(({stored: "보관 중인 무기가 없습니다.", items: "보유한 소지품이 없습니다.", relics: "보유한 유물이 없습니다."})[page]);
     if (page === "stored") html += line("보관 무기", s.bag.length + " / 20") + go("bag", "전체 보기", "action");
     if (page === "relics") html += line("보관 유물", s.relics.length + " / 20") + openBtn("shop", "포인트 상점");
