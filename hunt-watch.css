@@ -1,5 +1,4 @@
-/* main reserves the lesson/navigation rows; this grid gives only the remaining
-   height to the scene, after measuring controls, skills and reward content. */
+/* Keep the controls below the scene, independently of transient combat text. */
 .watch-view { display:grid;grid-template-rows:auto minmax(150px,1fr);grid-auto-rows:max-content;flex:1!important;gap:6px;min-height:0;max-height:740px;margin-block:auto; }
 .watch-stage { text-align:center;color:#e7d4a5;letter-spacing:3px;padding:2px 3px;line-height:1.3;font-size:13px; }
 .watch-stage b { font-size:24px; }
@@ -24,7 +23,6 @@
 body:has(.watch-arena[data-region])::before { background:radial-gradient(ellipse at top,#354539,#172721 75%); }
 .watch-view:has([data-region]) { gap:6px; }
 .watch-view:has([data-region]) .watch-stage { padding:2px 3px;line-height:1.3; }
-.watch-view:has([data-region]) .watch-reward { flex:none;min-height:32px;gap:4px; }
 .watch-arena[data-region] .watch-enemy-skill b { white-space:nowrap; }
 .watch-arena[data-region] .watch-enemy-skill em { font-size:11px; }
 .watch-arena[data-region] .watch-roll>span { padding:1px 5px;border-radius:4px;background:#172721dc; }
@@ -50,7 +48,7 @@ body[data-motion="on"] .watch-counter-award { animation:watch-counter-award 1.1s
 .watch-roll>span { display:flex;align-items:center;gap:5px;color:#eee0c1;font-size:13px; }.watch-roll svg { width:18px;height:18px; }
 body[data-motion="on"] .watch-roll.rolling .watch-die { animation:watch-roll .3s linear infinite; }
 @keyframes watch-roll { 0%{transform:perspective(300px) translateY(0) rotate(-30deg) rotateY(0)}50%{transform:perspective(300px) translateY(-3px) rotate(140deg) rotateY(55deg)}100%{transform:perspective(300px) translateY(0) rotate(330deg) rotateY(0)} }
-.watch-reward { min-height:32px;display:grid;align-content:center;justify-items:center;gap:4px;color:#eaddb6;text-align:center; }
+.watch-reward { display:grid;justify-items:center;gap:5px;color:#fff1cd;text-align:center; }
 .watch-reward strong { display:flex;align-items:center;gap:8px;font-size:25px;color:#f8d58b; }.watch-reward svg { width:26px;height:26px; }
 .ui-game .watch-start { margin-bottom:8px;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:8px 12px;min-height:76px!important; }
 .watch-start-label { display:flex;align-items:center;justify-content:center;gap:8px; }
@@ -150,12 +148,13 @@ body[data-motion="on"] .watch-receipt :is(.watch-receipt-head > b, .watch-receip
 .watch-view .lining-link { min-height:44px; }
 
 .watch-view { grid-template-columns:minmax(0,1fr); }
-.watch-receipt { display:grid; gap:3px; width:100%; min-width:0; }
-.watch-receipt-head { display:flex; align-items:center; justify-content:center; gap:7px; }
-.watch-receipt-head > b { font-size:13px; }
-.watch-receipt-head > strong { font-size:20px; white-space:nowrap; }
+.watch-receipt { display:grid; justify-items:center; gap:4px; min-width:0; }
+.watch-receipt-head { display:grid; justify-items:center; gap:1px; }
+.watch-receipt-head > b, .watch-defeat { font-size:clamp(22px,5vw,29px); line-height:1.1; color:#fff1bf; }
+.watch-defeat { color:#ffd0bd; }
+.watch-receipt-head > strong { font-size:18px; white-space:nowrap; }
 .watch-receipt .watch-loot { flex-wrap:wrap; gap:3px 8px; }
-.watch-receipt .lining-link { display:grid; place-items:center; gap:1px; width:auto; min-width:52px; padding:2px 5px; font-size:12px; }
+.watch-report .action { display:inline-flex; align-items:center; justify-content:center; gap:4px; width:auto; min-width:68px; min-height:44px; padding:3px 9px; font-size:12px; }
 .watch-receipt .lining-link svg { width:17px; height:17px; }
 .watch-motion-hint button { display:grid; align-content:center; gap:1px; padding:2px 8px; }
 .watch-motion-hint button small { font-size:10px; color:#d5dbc8; }
@@ -178,9 +177,19 @@ body.ui-game:has(.watch-ground)::after {
 /* The first grid row is the clearing; the second holds both combatants' HUD. */
 .ui-game .watch-ground .watch-arena {
   --action-width:44px;
-  display:grid; grid-template: minmax(0,1fr) auto / repeat(2,minmax(0,1fr));
+  display:grid; grid-template: minmax(0,1fr) 103px / repeat(2,minmax(0,1fr));
   gap:5px clamp(16px,5%,30px); align-items:start; padding:0 4px 2px; background:transparent!important; border:0;
 }
+.watch-report {
+  position:absolute; grid-area:1 / 1 / 2 / -1; inset:0; z-index:7;
+  display:flex; flex-direction:column; align-items:center; justify-content:safe center; gap:5px;
+  overflow:auto; scrollbar-width:thin; pointer-events:none; text-shadow:var(--readout-shadow);
+}
+.watch-report > * { flex:none; max-width:100%; }
+.watch-report:has(.watch-reward:not(:empty),.watch-motion-hint) { pointer-events:auto; overscroll-behavior:contain; }
+.watch-report :is(button,a) { pointer-events:auto; }
+.watch-report:has(.watch-reward:empty) { justify-content:end; }
+.watch-report .watch-status { font-size:12px; }
 .watch-readout {
   display:grid; grid-row:2; grid-template-columns:var(--action-width) minmax(0,1fr); gap:6px 7px; align-items:start;
   min-width:0; position:relative; z-index:3; color:#fff5d9; text-align:left;
@@ -242,6 +251,11 @@ body.ui-game:has(.watch-ground)::after {
   .watch-readout { --action-width:35px; column-gap:3px; }
 }
 @container (max-height:335px) {
+  .watch-report:has(.lining-link) .watch-receipt {
+    grid-template-columns:minmax(0,1fr) auto; column-gap:6px; align-items:center;
+  }
+  .watch-report:has(.lining-link) .watch-loot { grid-column:1/-1; grid-row:2; }
+  .watch-report .lining-link { grid-column:2; grid-row:1; }
   .watch-fighter:has(.watch-skills) .watch-actor {
     max-width:clamp(40px,calc((84cqh - 111px) * .88),150px);
   }
@@ -249,9 +263,8 @@ body.ui-game:has(.watch-ground)::after {
     max-width:clamp(40px,calc((67cqh - 101px - var(--hover-height,0px)) * .88),154px);
   }
 }
-.watch-ground:has(.watch-receipt) .watch-action { display:none; }
 .watch-ground .watch-version { color:#d5c5a3; font-size:11px; }
-.watch-ground > :is(.watch-stage,.watch-reward,.watch-status,.watch-home-actions) { position:relative; z-index:1; }
+.watch-ground > :is(.watch-stage,.watch-home-actions) { position:relative; z-index:1; }
 .ui-game .watch-ground .watch-stage {
   justify-self:center; display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:5px; margin:2px 0; padding:5px 10px;
   color:#ffefce; letter-spacing:0;
@@ -285,7 +298,7 @@ body.ui-game:has(.watch-ground)::after {
 }
 .watch-home-actions > .action svg { width:22px; height:22px; }
 .ui-game .watch-home-actions .watch-start {
-  min-height:105px!important; margin:0; padding:9px 8px; border:2px solid #e1c182;
+  height:105px; min-height:105px!important; margin:0; padding:9px 8px; border:2px solid #e1c182;
   border-radius:38% 38% 20% 20%; color:#fff3cf; background:linear-gradient(145deg,#9b7839,#6f5123);
   box-shadow:inset 0 0 0 3px #533f245c,0 4px #48351c,0 6px 12px #111c17a6;
 }
@@ -293,7 +306,7 @@ body.ui-game:has(.watch-ground)::after {
 .watch-ground .watch-start-label svg { width:29px; height:29px; }
 .watch-ground .watch-ticket-bar { max-width:122px; font-size:10px; }
 @media (max-height:760px) {
-  .ui-game .watch-home-actions .watch-start { min-height:88px!important; }
+  .ui-game .watch-home-actions .watch-start { height:88px; min-height:88px!important; }
   .watch-ground .watch-start-label { font-size:17px; }
   .watch-ground .watch-start-label svg { width:23px; height:23px; }
 }

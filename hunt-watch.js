@@ -1,6 +1,6 @@
 /* Session-only spectator controller. Durable operations use act() and the save lock. */
 const HuntWatch=(()=>{
-  let active=false,generation=0,timer=null,busy=false,reward=null,reason='',outcome=null;
+  let active=false,generation=0,timer=null,busy=false,reward=null,reason='',lastRound=null;
   let mode = 'progress', fixedRank = 1, replayRank = 0, saveGeneration = null, nextStrikeAt = 0;
   const names={strike:'공격',block:'방어',heavyStrike:'강공'};
   const icons={strike:'sword',block:'shield',heavyStrike:'hammer'};
@@ -36,7 +36,7 @@ const HuntWatch=(()=>{
     const rank = nextRank();
     const area = validRank(rank) && Game.huntArea(rank);
     const estimate = area && !s.hunt ? '<div class="watch-estimate" aria-label="' + rank + '단계 권장 장비와 승리 보상"><span>' +
-      (reward || held || outcome ? rank + '단계 · ' : '') + '권장 검 +' + fmt(area.w) +
+      (reward || held || lastRound ? rank + '단계 · ' : '') + '권장 검 +' + fmt(area.w) +
       ' · 갑옷 +' + fmt(area.a) + '</span><b>' + icon('coins') + '승리 ' + fmt(area.prize) + ' G</b></div>' : '';
     const training = task?.open && !task.ready ? '<small>수련 ' + task.needed + '단계 이상</small>' : '';
     return '<div class="watch-status">' + estimate + training + motion + '</div>';
@@ -53,14 +53,15 @@ const HuntWatch=(()=>{
   function restoreReceipt() {
     mode = 'progress'; fixedRank = 1; replayRank = 0;
     reward = null;
-    outcome = null;
+    lastRound = null;
     if (current() === 'forest' && phonePage('forest') === 'hunt' && !state.hunt &&
         state.lastChest?.source === 'forest' && state.lastChest.id === state.lastHunt?.chestId)
       reward = {...state.lastChest};
   }
   function stageOutcome(before){
-    if(state.hunt)outcome=null;
-    else if(before&&state.lastHunt?.id===before.id)outcome=state.lastHunt.health;
+    if(state.hunt)lastRound=null;
+    // Keep the final round's skill readouts while the saved result supplies HP and dice.
+    else if(before&&state.lastHunt?.id===before.id)lastRound=before;
   }
   function die(face,action,side) {
     return '<div class="watch-roll" data-die="'+side+'"><div class="watch-die" data-action="'+(action||'')+'" role="img" aria-label="'+(face?names[action]+' 주사위':'주사위 대기')+'">'+icon(icons[action]||'sword')+'</div><span>'+(face?names[action]:'')+'</span></div>';
@@ -97,7 +98,7 @@ const HuntWatch=(()=>{
   }
   function view(s) {
     const h=s.hunt;
-    const result = !h && (reward || pending() || reason.startsWith('패배') || outcome) ? s.lastHunt : null;
+    const result = !h && (reward || pending() || reason.startsWith('패배') || lastRound) ? s.lastHunt : null;
     const rank=h?.rank || result?.rank || nextRank() || 60;
     const encounter = h || result;
     const pack = Game.trail.lineup(rank,encounter?.bonusEncounter);
@@ -105,9 +106,10 @@ const HuntWatch=(()=>{
     const wave = encounter?.wave ?? 0;
     const enemy = encounter ? Game.huntEnemy(encounter) : Game.trail.enemy(rank,pack[0]);
     const st=Game.huntStats(s),roll=encounter?.lastDice;
-    const useDice=h?h.diceVersion===1:true;
+    const useDice=encounter?encounter.diceVersion===1:true;
     const sprite='blade'+(Game.bladeStage(s.weapon)||'');
-    const resultHealth=!h?(outcome||((reward||pending()||reason.startsWith('패배'))?s.lastHunt?.health:null)):null;
+    const resultHealth=result?.health;
+    const skillState=h || (lastRound?.id===result?.id ? lastRound : null);
     const hp=h?.hp??resultHealth?.hp??st.hp,max=h?.maxHp??resultHealth?.maxHp??st.hp,enemyHp=h?.enemyHp??resultHealth?.enemyHp??Game.trail.opponent(rank,enemy.kind,true).hp;
     const total=h?.enemyMax??resultHealth?.enemyMax??enemyHp;
     function fighter(side,label,asset,width,current,maxHp) {
@@ -118,7 +120,7 @@ const HuntWatch=(()=>{
       const action = useDice ? die(roll?.[side+'Face'],roll?.[side],side) : '';
       return '<div class="watch-fighter '+side+'"'+(elite?' data-elite="true"':'')+' data-action="'+(roll?.[side]||'')+'">'+
         '<div class="watch-readout">'+healthMeter(side,label,current,maxHp)+
-        '<div class="watch-action">'+action+'</div>'+(side==='player'?skills(h):enemySkill(h))+'</div>'+
+        '<div class="watch-action">'+action+'</div>'+(side==='player'?skills(skillState):enemySkill(skillState))+'</div>'+
         '<div class="watch-actor'+(asset==='moth'?' airborne':'')+'"'+(current<=0?' data-defeated="true"':'')+'>'+
         actor+'<div class="watch-ward" aria-hidden="true">'+icon('shield')+'</div></div></div>';
     }
@@ -126,7 +128,7 @@ const HuntWatch=(()=>{
     const held = h || pending(), finished = !held && !validRank(nextRank());
     const label = active ? '사냥 중단' : finished ? '구역 선택' :
       held ? (mode === 'repeat' ? '반복 재개' : s.huntBest >= 60 ? '재도전 재개' : '진행 재개') :
-      empty ? '사냥권 충전 보기' : mode === 'repeat' ? '반복 시작' : s.huntBest >= 60 ? '1회 재도전' : '사냥';
+      empty ? '충전 보기' : mode === 'repeat' ? '반복 시작' : s.huntBest >= 60 ? '1회 재도전' : '사냥';
     const area=Game.trail.region(rank);
     const detail = encounterHint(h,result,enemy,rank,pack);
     const home = !active && (!encounter || location.hash === '#world');
@@ -139,15 +141,16 @@ const HuntWatch=(()=>{
     return '<section class="watch-view watch-ground' + (home ? ' watch-home' : '') + '"><div class="watch-stage">' +
       '<span class="watch-stage-name">'+icon('trees')+'사냥터</span> · <b>'+rank+'단계'+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+'<small class="watch-version">v'+UpdateNotice.version()+'</small>'+(h?.ripostes>0 && !h.journeyBattle?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+'</div>'+
       '<div class="scene watch-arena combat-hud" data-region="'+area.id+'">'+fighter('player','나',sprite,128,hp,max)+fighter('enemy',enemy.name,enemy.sprite||'boar',144,enemyHp,total)+
-      '</div>'+
-      '<div class="watch-reward" role="status">'+(detail?'<div class="trail-detail">'+detail+'</div>':'')+(reward?'<div class="watch-receipt"><div class="watch-receipt-head"><b>'+reward.rank+'단계 클리어</b><strong>'+icon('coins')+' +'+fmt(reward.gold)+' G</strong>'+
-        (!active && reward.fiber ? '<button class="action lining-link" data-go="forge" data-gear="armor">'+icon('shield')+'안감 제작</button>' : '')+'</div><div class="watch-loot">'+
+      '<div class="watch-report">'+
+      '<div class="watch-reward" role="status">'+(detail?'<div class="trail-detail">'+detail+'</div>':'')+(reward?'<div class="watch-receipt"><div class="watch-receipt-head"><b>'+reward.rank+'단계 클리어</b><strong>'+icon('coins')+' +'+fmt(reward.gold)+' G</strong></div><div class="watch-loot">'+
         (reward.fiber ? '<span>'+icon('trees')+'숲결 섬유 +'+reward.fiber+'</span>' : '')+
         (reward.goblinGold?'<span>'+icon('coins')+'고블린 +'+fmt(reward.goblinGold)+' G 포함</span>':'')+
         (reward.counter>0?'<span class="watch-counter-reward">반격 +'+fmt(reward.counter)+' G 포함</span>':'')+
-        [[reward.shards,'sparkles','별의 파편'],[reward.scrolls,'scroll-text','주문서'],...[0,1,2].map(i=>[reward.charms[i],['trees','hammer','star'][i],Game.blessings[i]])].filter(([n])=>n).map(([n,ic,title])=>'<span aria-label="'+title+' '+n+'개" title="'+title+'">'+icon(ic)+' +'+n+'</span>').join('')+'</div></div>':reason&&!(h&&reason==='일시 중단')?'<b>'+reason+'</b>':'')+'</div>'+
-      huntStatus(s, held)+controls+
-      (!active&&reason==='패배 · 장비를 강화해 주세요'?go('forge','장비 강화','action'):'')+'</section>';
+        [[reward.shards,'sparkles','별의 파편'],[reward.scrolls,'scroll-text','주문서'],...[0,1,2].map(i=>[reward.charms[i],['trees','hammer','star'][i],Game.blessings[i]])].filter(([n])=>n).map(([n,ic,title])=>'<span aria-label="'+title+' '+n+'개" title="'+title+'">'+icon(ic)+' +'+n+'</span>').join('')+'</div>'+
+        (!active && reward.fiber ? '<button class="action lining-link" data-go="forge" data-gear="armor">'+icon('shield')+'안감 제작</button>' : '')+'</div>'
+        :reason.startsWith('패배')?'<b class="watch-defeat">패배</b>'+go('forge','장비 강화','action')
+        :reason&&!(h&&reason==='일시 중단')?'<b>'+reason+'</b>':'')+'</div>'+
+      huntStatus(s, held)+'</div></div>'+controls+'</section>';
   };
   function beforeRender(){if(active&&!allowed())stop('',false);}
   function refreshWallet() {
@@ -200,7 +203,7 @@ const HuntWatch=(()=>{
           const w=Game.huntingStatus(state);
           if(!w.free&&!w.purchased){stop('사냥권을 모두 사용했습니다');return;}
           const rank=nextRank(),serial=state.hunting.serial,wallet=state.hunting.id, selectedMode=mode;
-          reward=null;outcome=null;reason='';
+          reward=null;lastRound=null;reason='';
           await act(null,'',undefined,undefined,()=>live(token)&&!state.hunt&&!pending()&&
             mode===selectedMode&&validRank(rank)&&state.hunting.id===wallet&&state.hunting.serial===serial&&
             (state.hunting.free>0||state.hunting.purchased>0)?
@@ -244,7 +247,7 @@ const HuntWatch=(()=>{
       mode = repeat ? 'repeat' : 'progress';
       if (repeat) fixedRank = rank;
       else if (state.huntBest >= 60) replayRank = rank;
-      generation++; reward = null; outcome = null; reason = '';
+      generation++; reward = null; lastRound = null; reason = '';
       closeModal(false);
       render();
       document.querySelector('.watch-start')?.focus({preventScroll:true});
@@ -257,12 +260,12 @@ const HuntWatch=(()=>{
     if(!state.hunt&&!pending()&&!validRank(nextRank()))return;
     if(prefs.sound)GameSound.unlock();GameMusic.unlock();
     saveGeneration = state._save?.generation;
-    repeatHunting.stop('관전 사냥');autoCombat.stop();active=true;reason='';reward=null;outcome=null;generation++;render();arm(100);
+    repeatHunting.stop('관전 사냥');autoCombat.stop();active=true;reason='';reward=null;lastRound=null;generation++;render();arm(100);
   },true);
   document.addEventListener('visibilitychange',()=>{if(document.hidden)stop('일시 중단');});
   window.addEventListener('pagehide',()=>stop('',false));
   window.addEventListener('hashchange',()=>{
-    if(current()!=='forest'||phonePage('forest')!=='hunt'){stop('',false);reward=null;outcome=null;}
+    if(current()!=='forest'||phonePage('forest')!=='hunt'){stop('',false);reward=null;lastRound=null;}
     else if(location.hash==='#world' && active)stop('',false);
   });
   return {view, planView, stop, beforeRender, refreshWallet, restoreReceipt, stageOutcome, get active(){return active;}};

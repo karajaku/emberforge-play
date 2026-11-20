@@ -411,7 +411,10 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
         if (animate) Feedback.play("forge", stage, label, outcome, repeatStrike, promotedTo);
         sound(repeatStrike && outcome === "hold" ? "forge-repeat-hold" : "forge-" + outcome, animate ? Feedback.strikeMs / 1000 : 0);
       } else if (chest) {
-        if (animate) Feedback.play("chest", document.querySelector(".chest-reveal .chest-art"), "+" + fmt(state.lastChest.gold) + " G");
+        if (animate) {
+          const report = repeatGuard && document.querySelector(".watch-report");
+          Feedback.play("chest", report || document.querySelector(".chest-reveal .chest-art"), report ? "" : "+" + fmt(state.lastChest.gold) + " G");
+        }
         sound("chest", animate ? Feedback.chestMs / 1000 : 0);
       } else if (reward) {
         if (animate) Feedback.play("coins", modal ? el("modalBody") : stage, state.gold > goldBefore ? "+" + fmt(state.gold - goldBefore) + " G" : "보상 획득");
