@@ -496,7 +496,8 @@ function render() {
     (id === "forge"
       ? openBtn("journal", icon("scroll-text") + "강화 기록", "ghost")
       : id === "forest" && phonePage(id) === "hunt"
-        ? openBtn("huntRules", icon("swords") + "사냥 규칙", "ghost")
+        ? (!HuntWatch.active && state.huntBest ? openBtn("huntPlan", icon("compass") + "사냥 구역", "ghost") : "") +
+          openBtn("huntRules", icon("swords") + "사냥 규칙", "ghost")
       : zones[id]
         ? go("world/map", icon("compass") + "모험 지도", "ghost")
         : openBtn("daily", icon("gift") + "출석 보상", "ghost")) +
@@ -944,6 +945,8 @@ function modalData() {
       ];
     case "huntWallet":
       return ["사냥권 · 충전", '<section id="huntingWallet">' + huntingWalletContent(s) + '</section>' + openBtn("daily", "출석 보상 확인")];
+    case "huntPlan":
+      return ["사냥 구역", HuntWatch.planView(s)];
     case "huntRules":
       return ["주사위 사냥", line("1~3 공격 · 4~5 방어 · 6 강공", "양쪽이 매 턴 굴립니다") +
         desc("강공은 공격력의 1.7배, 방어는 받는 피해를 75% 줄입니다. 먼저 쓰러뜨린 적은 반격하지 못합니다. 40턴 안에 쓰러뜨리지 못하면 패배합니다.") +
@@ -1018,7 +1021,10 @@ function updateSaleQuote(reset) {
 function showModal(key) {
   if (HuntWatch.active) HuntWatch.stop('일시 중단');
   if (!ready || storageError) return;
-  if (!modal) lastFocus = document.activeElement;
+  if (!modal) {
+    const menu = key === "huntPlan" ? document.activeElement?.closest(".ui-utilities") : null;
+    lastFocus = menu?.querySelector("summary") || document.activeElement;
+  }
   if (key === "temper") {
     act("temperStart");
     return;

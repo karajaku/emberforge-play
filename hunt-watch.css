@@ -152,12 +152,11 @@ body[data-motion="on"] .watch-receipt :is(.watch-receipt-head > b, .watch-receip
   .watch-arena[data-region] .hp-track { height:6px; margin:1px 0; }
 }
 
-.watch-plan { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:4px 8px; }
-.watch-plan select { max-width:100%; min-width:0; min-height:44px; padding:4px 18px 4px 6px; border:1px solid #827851; border-radius:7px;
-  appearance:none; -webkit-appearance:none; color-scheme:dark; color:#f4e8c7; background-color:#20362e;
-  background-image:linear-gradient(45deg,transparent 50%,#d9caa7 50%),linear-gradient(135deg,#d9caa7 50%,transparent 50%);
-  background-size:4px 4px; background-position:calc(100% - 10px) center,calc(100% - 6px) center; background-repeat:no-repeat; }
-.watch-plan > small { flex-basis:100%; color:#d5dbc8; text-align:center; font-size:12px; }
+.hunt-plan-fields { display:grid; gap:14px; color:#443021; }
+.hunt-plan-fields label:not([hidden]) { display:grid; gap:5px; font-weight:700; }
+.hunt-plan-fields select { width:100%; min-height:44px; padding:6px 10px; border:1px solid #987a55; border-radius:6px; background:#fff8eb; color:#443021; font:inherit; }
+.watch-status { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:4px 8px; }
+.watch-status > small { text-align:center; }
 .watch-estimate { grid-column:1/-1; flex-basis:100%; display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:2px 10px; color:#e8e4d5; font-size:12px; }
 .watch-estimate b { display:inline-flex; align-items:center; gap:3px; color:#f1d69a; }
 .watch-estimate svg { width:14px; height:14px; }
@@ -173,13 +172,6 @@ body[data-motion="on"] .watch-receipt :is(.watch-receipt-head > b, .watch-receip
 .watch-receipt .lining-link svg { width:17px; height:17px; }
 .watch-motion-hint button { display:grid; align-content:center; gap:1px; padding:2px 8px; }
 .watch-motion-hint button small { font-size:10px; color:#d5dbc8; }
-.watch-plan .watch-motion-hint { padding:0; }
-
-.watch-plan:has(.trail-replay):has(.watch-motion-hint) {
-  display:grid; grid-template-columns:minmax(0,126px) minmax(0,134px) 72px; gap:3px;
-}
-.watch-plan > small { grid-column:1/-1; }
-.watch-plan .watch-motion-hint button { min-width:44px; }
 /* The hunting ground is a single illustrated scene. Reserve its left edge for
    the same destination controls the forge uses for its workstations. */
 .ui-game:has(.watch-ground) #pageNav { display:none; }
@@ -194,23 +186,22 @@ body.ui-game:has(.watch-ground)::after {
   position:fixed;
   background:linear-gradient(to bottom,#12221935,transparent 29%,transparent 56%,#12221970);
 }
-.ui-game:has(.watch-ground) #mobileNav { background:#15271cbd; }
 .ui-game:has(.watch-ground) #mobileNav .navitem:not(.active) { color:#f3e8cc; }
 .ui-game:has(.watch-ground) main { padding-inline:0; }
 .ui-game:has(.watch-ground) #screen { padding-inline:0; }
 .ui-game .watch-ground { position:relative; isolation:isolate; max-height:none; padding:0 13px 2px; }
 .ui-game .watch-ground .watch-arena { background:transparent!important; border:0; }
 .watch-ground .watch-version { color:#d5c5a3; font-size:11px; }
-.watch-ground > :is(.watch-stage,.watch-reward,.watch-plan,.watch-home-actions) { position:relative; z-index:1; }
+.watch-ground > :is(.watch-stage,.watch-reward,.watch-status,.watch-home-actions) { position:relative; z-index:1; }
 .ui-game .watch-ground .watch-stage {
   justify-self:center; display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:5px; margin:2px 0; padding:5px 10px;
-  border:1px solid #ad9367; border-radius:16px; background:#182920e8; color:#e8d7b2; letter-spacing:0;
+  color:#ffefce; letter-spacing:0;
 }
 .watch-stage-name { display:inline-flex; align-items:center; gap:4px; font-weight:700; }
 .watch-stage-name svg { width:14px; height:14px; }
-.watch-ground .watch-stage b { font-size:14px; }
+.watch-ground .watch-stage b { font-size:17px; color:#ffedbf; }
 .watch-ground .watch-stage :is(.trail-wave,.trail-region) { margin:0; }
-.watch-ground .watch-stage .trail-wave { border-left:1px solid #887856; padding-left:6px; }
+.watch-ground .watch-stage .trail-wave { padding-left:3px; }
 .ui-game .watch-ground .watch-destinations {
   left:0; top:clamp(64px,calc(50% - 79px),40%); gap:5px;
 }
@@ -226,9 +217,28 @@ body.ui-game:has(.watch-ground)::after {
 .watch-ground .watch-roll .watch-die svg { width:26px; height:26px; }
 .watch-ground .watch-roll { gap:3px; }
 .watch-ground .watch-roll > span { font-size:11px; }
-.watch-ground :is(.watch-plan,.watch-reward):empty, .watch-roll > span:empty { display:none; }
-.watch-ground .trail-detail { padding:2px 8px; background:#14231dda; border-radius:6px; }
-.watch-ground .watch-plan { padding:5px 8px; border:1px solid #95805b; border-radius:9px; background:#1d2a22ec; }
+.watch-ground :is(.watch-status,.watch-reward):empty, .watch-roll > span:empty { display:none; }
+/* Readouts share the illustration. Only readable glyph edges and the data bars
+   occupy these areas, including ready, elite and mid-strike states. */
+.ui-game #screen .watch-ground :is(.hp-meter,.watch-skill,.watch-enemy-skill,.watch-skill-flare,
+    .trail-detail,.watch-counter-status,.watch-counter-award,.watch-counter-reward,
+    .watch-reaction b,.watch-reaction small,.watch-die,.watch-roll > span) {
+  border:0; background:none; box-shadow:none;
+}
+.watch-ground .watch-die { color:#ffffd1; }
+.watch-ground .enemy .watch-die { color:#ffbb9d; }
+.watch-ground .watch-roll .watch-die svg {
+  width:32px; height:32px;
+  filter:drop-shadow(1px 1px 1px #16190c) drop-shadow(-1px -1px 1px #13190c);
+}
+.watch-ground .watch-roll:has(.watch-die[data-action=""]):not(.rolling) { visibility:hidden; }
+.watch-ground .watch-roll.waiting { visibility:hidden; }
+.watch-ground .watch-fighter .hp-track { box-shadow:0 0 0 1px #15241dee; }
+.watch-ground .watch-status, .watch-ground .watch-stage, .watch-ground .watch-reward,
+.watch-ground .watch-fighter { text-shadow:var(--readout-shadow); }
+.watch-ground .watch-estimate, .watch-ground .watch-version, .watch-ground .trail-wave { color:#fff3d9; }
+.watch-ground .watch-skill[data-state="locked"] { opacity:1; }
+.watch-ground .watch-skill-clock { filter:drop-shadow(0 1px 1px #102019); }
 .watch-home-actions {
   display:grid; grid-template-columns:minmax(0,1fr) minmax(140px,1.7fr) minmax(0,1fr);
   align-items:center; gap:7px; padding:0 2px 4px;

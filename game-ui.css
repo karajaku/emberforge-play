@@ -216,3 +216,27 @@ body.ui-game { grid-template-rows:auto minmax(0,1fr) auto auto; }
   .ui-game .forge-layout:has(.lining-card) .ui-forge-rail { top:62px; gap:4px; }
   .forge-layout:has(.lining-card) .ui-forge-rail button { min-height:46px; }
 }
+
+/* Keep the illustration visible between controls. Gauges retain their tracks. */
+body.ui-game {
+  --readout-shadow:0 1px 2px #11160e,1px 0 1px #17190f,-1px 0 1px #17190f,0 -1px 1px #17190f,0 2px 4px #12150d;
+}
+.ui-game .wallet, .ui-game #mobileNav, .ui-game #pageNav:not([hidden]),
+.ui-game #apprentice:not([hidden]), .ui-game #screen :is(.segment,.card,.panel,.forge-notebook,
+    .legacy-card,.craft-entry,.order,.hunt-result,.metric,.forge-odds,.forge-blessings,
+    .smith-experience,.location,.lining-card,.mine-fever,.ui-selected-gear,.inventory-tile,.field-empty,
+    .field-slots .listrow,.idle-stats,.hunt-mode,.auto-start,.hunt-tools),
+.ui-game #screen .forge-readout > .line {
+  border:0; background:none; box-shadow:none;
+}
+.ui-game .wallet, .ui-game #screen, .ui-game #apprentice { text-shadow:var(--readout-shadow); }
+.ui-game #screen button, .ui-game #apprentice button { text-shadow:none; }
+.ui-game #screen :is(.metric small,.desc,.listrow .grow small,.field-empty,.legacy-card p,.craft-entry p,
+    .forge-notebook p,.craft-choice small,.legacy-card small,.forge-notebook small,.inventory-tile small) { color:#f1e7cf; }
+.ui-game #screen :is(.line,.listrow) { border:0; }
+.ui-game #mobileNav, .ui-game #pageNav:not([hidden]), .ui-game #screen .segment { gap:5px; }
+.ui-game #mobileNav .navitem:not(.active),
+.ui-game #pageNav button:not([aria-current]),
+.ui-game #screen .segment button:not(.sel):not([aria-pressed="true"]) {
+  color:#f6e7c8; background:#24322deb; border:1px solid #a08b64; text-shadow:none;
+}

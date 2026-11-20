@@ -12,21 +12,26 @@ const HuntWatch=(()=>{
     if (!Number.isInteger(rank) || rank < 1 || rank > 60 || rank !== nextRank()) return false;
     return mode === 'repeat' || state.huntBest >= 60 ? rank <= state.huntBest : rank === state.huntBest + 1;
   }
-  function selector(s, held) {
+  function planView(s) {
+    const repeat = mode === 'repeat';
+    const chooseRank = repeat || s.huntBest >= 60;
+    const rank = repeat ? fixedRank : replayRank;
+    const choices = Array.from({length: Math.min(60, s.huntBest)}, (_, i) => {
+      const n = i + 1;
+      return '<option value="' + n + '"' + (n === rank ? ' selected' : '') + '>' +
+        n + '단계 · 섬유 ' + Game.forestYield(n) + '</option>';
+    }).join('');
+    return '<div class="hunt-plan-fields"><label>사냥 방식<select class="watch-mode">' +
+      '<option value="progress">' + (s.huntBest >= 60 ? '1회 재도전' : '다음 단계 진행') + '</option>' +
+      '<option value="repeat"' + (repeat ? ' selected' : '') + '>완료 구역 반복</option></select></label>' +
+      '<label' + (chooseRank ? '' : ' hidden') + '>완료 구역<select class="trail-replay">' +
+      '<option value="0" disabled' + (rank ? '' : ' selected') + '>단계 선택</option>' + choices + '</select></label>' +
+      '<button class="primary" data-hunt-plan-apply' + (chooseRank && !rank ? ' disabled' : '') + '>적용</button></div>';
+  }
+  function huntStatus(s, held) {
     const motion = motionEnabled() ? '' : '<div class="watch-motion-hint"><button class="mini" data-motion-policy="full"><small>' +
       (reducedMotion.matches && !prefs.motionOverride ? '기기 설정으로 정지' : '연출 꺼짐') + '</small>연출 켜기</button></div>';
     if (active) return motion;
-    const chooseRank = mode === 'repeat' || s.huntBest >= 60;
-    const choices = chooseRank ? Array.from({length: Math.min(60, s.huntBest)}, (_, i) => {
-      const n = i + 1;
-      return '<option value="' + n + '"' + (nextRank() === n ? ' selected' : '') + '>' +
-        n + '단계 · 섬유 ' + Game.forestYield(n) + '</option>';
-    }).join('') : '';
-    const modeSelect = s.huntBest ? '<select class="watch-mode" aria-label="사냥 방식">' +
-      '<option value="progress">' + (s.huntBest >= 60 ? '1회 재도전' : '다음 단계 진행') + '</option>' +
-      '<option value="repeat"' + (mode === 'repeat' ? ' selected' : '') + '>완료 구역 반복</option></select>' : '';
-    const rankSelect = chooseRank ? '<select class="trail-replay" aria-label="완료한 스테이지 선택">' +
-      (mode === 'progress' ? '<option value="0">재도전 단계 선택</option>' : '') + choices + '</select>' : '';
     const task = s.weapon.route?.trait === 'edge' && Game.routeTask(s);
     const rank = nextRank();
     const area = validRank(rank) && Game.huntArea(rank);
@@ -34,7 +39,7 @@ const HuntWatch=(()=>{
       (reward || held || outcome ? rank + '단계 · ' : '') + '권장 검 +' + fmt(area.w) +
       ' · 갑옷 +' + fmt(area.a) + '</span><b>' + icon('coins') + '승리 ' + fmt(area.prize) + ' G</b></div>' : '';
     const training = task?.open && !task.ready ? '<small>수련 ' + task.needed + '단계 이상</small>' : '';
-    return '<div class="watch-plan">' + modeSelect + rankSelect + motion + estimate + training + '</div>';
+    return '<div class="watch-status">' + estimate + training + motion + '</div>';
   }
   function ticketInfo(w){
     const empty=w.free+w.purchased===0,seconds=Math.ceil((w.remaining||0)/1000);
@@ -119,14 +124,15 @@ const HuntWatch=(()=>{
       (side==='enemy'?enemySkill(h):'')+'</div>';
     const w=Game.huntingStatus(s),empty=!w.free&&!w.purchased&&!h&&!pending();
     const held = h || pending(), finished = !held && !validRank(nextRank());
-    const label = active ? '사냥 중단' : finished ? '모든 스테이지 완료' :
+    const label = active ? '사냥 중단' : finished ? '구역 선택' :
       held ? (mode === 'repeat' ? '반복 재개' : s.huntBest >= 60 ? '재도전 재개' : '진행 재개') :
       empty ? '사냥권 충전 보기' : mode === 'repeat' ? '반복 시작' : s.huntBest >= 60 ? '1회 재도전' : '사냥';
     const area=Game.trail.region(rank);
     const detail = encounterHint(h,result,enemy,rank,pack);
     const home = !active && (!encounter || location.hash === '#world');
-    const start = '<button class="primary watch-start" ' + (empty && !active ? 'data-open="huntWallet"' : 'data-watch="toggle"') +
-      (finished ? ' disabled' : '') + '><span class="watch-start-label">' + icon(active ? 'shield' : 'sword') + label + '</span>' + ticketBar(w) + '</button>';
+    const control = finished ? 'data-open="huntPlan"' : empty && !active ? 'data-open="huntWallet"' : 'data-watch="toggle"';
+    const start = '<button class="primary watch-start" ' + control + '><span class="watch-start-label">' +
+      icon(active ? 'shield' : finished ? 'compass' : 'sword') + label + '</span>' + ticketBar(w) + '</button>';
     const controls = '<div class="watch-home-actions">' +
       go('forest/field', icon('hand-coins') + '<span>배치 수익</span>', 'action') + start +
       go('world/map', icon('compass') + '<span>모험 지도</span>', 'action') + '</div>';
@@ -140,7 +146,7 @@ const HuntWatch=(()=>{
         (reward.goblinGold?'<span>'+icon('coins')+'고블린 +'+fmt(reward.goblinGold)+' G 포함</span>':'')+
         (reward.counter>0?'<span class="watch-counter-reward">반격 +'+fmt(reward.counter)+' G 포함</span>':'')+
         [[reward.shards,'sparkles','별의 파편'],[reward.scrolls,'scroll-text','주문서'],...[0,1,2].map(i=>[reward.charms[i],['trees','hammer','star'][i],Game.blessings[i]])].filter(([n])=>n).map(([n,ic,title])=>'<span aria-label="'+title+' '+n+'개" title="'+title+'">'+icon(ic)+' +'+n+'</span>').join('')+'</div></div>':reason&&!(h&&reason==='일시 중단')?'<b>'+reason+'</b>':'')+'</div>'+
-      selector(s, held)+controls+
+      huntStatus(s, held)+controls+
       (!active&&reason==='패배 · 장비를 강화해 주세요'?go('forge','장비 강화','action'):'')+'</section>';
   };
   function beforeRender(){if(active&&!allowed())stop('',false);}
@@ -214,18 +220,36 @@ const HuntWatch=(()=>{
       } else if(active)arm();
     }
   }
-  document.addEventListener('change',event=>{
-    if(active || !allowed())return;
-    if(event.target.matches('.watch-mode')) {
-      mode = event.target.value === 'repeat' && state.huntBest ? 'repeat' : 'progress';
-    } else if(event.target.matches('.trail-replay')) {
-      const n=Number(event.target.value);
-      if(!Number.isInteger(n)||n<0||n>state.huntBest)return;
-      if(mode==='repeat')fixedRank=n||1;else replayRank=n;
-    } else return;
-    generation++;reward=null;outcome=null;reason='';render();
+  function updatePlanFields(fields) {
+    const repeat = fields.querySelector('.watch-mode').value === 'repeat';
+    const rank = fields.querySelector('.trail-replay');
+    rank.closest('label').hidden = !repeat && state.huntBest < 60;
+    fields.querySelector('[data-hunt-plan-apply]').disabled = !rank.closest('label').hidden && !Number(rank.value);
+  }
+  document.addEventListener('change', event => {
+    const fields = event.target.closest('.hunt-plan-fields');
+    if (!fields) return;
+    if (event.target.matches('.watch-mode')) {
+      fields.querySelector('.trail-replay').value = event.target.value === 'repeat' ? fixedRank : replayRank;
+    }
+    updatePlanFields(fields);
   });
   document.addEventListener('click',event=>{
+    if (event.target.closest('[data-hunt-plan-apply]')) {
+      if (modal !== 'huntPlan' || active || !ready || storageError || restarting || !state.huntBest) return;
+      const fields = event.target.closest('.hunt-plan-fields');
+      const repeat = fields.querySelector('.watch-mode').value === 'repeat';
+      const rank = Number(fields.querySelector('.trail-replay').value);
+      if ((repeat || state.huntBest >= 60) && (!Number.isInteger(rank) || rank < 1 || rank > Math.min(60,state.huntBest))) return;
+      mode = repeat ? 'repeat' : 'progress';
+      if (repeat) fixedRank = rank;
+      else if (state.huntBest >= 60) replayRank = rank;
+      generation++; reward = null; outcome = null; reason = '';
+      closeModal(false);
+      render();
+      document.querySelector('.watch-start')?.focus({preventScroll:true});
+      return;
+    }
     const button=event.target.closest('[data-watch]');if(!button)return;
     event.preventDefault();event.stopImmediatePropagation();if(!allowed())return;
     if(active){stop('일시 중단');return;}
@@ -241,5 +265,5 @@ const HuntWatch=(()=>{
     if(current()!=='forest'||phonePage('forest')!=='hunt'){stop('',false);reward=null;outcome=null;}
     else if(location.hash==='#world' && active)stop('',false);
   });
-  return {view, stop, beforeRender, refreshWallet, restoreReceipt, stageOutcome, get active(){return active;}};
+  return {view, planView, stop, beforeRender, refreshWallet, restoreReceipt, stageOutcome, get active(){return active;}};
 })();
