@@ -442,6 +442,7 @@ function nav(id) {
   GameSound.stop();
   closeModal(false);
   if (location.hash.slice(1) === id) {
+    if (id === "world" && HuntWatch.active) HuntWatch.stop("", false);
     render();
     document.querySelector("main").scrollTop = 0;
     scrollTo(0, 0);

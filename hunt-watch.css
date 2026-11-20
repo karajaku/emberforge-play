@@ -14,10 +14,10 @@
   background:linear-gradient(0deg,#08171155,transparent 35%),var(--habitat) var(--ground-x) var(--ground-y) / cover no-repeat!important;
   border:1px solid #857750;border-radius:12px;
 }
-.watch-arena[data-region="moss"] { --habitat:url('assets/hunt/moss.webp'); }
-.watch-arena[data-region="maple"] { --habitat:url('assets/hunt/maple.webp'); }
-.watch-arena[data-region="gorge"] { --habitat:url('assets/hunt/gorge.webp'); }
-.watch-arena[data-region="heart"] { --habitat:url('assets/hunt/heart.webp'); }
+.watch-arena[data-region="moss"], body:has(.watch-home [data-region="moss"]) { --habitat:url('assets/hunt/moss.webp'); }
+.watch-arena[data-region="maple"], body:has(.watch-home [data-region="maple"]) { --habitat:url('assets/hunt/maple.webp'); }
+.watch-arena[data-region="gorge"], body:has(.watch-home [data-region="gorge"]) { --habitat:url('assets/hunt/gorge.webp'); }
+.watch-arena[data-region="heart"], body:has(.watch-home [data-region="heart"]) { --habitat:url('assets/hunt/heart.webp'); }
 .trail-creature { display:block;width:100%;height:auto;filter:drop-shadow(0 4px 3px #102017); }
 .trail-detail { color:#ffedc7;font-size:13px;line-height:1.4;text-wrap:balance; }
 .trail-replay { align-self:center;max-width:100%;padding:6px 10px;border-radius:6px;background:#26372f;color:#f2dfbb; }
@@ -184,17 +184,24 @@ body[data-motion="on"] .watch-receipt :is(.watch-receipt-head > b, .watch-receip
 /* The hunting ground is a single illustrated scene. Reserve its left edge for
    the same destination controls the forge uses for its workstations. */
 .ui-game:has(.watch-home) #pageNav { display:none; }
-/* The illustration shares the arena's grid row. Extend it above the stage
-   title and below the feet so the controls can sit directly on the forest. */
-.ui-game:has(.watch-home) main { padding-inline:0; overflow:visible; }
+/* Frame the clearing under the fighters and carry its uninterrupted foreground
+   behind the controls. The waterfall in the maple illustration rises higher. */
+body.ui-game:has(.watch-home)::before {
+  position:fixed; inset:0;
+  background:var(--habitat) 64% bottom / auto max(100vw,var(--forest-height,146dvh)) no-repeat;
+}
+body:has(.watch-home [data-region="maple"]) { --forest-height:183dvh; }
+body.ui-game:has(.watch-home)::after {
+  position:fixed;
+  background:linear-gradient(to bottom,#12221935,transparent 29%,transparent 56%,#12221970);
+}
+.ui-game:has(.watch-home) #mobileNav { background:#15271cbd; }
+.ui-game:has(.watch-home) #mobileNav .navitem:not(.active) { color:#f3e8cc; }
+.ui-game:has(.watch-home) main { padding-inline:0; }
 .ui-game:has(.watch-home) #screen { padding-inline:0; }
 .ui-game .watch-home { position:relative; isolation:isolate; max-height:none; padding:0 13px 2px; }
 .ui-game .watch-home .watch-arena { background:transparent!important; border:0; }
-.watch-home-scenery {
-  position:absolute; inset:-105px -13px -75px; z-index:-1; pointer-events:none;
-  background:linear-gradient(to bottom,#13271c42,transparent 30%,transparent 70%,#192920),
-    var(--habitat) calc(77% - 7px) calc(67% - 16px) / cover no-repeat;
-}
+.watch-home .watch-version { color:#d5c5a3; font-size:11px; }
 .watch-home > :is(.watch-stage,.watch-reward,.watch-plan,.watch-home-actions) { position:relative; z-index:1; }
 .ui-game .watch-home .watch-stage {
   justify-self:center; display:flex; align-items:center; gap:5px; margin:2px 0; padding:5px 10px;

@@ -129,17 +129,17 @@ const HuntWatch=(()=>{
       empty ? '사냥권 충전 보기' : mode === 'repeat' ? '반복 시작' : s.huntBest >= 60 ? '1회 재도전' : '사냥';
     const area=Game.trail.region(rank);
     const detail = encounterHint(h,result,enemy,rank,pack);
-    const home = !encounter && !active;
+    const home = !active && (!encounter || location.hash === '#world');
     const start = '<button class="primary watch-start" ' + (empty && !active ? 'data-open="huntWallet"' : 'data-watch="toggle"') +
       (finished ? ' disabled' : '') + '><span class="watch-start-label">' + icon(active ? 'shield' : 'sword') + label + '</span>' + ticketBar(w) + '</button>';
     const controls = home ? '<div class="watch-home-actions">' +
       go('forest/field', icon('hand-coins') + '<span>배치 수익</span>', 'action') + start +
       go('world/map', icon('compass') + '<span>모험 지도</span>', 'action') + '</div>' : start;
     return '<section class="watch-view' + (home ? ' watch-home' : '') + '"><div class="watch-stage">' +
-      (home ? '<span class="watch-stage-name">'+icon('trees')+'사냥터</span> · ' : 'STAGE ') + '<b>'+rank+(home ? '단계' : '')+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+(h?.ripostes>0 && !h.journeyBattle?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+'</div>'+
-      '<div class="scene watch-arena combat-hud"'+(trail?' data-region="'+area.id+'"':'')+'>'+(home ? '<div class="watch-home-scenery" aria-hidden="true"></div>' : '')+fighter('player','나',sprite,128,hp,max)+fighter('enemy',enemy.name,enemy.sprite||'boar',144,enemyHp,total)+
+      (home ? '<span class="watch-stage-name">'+icon('trees')+'사냥터</span> · ' : 'STAGE ') + '<b>'+rank+(home ? '단계' : '')+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+(home ? '<small class="watch-version">v'+UpdateNotice.version()+'</small>' : '')+(h?.ripostes>0 && !h.journeyBattle?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+'</div>'+
+      '<div class="scene watch-arena combat-hud"'+(trail || home?' data-region="'+area.id+'"':'')+'>'+fighter('player','나',sprite,128,hp,max)+fighter('enemy',enemy.name,enemy.sprite||'boar',144,enemyHp,total)+
       (home ? destinationRail() : '')+'</div>'+
-      '<div class="watch-reward" role="status">'+(detail?'<div class="trail-detail">'+detail+'</div>':'')+skills(h)+(reward?'<div class="watch-receipt"><div class="watch-receipt-head"><b>'+reward.rank+'단계 클리어</b><strong>'+icon('coins')+' +'+fmt(reward.gold)+' G</strong>'+
+      '<div class="watch-reward" role="status">'+(detail?'<div class="trail-detail">'+detail+'</div>':'')+(home ? '' : skills(h))+(reward?'<div class="watch-receipt"><div class="watch-receipt-head"><b>'+reward.rank+'단계 클리어</b><strong>'+icon('coins')+' +'+fmt(reward.gold)+' G</strong>'+
         (!active && reward.fiber ? '<button class="action lining-link" data-go="forge" data-gear="armor">'+icon('shield')+'안감 제작</button>' : '')+'</div><div class="watch-loot">'+
         (reward.fiber ? '<span>'+icon('trees')+'숲결 섬유 +'+reward.fiber+'</span>' : '')+
         (reward.goblinGold?'<span>'+icon('coins')+'고블린 +'+fmt(reward.goblinGold)+' G 포함</span>':'')+
@@ -244,6 +244,9 @@ const HuntWatch=(()=>{
   },true);
   document.addEventListener('visibilitychange',()=>{if(document.hidden)stop('일시 중단');});
   window.addEventListener('pagehide',()=>stop('',false));
-  window.addEventListener('hashchange',()=>{if(current()!=='forest'||phonePage('forest')!=='hunt'){stop('',false);reward=null;outcome=null;}});
+  window.addEventListener('hashchange',()=>{
+    if(current()!=='forest'||phonePage('forest')!=='hunt'){stop('',false);reward=null;outcome=null;}
+    else if(location.hash==='#world' && active)stop('',false);
+  });
   return {view, stop, beforeRender, refreshWallet, restoreReceipt, stageOutcome, get active(){return active;}};
 })();
