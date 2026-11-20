@@ -175,16 +175,17 @@ body.ui-game:has(.watch-ground)::after {
 .ui-game:has(.watch-ground) main { padding-inline:0; }
 .ui-game:has(.watch-ground) #screen { padding-inline:0; }
 .ui-game .watch-ground { position:relative; isolation:isolate; max-height:none; padding:0 13px 2px; }
-/* Each combatant owns a column of readouts above its moving sprite. */
+/* The first grid row is the clearing; the second holds both combatants' HUD. */
 .ui-game .watch-ground .watch-arena {
-  display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:clamp(16px,5%,30px);
-  align-content:start; align-items:start; padding:5px 4px 0; background:transparent!important; border:0;
+  --action-width:44px;
+  display:grid; grid-template: minmax(0,1fr) auto / repeat(2,minmax(0,1fr));
+  gap:5px clamp(16px,5%,30px); align-items:start; padding:0 4px 2px; background:transparent!important; border:0;
 }
 .watch-readout {
-  display:grid; grid-template-columns:44px minmax(0,1fr); gap:8px 7px; align-items:start;
+  display:grid; grid-row:2; grid-template-columns:var(--action-width) minmax(0,1fr); gap:6px 7px; align-items:start;
   min-width:0; position:relative; z-index:3; color:#fff5d9; text-align:left;
 }
-.player > .watch-readout { grid-column:1; --fighter-ink:#cdffda; }
+.player > .watch-readout { grid-column:1; grid-template-columns:minmax(0,1fr) var(--action-width); --fighter-ink:#cdffda; }
 .enemy > .watch-readout { grid-column:2; --fighter-ink:#ffccad; }
 .ui-game .watch-ground .hp-meter {
   position:static; width:auto; padding:0; min-width:0; grid-column:1/-1; display:grid; row-gap:2px;
@@ -225,11 +226,20 @@ body.ui-game:has(.watch-ground)::after {
 .watch-ground :is(.watch-skill-heading,.watch-enemy-skill) em { font-size:11px; }
 .watch-ground .watch-skill-clock { gap:2px; }
 .watch-ground .watch-skill-clock i { height:3px; }
-.watch-ground .player .watch-actor { left:25%; translate:-50% 0; bottom:16%; width:41%; }
+.watch-ground .player .watch-action { grid-column:2; }
+.watch-ground .player .watch-readout .watch-skills { grid-column:1; }
+.watch-ground .player :is(.hp-name,.watch-skill-heading,.watch-skill-clock) { flex-direction:row-reverse; }
+.watch-ground .player :is(.hp-loss,.watch-skill em) { margin-left:0; margin-right:auto; }
+.watch-ground .player .hp-count { text-align:right; }
+.watch-ground .player .hp-track i { transform-origin:right center; }
+.watch-ground .watch-actor { grid-area:1 / 1 / 2 / -1; }
+.watch-ground .player .watch-actor { left:25%; translate:-50% 0; bottom:max(3%,calc(100% - 84cqh)); width:41%; }
+.watch-arena[data-region] .enemy .watch-actor { top:min(67cqh,80%); }
+.watch-home .watch-readout:not(:has(.watch-skills,.watch-enemy-skill)) .watch-action:has([data-action=""]) { display:none; }
 
-/* Reserve the space below the readouts for the actors on short phones. */
+/* Leave room for the longer skill names on small phones. */
 @container (max-width:320px) {
-  .watch-readout { grid-template-columns:35px minmax(0,1fr); column-gap:3px; }
+  .watch-readout { --action-width:35px; column-gap:3px; }
 }
 @container (max-height:335px) {
   .watch-fighter:has(.watch-skills) .watch-actor {
