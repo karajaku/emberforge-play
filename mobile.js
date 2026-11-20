@@ -4,13 +4,14 @@ const phonePages = {
   forge: [["work", "강화"], ["craft", "제작"], ["training", "수련"], ["orders", "의뢰"]],
   world: [["map", "지역 지도"], ["board", "게시판"]],
   forest: [["hunt", "토벌"], ["field", "배치 수익"]],
-  bag: [["gear", "장착"], ["stored", "보관 무기"], ["items", "소모품"], ["relics", "유물"]],
+  bag: [["all", "전체"], ["gear", "장비"], ["items", "소지품"], ["relics", "유물"]],
   growth: [["rebirth", "환생"], ["imprint", "각인"], ["fusion", "초월"], ["guild", "길드"]],
 };
 function phonePage(id = current()) {
   const pages = phonePages[id];
   if (!pages) return "";
   const page = location.hash.split("/")[1];
+  if (id === "bag" && page === "stored") return page;
   return pages.find(([key]) => key === page)?.[0] || pages[0][0];
 }
 function phoneDestination(id, page) {
@@ -23,7 +24,7 @@ function phonePageNav(id) {
   const destinations = id === "forest" && page === "hunt" ? go("world/map", "모험 지도", "page-link") : "";
   bar.innerHTML = page ? phonePages[id].map(([key, title]) =>
     '<button data-go="' + phoneDestination(id, key) + '"' +
-    (key === page ? ' aria-current="page"' : "") + ">" + title + "</button>").join("") + destinations : "";
+    (key === page || (id === "bag" && page === "stored" && key === "gear") ? ' aria-current="page"' : "") + ">" + title + "</button>").join("") + destinations : "";
 }
 const phoneRows = 3;
 function phoneList(rows, empty = "", size = phoneRows) {
@@ -37,7 +38,7 @@ function phoneList(rows, empty = "", size = phoneRows) {
 }
 function phoneLessonDestination(tip) {
   const action = tip.selector.match(/data-act="([^"]+)"/)?.[1];
-  const pages = { order: "orders", craftStart: "craft", collect: "field", deploy: "stored" };
+  const pages = { order: "orders", craftStart: "craft", collect: "field" };
   const page = pages[action];
   return phoneDestination(tip.route, page);
 }

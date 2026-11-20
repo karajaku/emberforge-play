@@ -5,6 +5,8 @@ const icon = (n) => {
   (ICONS[n] || "") +
   "</svg>";
 };
+const escapeHtml = (value) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;")
+  .replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 const fmt = (n) => Math.floor(n).toLocaleString("ko-KR");
 const brief = (n) =>
   n >= 1e12 ? (n / 1e12).toFixed(1) + "조" : n >= 1e8 ? (n / 1e8).toFixed(1) + "억" : fmt(n);
@@ -493,13 +495,13 @@ function chestOrigin(c) {
 }
 function chestButton(c) {
   return btn("openChest", '<i class="chest-art" aria-hidden="true"></i><span><small>' +
-    chestOrigin(c) + '</small><b>' + (c.name || '보물상자') + ' 열기</b></span>', c.id, "chest-find");
+    escapeHtml(chestOrigin(c)) + '</small><b>' + escapeHtml(c.name || '보물상자') + ' 열기</b></span>', escapeHtml(c.id), "chest-find");
 }
 function chestReceipt(c) {
   if (!c) return "";
   const loot = (sprite, name, n) => n ? line(icon(sprite) + name, "+" + fmt(n)) : "";
   return '<div class="chest-reveal tier-' + c.tier + '"><i class="chest-art" aria-hidden="true"></i><b>' +
-    (c.name || ["나무 상자", "은장 상자", "황금 상자"][c.tier]) + '</b><small>' + chestOrigin(c) + '</small></div>' +
+    escapeHtml(c.name || ["나무 상자", "은장 상자", "황금 상자"][c.tier]) + '</b><small>' + escapeHtml(chestOrigin(c)) + '</small></div>' +
     '<div class="chest-loot">' + line(icon("coins") + "골드", fmt(c.gold) + " G") +
     (c.counter || c.extra || c.goblinGold ? desc("기본 " + fmt(c.base) + " G" + (c.counter ? " · 반격 +" + fmt(c.counter) + " G" : "") +
       (c.goblinGold ? " · 황금 고블린 +" + fmt(c.goblinGold) + " G" : "") +
@@ -754,75 +756,6 @@ function zoneView(s, id) {
     "</section></div>" +
     ""
   );
-}
-function bagView(s) {
-  const shelf = s.chests?.length ? card("미개봉 보물상자 · " + s.chests.length, chestButton(s.chests[0])) : "";
-  const page = phonePage("bag"), selected = page || bagTab;
-  const forgeLink = '<button class="action" data-go="forge" data-gear="weapon">' + icon("hammer") + '무기 강화</button>';
-  const tabBar = page ? "" : tabs(
-      [
-        ["gear", "장비"],
-        ["items", "소모품"],
-        ["relics", "유물"],
-      ],
-      bagTab,
-      "bag",
-    );
-  if (selected === "gear" || selected === "stored") {
-    const equipment = '<div class="baggrid equipment-rack">' +
-        ["weapon", "armor"]
-          .map((k) =>
-            card(
-              k === "weapon" ? "장착 무기" : "장착 방어구",
-              row(
-                Game.name(s[k], k) + " +" + s[k].level,
-                [tier(s[k], k), craftSummary(s[k])].filter(Boolean).join(" · "),
-                "", "", gearPortrait(s[k], k),
-              ) +
-                '<div class="actions">' +
-                (k === "weapon" ? (Game.canStoreWeapon(s.weapon) ? btn("keep", "무기 보관") :
-                  forgeLink) : "") +
-                (Game.isJourneyGear(s, s[k]) ? "" : openBtn("sell-" + k, s[k].level >= 1 ? "판매" : "판매 조건")) +
-                "</div>",
-            ),
-          )
-          .join("") +
-        "</div>";
-    if (page === "gear") return shelf + equipment;
-    const stored = card(
-          "보관 무기 · " + s.bag.length + " / 20",
-          '<div class="inventory-grid">' + s.bag.map((g,i) => '<article class="inventory-tile">' + gearPortrait(g,"weapon") +
-            '<b>' + Game.name(g) + ' +' + g.level + '</b><small>' + [tier(g,"weapon"),craftSummary(g)].filter(Boolean).join(' · ') + '</small>' +
-            '<div class="actions">' + btn("equip","장착",i,"mini") + (g.level >= 13 && !Game.isJourneyGear(s, g) ? btn("deploy","배치",i,"mini") : '') + '</div></article>').join('') + '</div>' +
-            (s.bag.length ? '' : go("bag","장착 장비 보기","action")),
-        );
-    return tabBar + shelf + (page ? "" : equipment) + stored;
-  }
-  return tabBar + shelf + (selected === "items"
-        ? card(
-            "보유 소모품",
-            phoneList([
-              ...Game.blessings.map((n, i) =>
-                row(n, s.charms[i] + "개", openBtn("guards", "설정", "mini"), ["leaf", "hammer", "star"][i])),
-              row("10% 주문서", s.scrolls + "장", openBtn("guards", "설정", "mini")),
-              row("산소통", s.tanks + "개", go("mine", "광산", "mini")),
-              row("별의 파편", s.shards + "개", go("altar", "제단", "mini"))]),
-          )
-        : card(
-            "유물 보관함 · " + s.relics.length + " / 20",
-              phoneList(s.relics
-                .map((r, i) =>
-                  row(
-                    "새벽의 인장 · 공격력 +" + r.power + "%" + (r.extraAttack ? " · 추가 +" + r.extraAttack : ""),
-                    "남은 강화 " + (10 - r.tries) + "회 · 복구 가능 " + r.failures + "회",
-                    s.equippedRelic === i
-                      ? openBtn("relicWorkshop", "대표 · 강화", "mini")
-                      : btn("relic", "대표 지정", i, "mini"),
-                    "star",
-                  ),
-                )) +
-              openBtn("shop", "포인트 상점", "action"),
-          ));
 }
 function growthView(s) {
   const imprint = Object.entries(Game.imprints)

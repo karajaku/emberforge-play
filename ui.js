@@ -22,7 +22,6 @@ try {
 } catch {}
 let gear = "weapon",
   towerMode = "infinite",
-  bagTab = "gear",
   modal = "",
   battle = null;
 let huntStart = -1000,
@@ -240,6 +239,7 @@ function syncMusic() {
     { enabled: prefs.music, volume: prefs.musicVolume, hidden: document.hidden });
 }
 function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
+  const sourceInventoryMenu = modal.startsWith("inventory-") && !automaticGuard && !repeatGuard ? modal : "";
   const bulkQuote = action === "journeyBulk" && typeof arg === "object" ? arg : null;
   if (bulkQuote) arg = bulkQuote.type;
   if (!repeatGuard && action === "openChest" && repeatHunting.active) {
@@ -345,6 +345,8 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
       animationStart = performance.now();
       navigator.vibrate?.(result.kind === "win" ? 18 : 36);
     }
+    const inventoryAction = result.ok && !!sourceInventoryMenu && modal === sourceInventoryMenu;
+    if (inventoryAction) modal = "";
     if (result.ok && action === "temperStart") modal = "temper";
     if (result.ok && action === "craftStart") modal = "craft";
     if (!repeatGuard && result.ok && ["openChest", "openTowerChests"].includes(action)) modal = "treasure";
@@ -363,7 +365,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
     }
     render();
     if (modal) displayModal();
-    else closeModal(false);
+    else closeModal(inventoryAction);
     const stagedHit = result.impact && beforeHuntHealth && HuntEffects.play(result.impact, beforeHuntHealth,
       beforeHuntHealth.diceVersion === 1 ? (state.hunt?.lastDice || state.lastHunt?.lastDice) : null);
     if (result.impact && !stagedHit) showHuntDamage(document.querySelector("#screen .combat-hud"), result.impact, motionEnabled());
@@ -452,7 +454,6 @@ function render() {
   if (!state) return;
   HuntEffects.cancel();
   HuntWatch.beforeRender();
-  const gridScroll = document.querySelector('.ui-gear-grid')?.scrollTop;
   const id = current(),
     parent = zones[id] ? "world" : id;
   syncMotion();
@@ -504,7 +505,7 @@ function render() {
     "</div></div>";
   let view;
   if (id === "forge") view = GameUI.forge(state, forgeView(state));
-  else if (id === "bag") view = GameUI.bag(state, bagView(state));
+  else if (id === "bag") view = InventoryView.view(state);
   else if (id === "growth") view = growthView(state);
   else if (id === "forest" && phonePage(id) === "hunt") view = HuntWatch.view(state);
   else if (zones[id]) view = zoneView(state, id);
@@ -538,8 +539,6 @@ function render() {
   screen.innerHTML = view;
   renderLesson();
   GameUI.shell();
-  const grid = document.querySelector('.ui-gear-grid');
-  if (grid && gridScroll !== undefined) grid.scrollTop = gridScroll;
   syncMusic();
 }
 // Only the lesson explicitly located from the tutorial can appear during play.
@@ -569,8 +568,6 @@ function focusLesson() {
   const n = Apprentice.next(state);
   if (n < 0) return;
   const tip = Apprentice.guidance(state, n);
-  GameUI.prepareLesson(tip);
-  if (tip.route === "bag") bagTab = "gear";
   if (tip.route === "forge") gear = "weapon";
   const destination = phoneLessonDestination(tip);
   if ((location.hash.slice(1) || "forge") !== destination) {
@@ -634,6 +631,7 @@ function swordJournal(s, record = s.swordRecord) {
 }
 function modalData() {
   const s = state;
+  if (modal.startsWith("inventory-")) return InventoryView.menu(s, modal.slice("inventory-".length));
   if (modal === "companion") return ["동료 대화", storyChat(s, current())];
   if (modal === "storyScene") return storyPage();
   if (modal === "storyBook") {
@@ -1043,6 +1041,10 @@ function closeModal(focus = true) {
   document.body.style.overflow = "";
   syncMusic();
   if (focus && lastFocus?.isConnected) lastFocus.focus({ preventScroll: true });
+  else if (focus && lastFocus?.classList.contains("bag-slot")) {
+    const item = el("screen").querySelector('[data-open="' + CSS.escape(lastFocus.dataset.open) + '"]');
+    (item || el("screen").querySelector(".bag-slot") || el("pageNav").querySelector("[aria-current]"))?.focus({ preventScroll: true });
+  }
 }
 function dismissModal() {
   Feedback.clear();
@@ -1198,6 +1200,12 @@ document.addEventListener("click", (e) => {
   if (d.open) return showModal(d.open);
   if ("close" in d) return dismissModal();
   if (d.act) {
+    if (modal.startsWith("inventory-")) {
+      // A stored slot can change index as soon as one action commits.
+      if (el("modalBody").getAttribute("aria-busy") === "true") return;
+      el("modalBody").setAttribute("aria-busy", "true");
+      return act(d.act, d.arg).finally(() => el("modalBody").removeAttribute("aria-busy"));
+    }
     if (d.act === "journeyBulk") {
       return act(d.act, { type: d.arg, level: Number(d.level), bulk: Number(d.bulk), bulkCost: Number(d.bulkCost), bulkSuccess: Number(d.bulkSuccess) });
     }
@@ -1223,7 +1231,6 @@ document.addEventListener("click", (e) => {
     );
   }
   if (d.tower) towerMode = d.tower;
-  if (d.bag) bagTab = d.bag;
   if (d.motionPolicy) {
     HuntWatch.stop('',false);
     prefs.motionOverride=d.motionPolicy==='full';
@@ -1357,7 +1364,8 @@ setInterval(() => {
       const settled = sync();
       if (settled) {
         save();
-        if (current() === "mine") render();
+        if (current() === "mine" || current() === "bag") render();
+        if (modal.startsWith("inventory-")) displayModal();
         if (modal === "miningResult") displayModal();
       }
       const job = state.autoMine;
@@ -1376,6 +1384,7 @@ setInterval(() => {
       render();
       if (!state.towerRun && !modal) showModal("towerRun");
     }
+    if (current() === "bag") render();
     if (modal === "towerRun") displayModal();
   });
   if (active >= 15000) flush();

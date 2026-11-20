@@ -40,30 +40,6 @@ const GameUI = (() => {
     } else support.classList.add('forge-actions--secondary');
     return template.innerHTML;
   };
-  let selectedIndex=0;
-  function bag(s, html) {
-    if(phonePage('bag')!=='stored'||!s.bag.length) return html;
-    selectedIndex=Math.max(0,Math.min(selectedIndex,s.bag.length-1));
-    const template=document.createElement('template');template.innerHTML=html;
-    const grid=template.content.querySelector('.inventory-grid');
-    const tiles=[...grid.children],selected=s.bag[selectedIndex];
-    const detail=document.createElement('section');detail.className='ui-selected-gear';
-    detail.setAttribute('aria-label','선택한 보관 무기');
-    const projected=Game.stats({...s,weapon:selected});
-    detail.innerHTML=gearPortrait(selected,'weapon')+'<div class="ui-gear-summary"><b>'+Game.name(selected)+' +'+selected.level+'</b><span>장착 시 공격력 <strong>'+fmt(projected.attack)+'</strong></span><small>'+[tier(selected,'weapon'),craftSummary(selected)].filter(Boolean).join(' · ')+'</small></div>'+
-      '<p>'+(Game.isJourneyGear(s,selected)?'기록 중인 검 · 장착해 계속 재련':selected.level>=13?'배치 수익 '+fmt(Game.perMinute(selected)/6)+' G / 10초':'사냥터 배치는 +13부터')+'</p>';
-    const actions=tiles[selectedIndex].querySelector('.actions');actions.className='actions ui-gear-actions';detail.append(actions);
-    grid.className='ui-gear-grid';grid.setAttribute('aria-label','보관 무기 선택');
-    tiles.forEach((tile,i)=>{
-      const button=document.createElement('button');button.className='ui-gear-tile';button.dataset.uiGear=String(i);
-      button.setAttribute('aria-pressed',String(i===selectedIndex));
-      button.setAttribute('aria-label',Game.name(s.bag[i])+' +'+s.bag[i].level+' 선택');
-      button.innerHTML=gearPortrait(s.bag[i],'weapon')+'<b>+'+s.bag[i].level+'</b><span>'+Game.name(s.bag[i])+'</span>';
-      tile.replaceWith(button);
-    });
-    grid.after(detail);grid.parentElement.classList.add('ui-inventory');
-    return template.innerHTML;
-  };
   function shell() {
     if(!state) return;
     let tools=document.querySelector('.ui-utilities');
@@ -91,20 +67,8 @@ const GameUI = (() => {
     const growth=document.querySelector('.progression-stage');if(growth)growth.innerHTML=icon('sparkles');
   }
   document.addEventListener('click',event=>{
-    const pick=event.target.closest('[data-ui-gear]');
-    if(pick) {
-      event.preventDefault();event.stopImmediatePropagation();
-      if(!ready||storageError)return;
-      const y=el('screen').scrollTop;selectedIndex=Number(pick.dataset.uiGear);render();el('screen').scrollTop=y;
-      document.querySelector('[data-ui-gear="'+selectedIndex+'"]')?.focus({preventScroll:true});return;
-    }
     if(event.target.closest('[data-go],[data-open],[data-lesson]')) document.querySelector('.ui-utilities')?.removeAttribute('open');
   },true);
   document.addEventListener('keydown',event=>{if(event.key==='Escape')document.querySelector('.ui-utilities')?.removeAttribute('open');});
-  function prepareLesson(tip) {
-    if(tip.route!=='bag')return;
-    const index=tip.selector.match(/data-arg="(\d+)"/)?.[1];
-    if(index!==undefined)selectedIndex=Number(index);
-  }
-  return {bag, forge, shell, prepareLesson};
+  return {forge, shell};
 })();

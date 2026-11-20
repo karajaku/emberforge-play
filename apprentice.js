@@ -60,7 +60,7 @@ const Apprentice = (() => {
         ? 0
         : Game.price(s.weapon);
     if (needsWeapon && s.gold < neededGold) {
-      if (s.chests?.length) return target("보관함에 남겨 둔 보물상자를 열어 강화비를 마련하세요.", "bag", '[data-act="openChest"]', "상자 열기");
+      if (s.chests?.length) return target("보관함에 남겨 둔 보물상자를 열어 강화비를 마련하세요.", "bag", '[data-open^="inventory-chest-"]', "상자 열기");
       const order = Game.currentOrder(s);
       if (order && s.best >= order[0])
         return target(
@@ -120,9 +120,9 @@ const Apprentice = (() => {
     const bagIndex = s.bag.findIndex(deployable);
     if (bagIndex !== -1)
       return target(
-        "보관 무기에서 배치를 누르세요. 이 검은 게임을 닫아도 골드를 모읍니다.",
+        "보관한 검을 누르고 사냥터 배치를 고르세요. 이 검은 게임을 닫아도 골드를 모읍니다.",
         "bag",
-        '[data-act="deploy"][data-arg="' + bagIndex + '"]',
+        '[data-open="inventory-stored-' + bagIndex + '"]',
         "사냥터 배치",
       );
     if (s.weapon.level >= 13)
@@ -130,7 +130,7 @@ const Apprentice = (() => {
         plan ? "기록 중인 검을 보관하면 새 보조 검을 받습니다. 보조 검을 +13까지 벼려 사냥터에 배치하세요." :
           "장착한 보조 검을 보관한 뒤 사냥터에 배치하세요.",
         "bag",
-        '[data-act="keep"]',
+        '[data-open="inventory-weapon"]',
         "무기 보관",
       );
     const o = Game.currentOrder(s);
