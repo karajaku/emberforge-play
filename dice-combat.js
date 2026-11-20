@@ -46,8 +46,9 @@ const DiceCombat=(()=>{
     const amplified = (enemySkill === 'fang' && h.hp <= h.maxHp / 2) || (enemySkill === 'breath' && player === 'heavyStrike');
     const guard = enemySkill === 'crush' && player === 'block' ? .5 : mitigation(player);
     const tough = trait === 2 && h.hp < h.maxHp * .35 ? .87 : 1;
-    const opening = h.journeyBattle && h.rank % 5 === 0 && h.waveTurn === 1 ? 7 : 1;
-    const taken=damage>=h.enemyHp?0:Math.min(h.hp,Math.round(h.enemyAttack*opening*tough*(work?.[0] === 1 ? .95 : 1)*(enemySkill?enemySkillState.power:power(enemy))*guard*(amplified?1.5:1)*(player==='block'?1-(h.guardReduction||0)/100:1)*(skill==='heavyStrike'?1.5:1)));
+    const opening = h.journeyBattle && h.rank % 5 === 0 && h.waveTurn === 1 ? 1.25 : 1;
+    const incoming = h.enemyAttack * opening * (h.armorDamageMultiplier ?? 1);
+    const taken=damage>=h.enemyHp?0:Math.min(h.hp,Math.round(incoming*tough*(work?.[0] === 1 ? .95 : 1)*(enemySkill?enemySkillState.power:power(enemy))*guard*(amplified?1.5:1)*(player==='block'?1-(h.guardReduction||0)/100:1)*(skill==='heavyStrike'?1.5:1)));
     if(skill)cooldowns[skill]=skills[skill].cooldown;
     if(enemySkill)enemySkillState.cooldown=enemySkillState.interval;
     const guarded = player === 'block' && !!enemySkill && enemySkill !== 'escape';

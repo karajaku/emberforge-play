@@ -25,6 +25,9 @@ const SaveStore = (() => {
           !Number.isInteger(h.blade.stage) || h.blade.stage < 0 || h.blade.stage >= 4 ||
           !Number.isSafeInteger(h.blade.level) || h.blade.level < 0)) throw fault("corrupt");
       if (h?.journeyWork !== undefined && !validWork(h.journeyWork)) throw fault("corrupt");
+      if (h?.opponentVersion > 2) throw fault("future");
+      if (h?.opponentVersion !== undefined && (h.opponentVersion !== 2 || h.journeyBattle !== 1)) throw fault("corrupt");
+      if (h?.armorDamageMultiplier !== undefined && !(Number.isFinite(h.armorDamageMultiplier) && h.armorDamageMultiplier > 0)) throw fault("corrupt");
       if (h?.journeyBattle > 1) throw fault("future");
       if (h?.journeyBattle !== undefined && (h.journeyBattle !== 1 || h.trailVersion !== 1 ||
           (h.journeyForce !== undefined && !(Number.isFinite(h.journeyForce) && h.journeyForce > 0)) ||
@@ -181,6 +184,7 @@ const SaveStore = (() => {
     if (data.swordRecord === undefined) game.startSwordRecord(restored, "equipped");
     game.enableJourney(restored);
     game.restoreHuntWeapon(restored);
+    game.migrateJourneyOpponent(restored);
     return restored;
   }
   function storageFault(error, writing = false) {

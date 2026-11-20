@@ -381,11 +381,12 @@ const Game = (() => {
     const base = stats(s);
     return { attack: base.attack, hp: Math.round(base.hp * (100 + 4 * s.huntLining) / 100) };
   }
+  function boundHuntWeapon(s, key) {
+    return key && [s.weapon, ...s.bag, ...s.field].find(gear => (gear.recordId || gear.huntKey) === key);
+  }
   function huntBladeState(s, encounter) {
     if (encounter?.blade) return encounter.blade;
-    const key = encounter?.weaponKey;
-    const weapon = key && [s.weapon, ...s.bag, ...s.field].find(gear => (gear.recordId || gear.huntKey) === key);
-    const blade = weapon || s.weapon;
+    const blade = boundHuntWeapon(s, encounter?.weaponKey) || s.weapon;
     return { stage: bladeStage(blade), level: blade.level };
   }
   function huntBlade(s, encounter) {
@@ -403,10 +404,27 @@ const Game = (() => {
   function bossGearRatio(level, target) {
     return Math.max(.15, Math.min(4, (level + 45) / (target + 45)));
   }
-  function journeyHuntAttack(weapon, rank, level = weapon.level) {
-    const attack = weaponAttack(weapon, level);
-    if (rank % 5 !== 0) return attack;
-    return Math.max(1, Math.round(attack * bossGearRatio(level, journey.area(rank).w) ** 6));
+  function bossDamageMultiplier(armorLevel, rank) {
+    return 1 / bossGearRatio(armorLevel, journey.stageBalance(rank).a) ** 1.1;
+  }
+  function migrateJourneyOpponent(s) {
+    const h = s.hunt;
+    if (h?.journeyBattle !== 1 || h.opponentVersion === 2) return;
+    const stats = trail.opponent(h.rank, h.enemyKind, true);
+    const fraction = h.enemyMax > 0 ? Math.min(1, h.enemyHp / h.enemyMax) : 0;
+    h.enemyHp = fraction > 0 ? Math.max(1, Math.round(stats.hp * fraction)) : 0;
+    h.enemyMax = stats.hp;
+    h.enemyAttack = stats.attack;
+    if (h.rank % 5 === 0) {
+      h.armorDamageMultiplier = bossDamageMultiplier(s.armor.level, h.rank);
+      const blade = boundHuntWeapon(s, h.weaponKey);
+      if (blade) {
+        const entryBlade = blade.recordId ? {...blade, grade:h.blade.stage} : blade;
+        h.attack = weaponAttack(entryBlade, h.blade.level);
+      }
+    }
+    delete h.journeyForce;
+    h.opponentVersion = 2;
   }
   function bindHuntWeapon(s) {
     s.hunt.weaponKey = s.weapon.recordId || (s.weapon.huntKey ??= s.hunt.id);
@@ -419,9 +437,16 @@ const Game = (() => {
     if (h.journeyBattle !== 1 || h.weaponKey !== undefined) return;
     // Old saves did not identify the entry weapon. Recover a pending upgrade
     // when the recorded blade's pre-forge attack matches the saved encounter.
-    const currentAttack = journeyHuntAttack(s.weapon, h.rank);
+    function entryAttack(level) {
+      const attack = weaponAttack(s.weapon, level);
+      if (h.opponentVersion === 2 || h.rank % 5 !== 0) return attack;
+      // The old five-stage bosses scaled the entry sword against these fixed milestones.
+      const target = [20,200,600,1000,1500,2000,3500,5000,6750,8500,9250,9999][h.rank / 5 - 1];
+      return Math.max(1, Math.round(attack * bossGearRatio(level, target) ** 6));
+    }
+    const currentAttack = entryAttack(s.weapon.level);
     if (h.attack !== currentAttack && s.weapon.recordId === s.swordRecord.id && s.swordRecord.recent.some(hit =>
-      hit.from < s.weapon.level && journeyHuntAttack(s.weapon, h.rank, hit.from) === h.attack)) {
+      hit.from < s.weapon.level && entryAttack(hit.from) === h.attack)) {
       h.attack = currentAttack;
     }
     if (h.attack === currentAttack) bindHuntWeapon(s);
@@ -430,7 +455,7 @@ const Game = (() => {
   function applyHuntWeaponUpgrade(s) {
     const h = s.hunt;
     if (h?.journeyBattle === 1 && h.weaponKey && h.weaponKey === (s.weapon.recordId || s.weapon.huntKey)) {
-      h.attack = journeyHuntAttack(s.weapon, h.rank);
+      h.attack = weaponAttack(s.weapon);
       h.blade = huntBladeState(s);
     }
   }
@@ -1267,6 +1292,7 @@ const Game = (() => {
         if (trailBattle) {
           if (journeyBattle) {
             s.hunt.journeyBattle = 1;
+            s.hunt.opponentVersion = 2;
             bindHuntWeapon(s);
             if (s.weapon.journeyWork) s.hunt.journeyWork = [...s.weapon.journeyWork];
             if (s.weapon.journeyTrait !== undefined) s.hunt.journeyTrait = s.weapon.journeyTrait;
@@ -1277,12 +1303,8 @@ const Game = (() => {
           s.hunt.materialRule = 1;
           s.hunt.bonusEncounter = random() < .15;
           s.hunt.goblinCaught = false;
-          if (journeyBattle && rank % 5 === 0) {
-            // The opening charge rewards armor; excess blade power shortens the fight.
-            const zone = journey.area(rank);
-            s.hunt.attack = journeyHuntAttack(s.weapon, rank);
-            s.hunt.journeyForce = (.55 + random()) / bossGearRatio(s.armor.level, zone.a) ** 1.1;
-          }
+          if (journeyBattle && rank % 5 === 0)
+            s.hunt.armorDamageMultiplier = bossDamageMultiplier(s.armor.level, rank);
           trail.enter(s.hunt, 0);
         }
         return { ...success(huntEnemy(s.hunt).habitat + " " + rank + "구역 사냥 시작 · 사냥권 1개 사용"), receipt: { ...w.lastStart } };
@@ -1734,7 +1756,7 @@ const Game = (() => {
     return 1 - Math.abs((elapsed % 1800) / 900 - 1);
   }
   return {
-    forestYield, liningCosts, huntStats, huntBlade, restoreHuntWeapon, hunting, settleHunting, huntingStatus, resetProgress,
+    forestYield, liningCosts, huntStats, huntBlade, restoreHuntWeapon, migrateJourneyOpponent, hunting, settleHunting, huntingStatus, resetProgress,
     startSwordRecord, freshJourney, enableJourney, isJourneyGear, canAdoptSword, journeyForge, journeySmith, saleValue, currentOrder, dailyGold,
     journeyProcessOptions: i => journey.processOptions[i],
     huntArea: journey.area, journeyTraits: journey.bladeTraits,

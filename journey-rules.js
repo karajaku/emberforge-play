@@ -64,33 +64,39 @@ const JourneyRules = (() => {
     const start = Math.max(from, jump);
     return first + ((to - start) * (step(type, start + 1) + step(type, to))) / 2;
   }
+  // Stage, recommended sword/armor, ordinary monster HP/attack, and gold.
   const anchors = [
-    [1, 0, 0, 1400],
-    [5, 20, 10, 2240],
-    [10, 200, 150, 14000],
-    [20, 1000, 800, 77000],
-    [30, 2000, 1700, 154000],
-    [40, 5000, 4500, 336000],
-    [50, 8500, 7800, 504000],
-    [60, 9999, 9300, 560000],
+    [1, 0, 0, 45, 16, 1400],
+    [5, 3, 2, 160, 25, 2240],
+    [10, 8, 6, 800, 54, 14000],
+    [20, 55, 34, 20000, 850, 77000],
+    [30, 330, 220, 500000, 17000, 154000],
+    [40, 1700, 1150, 9000000, 250000, 336000],
+    [50, 5000, 3100, 55000000, 1250000, 504000],
+    [60, 9999, 6000, 168000000, 3300000, 560000],
   ];
-  function area(rank, time = Date.now()) {
+  function stageBalance(rank) {
     if (!Number.isInteger(rank) || rank < 1 || rank > 60) throw RangeError("Invalid hunting area");
     const hi = anchors.findIndex((a) => a[0] >= rank),
       low = anchors[Math.max(0, hi - 1)],
       high = anchors[hi];
     const t = (rank - low[0]) / (high[0] - low[0] || 1);
-    const [w, a, g] = [1, 2, 3].map((i) => Math.round(low[i] + (high[i] - low[i]) * t));
+    // Interpolate proportions so the first step after a milestone is no steeper than the last.
+    const curved = (i, offset = 0) => Math.round((low[i] + offset) * ((high[i] + offset) / (low[i] + offset)) ** t - offset);
+    const w = curved(1, 1), a = curved(2, 1);
+    const enemyHp = curved(3), enemyAttack = curved(4);
+    const g = Math.round(low[5] + (high[5] - low[5]) * t);
+    return {rank, w, a, g, enemyHp, enemyAttack};
+  }
+  function area(rank, time = Date.now()) {
+    const stage = stageBalance(rank);
     // Ordinary two-encounter clears are more reliable than the three-wave boss trials.
     const expectedWins = rank % 5 === 0 ? 0.8 : 1;
     return {
-      rank,
-      w,
-      a,
-      g,
-      prize: Math.round(Math.round(g / expectedWins) * live.current.balance.journeyForestGold / anchors[0][3]) * live.forestMultiplier(time),
+      ...stage,
+      prize: Math.round(Math.round(stage.g / expectedWins) * live.current.balance.journeyForestGold / anchors[0][5]) * live.forestMultiplier(time),
     };
   }
-  return { limit, bladeTraits, processOptions, thresholds, smith, xpAt, convertLegacyXp, cost, step, area, forgeSuccess };
+  return { limit, bladeTraits, processOptions, thresholds, smith, xpAt, convertLegacyXp, cost, step, stageBalance, area, forgeSuccess };
 })();
 if (typeof module !== "undefined") module.exports = JourneyRules;

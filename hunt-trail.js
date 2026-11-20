@@ -32,16 +32,15 @@ const HuntTrail = (() => {
     return { ...enemies[kind], kind, habitat: area.name, elite: kind === area.boss };
   }
   function opponent(rank, kind, journeyBattle = false) {
+    if (journeyBattle) {
+      const { enemyHp, enemyAttack } = journey.stageBalance(rank);
+      if (kind === "goblin") return { hp: Math.round(enemyHp * .28), attack: 0 };
+      if (kind === region(rank).boss) return { hp: Math.round(enemyHp * 1.4), attack: Math.round(enemyAttack * 1.15) };
+      return { hp: enemyHp, attack: enemyAttack };
+    }
     const base = 90 + Math.round(36 * (rank - 1) ** 1.65);
     const bossStage = rank % 5 === 0;
     const share = kind === "goblin" ? .14 : bossStage && kind !== region(rank).boss ? .25 : .5;
-    if (journeyBattle && rank > 1) {
-      const { w, a } = journey.area(rank);
-      const grade = w >= 1000 ? 3 : w >= 200 ? 2 : w >= 20 ? 1 : 0;
-      const attack = (24 + 9 * w ** 1.65) * (1 + grade * .3);
-      const health = 160 + 46 * a ** 1.6;
-      return { hp: Math.max(1, Math.round(attack * share * (bossStage ? 12.2 : 5))), attack: kind === "goblin" ? 0 : Math.round(health * (bossStage ? .0194 : .035)) };
-    }
     return { hp: Math.max(1, Math.round(base * share)), attack: kind === "goblin" ? 0 : 20 + 9 * rank };
   }
   function enter(h, wave) {
@@ -50,7 +49,7 @@ const HuntTrail = (() => {
     h.enemyKind = lineup(h.rank, h.bonusEncounter)[wave];
     const def = enemies[h.enemyKind], stats = opponent(h.rank, h.enemyKind, h.journeyBattle === 1);
     h.enemyMax = h.enemyHp = stats.hp;
-    h.enemyAttack = Math.round(stats.attack * (h.journeyForce ?? 1));
+    h.enemyAttack = stats.attack;
     h.enemySkillState = { key: def.skill, cooldown: def.first, interval: def.interval, power: def.power };
     h.last = def.name + " 출현";
     delete h.lastDice;
