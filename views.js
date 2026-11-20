@@ -230,7 +230,8 @@ function journeyForgeControls(s, type, plan) {
   const shortfall = plan.cost - s.gold;
   const price = fmt(plan.cost) + ' G' + (shortfall > 0 ? '<span class="forge-hold-hint">' + fmt(shortfall) + ' G 부족</span>' : '');
   return {
-    heading: '안전 재련 +' + fmt(level) + ' → +' + fmt(next), detail: '성공 100%',
+    heading: '재련 +' + fmt(level) + ' → +' + fmt(next),
+    detail: '성공 ' + pct(plan.success) + (plan.success < 100 ? ' · 유지 ' + pct(100 - plan.success) : ''),
     button: btn('journeyForge', icon('hammer') + '재련<small>' + price + '</small>', type, 'primary', shortfall > 0),
   };
 }
@@ -252,11 +253,13 @@ function journeyDetails(s, type, plan) {
       line('완료한 제작 공정', (s.weapon.marks || []).length + ' / ' + Swordcraft.stages.length);
   }
   if (plan.next <= plan.level) return html + line(controls.heading, controls.detail) + controls.button;
-  html += line('다음 재련', '+' + fmt(plan.next) + ' · ' + fmt(plan.cost) + ' G') + line('성공 확률', '100%');
+  html += line('다음 재련', '+' + fmt(plan.next) + ' · ' + fmt(plan.cost) + ' G') + line('성공 확률', pct(plan.success));
+  if (plan.success < 100) html += desc('실패하면 장비 단계는 그대로이며 재련비는 전액 사용됩니다.');
   if (plan.bulk > plan.next && !s[type].finalTrial) {
     html += '<button class="primary" data-act="journeyBulk" data-arg="' + type + '" data-level="' + plan.level +
-      '" data-bulk="' + plan.bulk + '" data-bulk-cost="' + plan.bulkCost + '">+' + fmt(plan.bulk) +
-      '까지 재련 · ' + fmt(plan.bulkCost) + ' G</button>';
+      '" data-bulk="' + plan.bulk + '" data-bulk-cost="' + plan.bulkCost + '" data-bulk-success="' + plan.bulkSuccess +
+      '">+' + fmt(plan.bulk) + '까지 재련<small>' + fmt(plan.bulkCost) + ' G · 성공 ' + pct(plan.bulkSuccess) + '</small></button>' +
+      desc('모아 재련은 목표 단계까지 한 번에 판정합니다.');
   }
   if (s.gold < plan.cost) html += line('부족한 골드', fmt(plan.cost - s.gold) + ' G') + go('forest', '숲에서 골드 벌기', 'action');
   return html;
@@ -312,7 +315,8 @@ function forgeView(s) {
     "", tier(g, gear), weapon ? "blade" + (Game.bladeStage(g) || "") : "cuirass", g.grade) + '</div><section class="panel">' +
     '<div class="stats">' + line(weapon ? "공격력" : "체력", fmt(weapon ? stat.attack : stat.hp) + (hasNext ? ' <span class="mint">→ ' + fmt(weapon ? next.attack : next.hp) + '</span>' : '')) +
     (journey ? '<div class="forge-odds journey-odds"><b>' + journey.heading + '</b>' +
-      (hasNext && !g.finalTrial ? '<div class="odds-bar" aria-hidden="true"><i class="odds-success"></i></div>' : '') +
+      (hasNext && !g.finalTrial ? '<div class="odds-bar" aria-hidden="true"><i class="odds-success" style="width:' +
+        pct(plan.success) + '"></i><i class="odds-hold" style="width:' + pct(100 - plan.success) + '"></i></div>' : '') +
       '<span>' + journey.detail + '</span></div>' : forgeChances(s, g)) + '</div>' +
     (equipped.length ? '<div class="forge-blessings" role="group" aria-label="장착한 가호">' + equipped.join('') + '</div>' : '') +
     (recovery ? go("forge/training", "+" + recovery.target + " 확정 복구 가능 · 수련", "action") : "") +

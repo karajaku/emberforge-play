@@ -276,10 +276,10 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
     sync();
     if (bulkQuote) {
       const currentQuote = Game.journeyForge(state, arg);
-      if (!currentQuote || ["level", "bulk", "bulkCost"].some(key => currentQuote[key] !== bulkQuote[key])) {
+      if (!currentQuote || ["level", "bulk", "bulkCost", "bulkSuccess"].some(key => currentQuote[key] !== bulkQuote[key])) {
         render();
         if (modal) displayModal();
-        notify("재련 단계 또는 비용이 달라졌습니다. 새 견적을 확인해 주세요.");
+        notify("재련 조건이 달라졌습니다. 새 비용과 성공률을 확인하세요.");
         return;
       }
     }
@@ -889,7 +889,7 @@ function modalData() {
         desc("기록 중인 검을 보관하고 환생할 보조 검을 장착하세요.") + go("bag", "장비 보기", "primary")];
       return [
         "환생 의식",
-        desc(s.armor.journeyArmor ? "장착한 보조 검을 바칩니다. 안전 재련한 방어구는 계속 착용합니다." : "장착한 보조 검과 방어구가 일반 +0으로 돌아갑니다. 보관함과 사냥터는 유지됩니다.") +
+        desc(s.armor.journeyArmor ? "장착한 보조 검을 바칩니다. 재련한 방어구는 계속 착용합니다." : "장착한 보조 검과 방어구가 일반 +0으로 돌아갑니다. 보관함과 사냥터는 유지됩니다.") +
           line(
             "획득 영혼 포인트",
             s.weapon.level === 20 ? [20, 60, 200, 600][s.weapon.grade] + " P" : "20강 무기 필요",
@@ -1190,7 +1190,7 @@ document.addEventListener("click", (e) => {
   if ("close" in d) return dismissModal();
   if (d.act) {
     if (d.act === "journeyBulk") {
-      return act(d.act, { type: d.arg, level: Number(d.level), bulk: Number(d.bulk), bulkCost: Number(d.bulkCost) });
+      return act(d.act, { type: d.arg, level: Number(d.level), bulk: Number(d.bulk), bulkCost: Number(d.bulkCost), bulkSuccess: Number(d.bulkSuccess) });
     }
     if (d.act === "craftHuntLining") {
       if (performance.now() - lastLiningPress < 450 || !state._save) return;

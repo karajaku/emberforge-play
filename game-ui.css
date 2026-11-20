@@ -24,7 +24,8 @@
 .forge-control-layout .journey-odds { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:3px 10px; min-height:40px; }
 .journey-odds > span { font-size:12px; color:#ace5c8; }
 .journey-odds .odds-bar { flex:1; min-width:25px; }
-.journey-odds .odds-success { width:100%; }
+.primary[data-act="journeyBulk"] { flex-direction:column; justify-content:center; gap:2px; }
+.primary[data-act="journeyBulk"] small { margin:0; }
 .journey-traits { display:grid; gap:8px; }
 .journey-traits button { display:grid; grid-template-columns:24px 1fr; gap:2px 8px; text-align:left; }
 .journey-traits button svg { grid-row:span 2; align-self:center; }

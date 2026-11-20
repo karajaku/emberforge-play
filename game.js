@@ -283,7 +283,8 @@ const Game = (() => {
       else end = mid - 1;
     }
     return { level:g.level, grade:g.grade, targetGrade, threshold, processIndex,
-      needsProcess, atThreshold, canPromote, canChooseTrait, limit, next, cost:fee(next), bulk, bulkCost:fee(bulk) };
+      needsProcess, atThreshold, canPromote, canChooseTrait, limit, next, cost:fee(next), success:journey.forgeSuccess(next, cap),
+      bulk, bulkCost:fee(bulk), bulkSuccess:journey.forgeSuccess(bulk, cap) };
   }
   const journeyOrders = [[3,200],[7,500],[200,10000],[500,25000],[1000,50000],[2000,100000],[5000,250000],[9999,500000]];
   function currentOrder(s) {
@@ -418,8 +419,10 @@ const Game = (() => {
     return s.enabled[2] && s.charms[2] > 0 ? 0 : price(g);
   }
   function enhancementChances(s, g, focusBonus = 0) {
-    if (s.journeyEconomy && (g === s.armor || isJourneyGear(s, g)))
-      return {success:100, hold:0, drop:0, destroy:0};
+    if (s.journeyEconomy && (g === s.armor || isJourneyGear(s, g))) {
+      const success = journey.forgeSuccess(Math.min(g.level + 1, journey.limit), journey.smith(s.journeyEconomy.xp).cap);
+      return {success, hold:100 - success, drop:0, destroy:0};
+    }
     const sword = g === s.weapon ? baseSwordChances(g.level) : null;
     const base = sword?.success ?? live.current.balance.armorRates[g.level] ?? 0;
     const success = Math.min(
@@ -666,16 +669,20 @@ const Game = (() => {
         if (to <= g.level || s.gold < cost) return fail("재련할 골드가 부족합니다.");
         const from = g.level;
         payForgeFee(s, cost);
+        s.attempts++;
+        if (type === "armor") g.journeyArmor = true;
+        const chance = bulk ? plan.bulkSuccess : plan.success;
+        if (chance < 100 && random() >= chance / 100)
+          return success("재련 실패 · +" + from + " 유지 · " + cost.toLocaleString() + " G", "loss");
         g.level = to;
         if (type === "weapon") {
           recordWeapon(s);
           const r = s.swordRecord;
           r.recent.unshift({ from, to, at: t, safe: true });
           r.recent.length = Math.min(30, ++r.hits);
-        } else g.journeyArmor = true;
-        s.attempts++;
+        }
         s.hits++;
-        return success("안전 재련 · +" + from + " → +" + to + " · " + cost.toLocaleString() + " G", "win");
+        return success("재련 성공 · +" + from + " → +" + to + " · " + cost.toLocaleString() + " G", "win");
       }
       case "chooseSwordTrait":
       case "promoteSword": {
@@ -912,7 +919,7 @@ const Game = (() => {
       case "focusEnhance":
       case "doubleStrike":
       case "enhance": {
-        if (isJourneyGear(s, g)) return fail("여정 장비는 안전 재련을 사용하세요.");
+        if (isJourneyGear(s, g)) return fail("여정 장비는 대장간에서 재련하세요.");
         if (g.finalTrial) return fail("진행 중인 마지막 돌파를 마치거나 포기하세요.");
         const double = act === "doubleStrike";
         if (double && (type !== "weapon" || !techniqueAvailable(s, "luck")))

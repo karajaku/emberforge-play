@@ -85,11 +85,11 @@ const Apprentice = (() => {
     if (step === 0) {
       const next = Game.nextEnhancementStats(s, "weapon");
       return forge(
-        "무기를 강화해 공격력을 " +
+        "무기 강화에 성공하면 공격력이 " +
           Game.stats(s).attack +
           " → " +
           next.attack +
-          "으로 올리세요.",
+          "으로 오릅니다.",
       );
     }
     if (step === 1) {
@@ -153,7 +153,7 @@ const Apprentice = (() => {
         stage.title,
       );
     }
-    if (plan) return forge("기록 중인 검을 +7까지 안전 재련하면 칼날 연마가 열립니다.");
+    if (plan) return forge("기록 중인 검을 +7까지 재련하면 칼날 연마가 열립니다.");
     return forge(
       s.weapon.level < 7
         ? "무기를 +7까지 벼려 서리결 장검으로 진화시키세요. +13부터 사냥터에 배치할 수 있습니다."
