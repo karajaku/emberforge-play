@@ -71,7 +71,7 @@ const HuntEffects=(()=>{
       banner.className='watch-skill-flare '+key+' '+side;banner.dataset.skillSide=side;banner.innerHTML=icon(def.icon)+'<b>'+def.name+'</b>';
       // Timer callbacks may arrive late on busy devices; never overlap action callouts.
       arena.querySelectorAll('.watch-skill-flare').forEach(node=>node.remove());
-      arena.append(banner);nodes.push(banner);later(()=>banner.remove(),650);
+      arena.querySelector('.watch-fighter.'+side+' .watch-action').append(banner);nodes.push(banner);later(()=>banner.remove(),650);
       animate(actors[side],[{filter:'brightness(1)'},{filter:'brightness(1.8) drop-shadow(0 0 14px '+(key==='counter'?'#73eac7':side==='enemy'?'#ff986d':'#ffd67a')+')',offset:.4},{filter:'brightness(1)'}],{duration:700});
     },at);}
     skillFlare('player',roll?.skill,lead+100);

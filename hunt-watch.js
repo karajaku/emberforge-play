@@ -95,13 +95,6 @@ const HuntWatch=(()=>{
     if (!h && !result && rank % 5 === 0) return '우두머리 · 조우 첫 타격 주의';
     return '';
   }
-  function destinationRail() {
-    return '<nav class="ui-forge-rail watch-destinations" aria-label="다른 모험 장소">' +
-      ['mine', 'tower', 'altar'].map(id => {
-        const [name, , symbol] = zones[id];
-        return go(id, icon(id === 'mine' ? 'pickaxe' : symbol) + '<span>' + name + '</span>', 'watch-destination');
-      }).join('') + '</nav>';
-  }
   function view(s) {
     const h=s.hunt;
     const result = !h && (reward || pending() || reason.startsWith('패배') || outcome) ? s.lastHunt : null;
@@ -117,11 +110,18 @@ const HuntWatch=(()=>{
     const resultHealth=!h?(outcome||((reward||pending()||reason.startsWith('패배'))?s.lastHunt?.health:null)):null;
     const hp=h?.hp??resultHealth?.hp??st.hp,max=h?.maxHp??resultHealth?.maxHp??st.hp,enemyHp=h?.enemyHp??resultHealth?.enemyHp??Game.trail.opponent(rank,enemy.kind,true).hp;
     const total=h?.enemyMax??resultHealth?.enemyMax??enemyHp;
-    const fighter=(side,label,asset,width,current,maxHp)=>'<div class="watch-fighter '+side+'"'+(side==='enemy'&&enemy.elite?' data-elite="true"':'')+' data-action="'+(roll?.[side==='player'?'player':'enemy']||'')+'">'+healthMeter(side,label,current,maxHp)+
-      '<div class="watch-actor'+(asset==='moth'?' airborne':'')+'"'+(current<=0?' data-defeated="true"':'')+'>'+(['wolf','moth','tree','goblin'].includes(asset)?
-        '<img class="trail-creature" src="assets/hunt/'+asset+'.webp" alt="">':'<canvas width="'+width+'" height="144" data-sprite="'+asset+'" aria-hidden="true"></canvas>')+'<div class="watch-ward" aria-hidden="true">'+icon('shield')+'</div></div>'+
-      (useDice?die(roll?.[side==='player'?'playerFace':'enemyFace'],roll?.[side==='player'?'player':'enemy'],side):'')+
-      (side==='enemy'?enemySkill(h):'')+'</div>';
+    function fighter(side,label,asset,width,current,maxHp) {
+      const elite = side === 'enemy' && enemy.elite;
+      const actor = ['wolf','moth','tree','goblin'].includes(asset)
+        ? '<img class="trail-creature" src="assets/hunt/'+asset+'.webp" alt="">'
+        : '<canvas width="'+width+'" height="144" data-sprite="'+asset+'" aria-hidden="true"></canvas>';
+      const action = useDice ? die(roll?.[side+'Face'],roll?.[side],side) : '';
+      return '<div class="watch-fighter '+side+'"'+(elite?' data-elite="true"':'')+' data-action="'+(roll?.[side]||'')+'">'+
+        '<div class="watch-readout">'+healthMeter(side,label,current,maxHp)+
+        '<div class="watch-action">'+action+'</div>'+(side==='player'?skills(h):enemySkill(h))+'</div>'+
+        '<div class="watch-actor'+(asset==='moth'?' airborne':'')+'"'+(current<=0?' data-defeated="true"':'')+'>'+
+        actor+'<div class="watch-ward" aria-hidden="true">'+icon('shield')+'</div></div></div>';
+    }
     const w=Game.huntingStatus(s),empty=!w.free&&!w.purchased&&!h&&!pending();
     const held = h || pending(), finished = !held && !validRank(nextRank());
     const label = active ? '사냥 중단' : finished ? '구역 선택' :
@@ -139,8 +139,8 @@ const HuntWatch=(()=>{
     return '<section class="watch-view watch-ground' + (home ? ' watch-home' : '') + '"><div class="watch-stage">' +
       '<span class="watch-stage-name">'+icon('trees')+'사냥터</span> · <b>'+rank+'단계'+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+'<small class="watch-version">v'+UpdateNotice.version()+'</small>'+(h?.ripostes>0 && !h.journeyBattle?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+'</div>'+
       '<div class="scene watch-arena combat-hud" data-region="'+area.id+'">'+fighter('player','나',sprite,128,hp,max)+fighter('enemy',enemy.name,enemy.sprite||'boar',144,enemyHp,total)+
-      destinationRail()+'</div>'+
-      '<div class="watch-reward" role="status">'+(detail?'<div class="trail-detail">'+detail+'</div>':'')+(home ? '' : skills(h))+(reward?'<div class="watch-receipt"><div class="watch-receipt-head"><b>'+reward.rank+'단계 클리어</b><strong>'+icon('coins')+' +'+fmt(reward.gold)+' G</strong>'+
+      '</div>'+
+      '<div class="watch-reward" role="status">'+(detail?'<div class="trail-detail">'+detail+'</div>':'')+(reward?'<div class="watch-receipt"><div class="watch-receipt-head"><b>'+reward.rank+'단계 클리어</b><strong>'+icon('coins')+' +'+fmt(reward.gold)+' G</strong>'+
         (!active && reward.fiber ? '<button class="action lining-link" data-go="forge" data-gear="armor">'+icon('shield')+'안감 제작</button>' : '')+'</div><div class="watch-loot">'+
         (reward.fiber ? '<span>'+icon('trees')+'숲결 섬유 +'+reward.fiber+'</span>' : '')+
         (reward.goblinGold?'<span>'+icon('coins')+'고블린 +'+fmt(reward.goblinGold)+' G 포함</span>':'')+
