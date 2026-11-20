@@ -14,14 +14,16 @@ function phonePage(id = current()) {
   return pages.find(([key]) => key === page)?.[0] || pages[0][0];
 }
 function phoneDestination(id, page) {
+  if (id === "world" && page === "map") return "world/map";
   return page && page !== phonePages[id]?.[0][0] ? id + "/" + page : id;
 }
 function phonePageNav(id) {
   const bar = el("pageNav"), page = phonePage(id);
   bar.hidden = !page;
+  const destinations = id === "forest" && page === "hunt" ? go("world/map", "모험 지도", "page-link") : "";
   bar.innerHTML = page ? phonePages[id].map(([key, title]) =>
     '<button data-go="' + phoneDestination(id, key) + '"' +
-    (key === page ? ' aria-current="page"' : "") + ">" + title + "</button>").join("") : "";
+    (key === page ? ' aria-current="page"' : "") + ">" + title + "</button>").join("") + destinations : "";
 }
 const phoneRows = 3;
 function phoneList(rows, empty = "", size = phoneRows) {

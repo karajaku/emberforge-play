@@ -181,3 +181,68 @@ body[data-motion="on"] .watch-receipt :is(.watch-receipt-head > b, .watch-receip
 }
 .watch-plan > small { grid-column:1/-1; }
 .watch-plan .watch-motion-hint button { min-width:44px; }
+/* The hunting ground is a single illustrated scene. Reserve its left edge for
+   the same destination controls the forge uses for its workstations. */
+.ui-game:has(.watch-home) #pageNav { display:none; }
+/* The illustration shares the arena's grid row. Extend it above the stage
+   title and below the feet so the controls can sit directly on the forest. */
+.ui-game:has(.watch-home) main { padding-inline:0; overflow:visible; }
+.ui-game:has(.watch-home) #screen { padding-inline:0; }
+.ui-game .watch-home { position:relative; isolation:isolate; max-height:none; padding:0 13px 2px; }
+.ui-game .watch-home .watch-arena { background:transparent!important; border:0; }
+.watch-home-scenery {
+  position:absolute; inset:-105px -13px -75px; z-index:-1; pointer-events:none;
+  background:linear-gradient(to bottom,#13271c42,transparent 30%,transparent 70%,#192920),
+    var(--habitat) calc(77% - 7px) calc(67% - 16px) / cover no-repeat;
+}
+.watch-home > :is(.watch-stage,.watch-reward,.watch-plan,.watch-home-actions) { position:relative; z-index:1; }
+.ui-game .watch-home .watch-stage {
+  justify-self:center; display:flex; align-items:center; gap:5px; margin:2px 0; padding:5px 10px;
+  border:1px solid #ad9367; border-radius:16px; background:#182920e8; color:#e8d7b2; letter-spacing:0;
+}
+.watch-stage-name { display:inline-flex; align-items:center; gap:4px; font-weight:700; }
+.watch-stage-name svg { width:14px; height:14px; }
+.watch-home .watch-stage b { font-size:14px; }
+.watch-home .watch-stage :is(.trail-wave,.trail-region) { margin:0; }
+.watch-home .watch-stage .trail-wave { border-left:1px solid #887856; padding-left:6px; }
+.ui-game .watch-home .watch-destinations {
+  left:0; top:clamp(64px,calc(50% - 79px),40%); gap:5px;
+}
+.watch-destinations button { width:62px; min-height:48px; padding:3px; white-space:nowrap; }
+.watch-destinations svg { width:21px; height:21px; }
+.ui-game .watch-home .watch-fighter .hp-meter { padding:4px 6px; }
+.watch-home .hp-name svg { width:16px; height:16px; }
+.watch-home .hp-track { height:7px; margin:2px 0; }
+.watch-home .player .watch-actor { left:16%; bottom:16%; width:41%; }
+.ui-game .watch-home .watch-roll { bottom:1%; }
+.ui-game .watch-home .player .watch-roll { left:21%; }
+.watch-home .watch-die { width:41px; height:41px; padding:6px; }
+.watch-home .watch-roll .watch-die svg { width:26px; height:26px; }
+.watch-home .watch-roll { gap:3px; }
+.watch-home .watch-roll > span { font-size:11px; }
+.ui-game .watch-home .watch-reward { min-height:22px; }
+.watch-home .trail-detail { padding:2px 8px; background:#14231dda; border-radius:6px; }
+.watch-home .watch-plan { padding:5px 8px; border:1px solid #95805b; border-radius:9px; background:#1d2a22ec; }
+.watch-home-actions {
+  display:grid; grid-template-columns:minmax(0,1fr) minmax(140px,1.7fr) minmax(0,1fr);
+  align-items:center; gap:7px; padding:0 2px 4px;
+}
+.ui-game .watch-home-actions > .action {
+  display:grid; justify-items:center; align-content:center; gap:4px; min-height:61px;
+  padding:5px 2px; border:1px solid #ae9366; color:#f2dfbc; border-radius:12px;
+  background:linear-gradient(#47473d,#29332c); font-size:12px;
+}
+.watch-home-actions > .action svg { width:22px; height:22px; }
+.ui-game .watch-home-actions .watch-start {
+  min-height:105px!important; margin:0; padding:9px 8px; border:2px solid #e1c182;
+  border-radius:38% 38% 20% 20%; color:#fff3cf; background:linear-gradient(145deg,#9b7839,#6f5123);
+  box-shadow:inset 0 0 0 3px #533f245c,0 4px #48351c,0 6px 12px #111c17a6;
+}
+.watch-home .watch-start-label { flex-direction:column; gap:2px; line-height:1.15; font-size:19px; }
+.watch-home .watch-start-label svg { width:29px; height:29px; }
+.watch-home .watch-ticket-bar { max-width:122px; font-size:10px; }
+@media (max-height:760px) {
+  .ui-game .watch-home-actions .watch-start { min-height:88px!important; }
+  .watch-home .watch-start-label { font-size:17px; }
+  .watch-home .watch-start-label svg { width:23px; height:23px; }
+}

@@ -30,7 +30,8 @@ let huntStart = -1000,
   lastFocus = null;
 const allRoutes = ["forge", "world", "bag", "growth", ...Object.keys(zones)];
 const current = () => {
-  const id = location.hash.slice(1).split("/")[0];
+  const [id, page] = location.hash.slice(1).split("/");
+  if (id === "world" && !page) return "forest";
   return allRoutes.includes(id) ? id : "forge";
 };
 const images = {};
@@ -494,7 +495,7 @@ function render() {
     (id === "forge"
       ? openBtn("journal", icon("scroll-text") + "강화 기록", "ghost")
       : zones[id]
-        ? go("world", icon("arrow-left") + "모험 지도", "ghost")
+        ? go("world/map", icon("compass") + "모험 지도", "ghost")
         : openBtn("daily", icon("gift") + "출석 보상", "ghost")) +
     "</div></div>";
   let view;
@@ -1050,7 +1051,7 @@ function back() {
     return true;
   }
   if (current() !== "forge") {
-    nav(zones[current()] ? "world" : "forge");
+    nav(zones[current()] && current() !== "forest" ? "world" : "forge");
     return true;
   }
   return false;

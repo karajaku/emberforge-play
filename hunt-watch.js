@@ -95,6 +95,13 @@ const HuntWatch=(()=>{
     if (!h && !result) return pack.map(kind => Game.trail.enemy(rank,kind).name).join(' → ') + (rank % 5 === 0 ? ' · 조우 첫 타격 주의' : '');
     return '';
   }
+  function destinationRail() {
+    return '<nav class="ui-forge-rail watch-destinations" aria-label="다른 모험 장소">' +
+      ['mine', 'tower', 'altar'].map(id => {
+        const [name, , symbol] = zones[id];
+        return go(id, icon(id === 'mine' ? 'pickaxe' : symbol) + '<span>' + name + '</span>', 'watch-destination');
+      }).join('') + '</nav>';
+  }
   function view(s) {
     const h=s.hunt;
     const result = !h && (reward || pending() || reason.startsWith('패배') || outcome) ? s.lastHunt : null;
@@ -122,15 +129,23 @@ const HuntWatch=(()=>{
       empty ? '사냥권 충전 보기' : mode === 'repeat' ? '반복 시작' : s.huntBest >= 60 ? '1회 재도전' : '사냥';
     const area=Game.trail.region(rank);
     const detail = encounterHint(h,result,enemy,rank,pack);
-    return '<section class="watch-view"><div class="watch-stage">STAGE <b>'+rank+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+(h?.ripostes>0 && !h.journeyBattle?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+'</div>'+
-      '<div class="scene watch-arena combat-hud"'+(trail?' data-region="'+area.id+'"':'')+'>'+fighter('player','나',sprite,128,hp,max)+fighter('enemy',enemy.name,enemy.sprite||'boar',144,enemyHp,total)+'</div>'+
+    const home = !encounter && !active;
+    const start = '<button class="primary watch-start" ' + (empty && !active ? 'data-open="huntWallet"' : 'data-watch="toggle"') +
+      (finished ? ' disabled' : '') + '><span class="watch-start-label">' + icon(active ? 'shield' : 'sword') + label + '</span>' + ticketBar(w) + '</button>';
+    const controls = home ? '<div class="watch-home-actions">' +
+      go('forest/field', icon('hand-coins') + '<span>배치 수익</span>', 'action') + start +
+      go('world/map', icon('compass') + '<span>모험 지도</span>', 'action') + '</div>' : start;
+    return '<section class="watch-view' + (home ? ' watch-home' : '') + '"><div class="watch-stage">' +
+      (home ? '<span class="watch-stage-name">'+icon('trees')+'사냥터</span> · ' : 'STAGE ') + '<b>'+rank+(home ? '단계' : '')+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+(h?.ripostes>0 && !h.journeyBattle?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+'</div>'+
+      '<div class="scene watch-arena combat-hud"'+(trail?' data-region="'+area.id+'"':'')+'>'+(home ? '<div class="watch-home-scenery" aria-hidden="true"></div>' : '')+fighter('player','나',sprite,128,hp,max)+fighter('enemy',enemy.name,enemy.sprite||'boar',144,enemyHp,total)+
+      (home ? destinationRail() : '')+'</div>'+
       '<div class="watch-reward" role="status">'+(detail?'<div class="trail-detail">'+detail+'</div>':'')+skills(h)+(reward?'<div class="watch-receipt"><div class="watch-receipt-head"><b>'+reward.rank+'단계 클리어</b><strong>'+icon('coins')+' +'+fmt(reward.gold)+' G</strong>'+
         (!active && reward.fiber ? '<button class="action lining-link" data-go="forge" data-gear="armor">'+icon('shield')+'안감 제작</button>' : '')+'</div><div class="watch-loot">'+
         (reward.fiber ? '<span>'+icon('trees')+'숲결 섬유 +'+reward.fiber+'</span>' : '')+
         (reward.goblinGold?'<span>'+icon('coins')+'고블린 +'+fmt(reward.goblinGold)+' G 포함</span>':'')+
         (reward.counter>0?'<span class="watch-counter-reward">반격 +'+fmt(reward.counter)+' G 포함</span>':'')+
         [[reward.shards,'sparkles','별의 파편'],[reward.scrolls,'scroll-text','주문서'],...[0,1,2].map(i=>[reward.charms[i],['trees','hammer','star'][i],Game.blessings[i]])].filter(([n])=>n).map(([n,ic,title])=>'<span aria-label="'+title+' '+n+'개" title="'+title+'">'+icon(ic)+' +'+n+'</span>').join('')+'</div></div>':reason&&!(h&&reason==='일시 중단')?'<b>'+reason+'</b>':'')+'</div>'+
-      selector(s, held)+'<button class="primary watch-start" '+(empty&&!active?'data-open="huntWallet"':'data-watch="toggle"')+(finished?' disabled':'')+'><span class="watch-start-label">'+icon(active?'shield':'sword')+label+'</span>'+ticketBar(w)+'</button>'+
+      selector(s, held)+controls+
       (!active&&reason==='패배 · 장비를 강화해 주세요'?go('forge','장비 강화','action'):'')+'</section>';
   };
   function beforeRender(){if(active&&!allowed())stop('',false);}
