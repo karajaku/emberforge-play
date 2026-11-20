@@ -657,7 +657,8 @@ const Game = (() => {
       case "journeyForge":
       case "journeyBulk": {
         const plan = journeyForge(s, arg);
-        if (!plan || g.finalTrial || s.hunt) return fail("진행 중인 전투와 장비를 확인하세요.");
+        if (!plan) return fail("재련할 장비를 확인하세요.");
+        if (g.finalTrial) return fail("진행 중인 돌파를 먼저 마치세요.");
         const bulk = act === "journeyBulk";
         const to = bulk ? plan.bulk : plan.next;
         if (plan.next <= g.level) return fail("다음 공정 또는 승급 조건을 확인하세요.");
@@ -680,7 +681,7 @@ const Game = (() => {
       case "promoteSword": {
         const plan = journeyForge(s, "weapon");
         const choosing = act === "chooseSwordTrait";
-        if (s.hunt || s.weapon.finalTrial) return fail("진행 중인 전투나 돌파를 먼저 마치세요.");
+        if (s.weapon.finalTrial) return fail("진행 중인 돌파를 먼저 마치세요.");
         if (!(choosing ? plan?.canChooseTrait : plan?.canPromote)) return fail("검의 제작 공정과 강화 단계를 확인하세요.");
         if (![0,1,2,3,"0","1","2","3"].includes(arg)) return fail("승급 선택을 확인하세요.");
         if (choosing) {

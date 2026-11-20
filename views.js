@@ -219,20 +219,19 @@ function journeyForgeControls(s, type, plan) {
   };
   if (plan.canPromote) {
     const title = Game.grades[plan.targetGrade] + ' 승급';
-    const hint = s.hunt ? '전투 중' : plan.targetGrade === 2 ? '특성 선택' : '검 벼리기';
+    const hint = plan.targetGrade === 2 ? '특성 선택' : '검 벼리기';
     return { heading: title, detail: '승급 조건 달성',
-      button: openBtn('swordPromotion', icon('sparkles') + title + '<small>' + hint + '</small>', 'primary', !!s.hunt) };
+      button: openBtn('swordPromotion', icon('sparkles') + title + '<small>' + hint + '</small>', 'primary') };
   }
   if (next <= level) return {
     heading: '최종 재련 완료', detail: '+' + fmt(level),
     button: openBtn('journal', icon('scroll-text') + '강화 기록', 'primary'),
   };
   const shortfall = plan.cost - s.gold;
-  const hint = s.hunt ? '전투 중' : shortfall > 0 ? fmt(shortfall) + ' G 부족' : '';
-  const price = fmt(plan.cost) + ' G' + (hint ? '<span class="forge-hold-hint">' + hint + '</span>' : '');
+  const price = fmt(plan.cost) + ' G' + (shortfall > 0 ? '<span class="forge-hold-hint">' + fmt(shortfall) + ' G 부족</span>' : '');
   return {
     heading: '안전 재련 +' + fmt(level) + ' → +' + fmt(next), detail: '성공 100%',
-    button: btn('journeyForge', icon('hammer') + '재련<small>' + price + '</small>', type, 'primary', !!s.hunt || shortfall > 0),
+    button: btn('journeyForge', icon('hammer') + '재련<small>' + price + '</small>', type, 'primary', shortfall > 0),
   };
 }
 function journeyDetails(s, type, plan) {
@@ -242,9 +241,10 @@ function journeyDetails(s, type, plan) {
   const smith = Game.journeySmith(s);
   html += line('대장장이 Lv.' + smith.level, fmt(smith.xp) + (smith.next ? ' / ' + fmt(smith.next) : '') + ' XP') +
     line('즉시 제작 상한', '+' + fmt(smith.cap)) + desc('재련비 1 G를 쓸 때마다 1 XP를 얻습니다. 검이 파괴되면 그 검의 판매가만큼 XP를 얻습니다.');
+  if (s.hunt) html += desc('재련한 장비의 능력치는 다음 토벌부터 적용됩니다.');
   if (type === 'weapon' && Number.isInteger(s.weapon.journeyTrait)) html += line('에픽 특성', Game.journeyTraits[s.weapon.journeyTrait]);
   if (plan.canChooseTrait) {
-    const lock = s.hunt ? ' · 전투 중' : s.weapon.finalTrial ? ' · 돌파 중' : '';
+    const lock = s.weapon.finalTrial ? ' · 돌파 중' : '';
     html += openBtn('swordTrait', icon('sparkles') + '에픽 특성 새기기' + lock, 'action', !!lock);
   }
   if (type === 'weapon' && nextGrade) {
@@ -253,7 +253,7 @@ function journeyDetails(s, type, plan) {
   }
   if (plan.next <= plan.level) return html + line(controls.heading, controls.detail) + controls.button;
   html += line('다음 재련', '+' + fmt(plan.next) + ' · ' + fmt(plan.cost) + ' G') + line('성공 확률', '100%');
-  if (plan.bulk > plan.next && !s.hunt && !s[type].finalTrial) {
+  if (plan.bulk > plan.next && !s[type].finalTrial) {
     html += '<button class="primary" data-act="journeyBulk" data-arg="' + type + '" data-level="' + plan.level +
       '" data-bulk="' + plan.bulk + '" data-bulk-cost="' + plan.bulkCost + '">+' + fmt(plan.bulk) +
       '까지 재련 · ' + fmt(plan.bulkCost) + ' G</button>';
@@ -312,7 +312,7 @@ function forgeView(s) {
     "", tier(g, gear), weapon ? "blade" + (Game.bladeStage(g) || "") : "cuirass", g.grade) + '</div><section class="panel">' +
     '<div class="stats">' + line(weapon ? "공격력" : "체력", fmt(weapon ? stat.attack : stat.hp) + (hasNext ? ' <span class="mint">→ ' + fmt(weapon ? next.attack : next.hp) + '</span>' : '')) +
     (journey ? '<div class="forge-odds journey-odds"><b>' + journey.heading + '</b>' +
-      (hasNext && !s.hunt && !g.finalTrial ? '<div class="odds-bar" aria-hidden="true"><i class="odds-success"></i></div>' : '') +
+      (hasNext && !g.finalTrial ? '<div class="odds-bar" aria-hidden="true"><i class="odds-success"></i></div>' : '') +
       '<span>' + journey.detail + '</span></div>' : forgeChances(s, g)) + '</div>' +
     (equipped.length ? '<div class="forge-blessings" role="group" aria-label="장착한 가호">' + equipped.join('') + '</div>' : '') +
     (recovery ? go("forge/training", "+" + recovery.target + " 확정 복구 가능 · 수련", "action") : "") +
