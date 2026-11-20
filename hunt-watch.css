@@ -318,3 +318,27 @@ body.ui-game:has(.watch-ground)::after {
   .watch-ground .watch-start-label { font-size:17px; }
   .watch-ground .watch-start-label svg { width:23px; height:23px; }
 }
+
+/* Each fifth stage opens in its guardian's lair before the first encounter. */
+body:has([data-boss-territory="moss"])  { --lair:url('assets/hunt/lair-moss.webp'); }
+body:has([data-boss-territory="maple"]) { --lair:url('assets/hunt/lair-maple.webp'); }
+body:has([data-boss-territory="gorge"]) { --lair:url('assets/hunt/lair-gorge.webp'); }
+body:has([data-boss-territory="heart"]) { --lair:url('assets/hunt/lair-heart.webp'); }
+body.ui-game:has(.watch-ground[data-boss-territory])::before {
+  background-image:var(--lair);
+  background-position:center;
+  background-size:cover;
+}
+.watch-ground[data-boss-territory] .watch-stage-name { color:#ffda86; }
+.watch-arena[data-region] .enemy[data-boss] .watch-actor {
+  --ground-x:72%;
+  width:min(47%,200px); max-width:min(200px,61cqh);
+  filter:drop-shadow(0 2px 2px #211a22b3);
+}
+.boss-creature { display:block; width:100%; height:auto; image-rendering:pixelated; transform-origin:50% 98%; }
+@media (max-height:650px) and (orientation:portrait) {
+  body.ui-game:has(.watch-ground[data-boss-territory])::before {
+    background-size:auto 112dvh;
+    background-position:center bottom;
+  }
+}

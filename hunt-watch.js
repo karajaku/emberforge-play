@@ -93,18 +93,22 @@ const HuntWatch=(()=>{
       return event + ' · 다음은 ' + Game.trail.enemy(rank, pack[h.wave + 1]).name;
     }
     if (h?.enemyKind === 'goblin') return h.journeyBattle ? '황금 고블린이 두 번째 턴에 도주합니다' : '두 턴 안에 잡으면 상자에 기본 골드 +50%';
-    if (!h && !result && rank % 5 === 0) return '우두머리 · 조우 첫 타격 주의';
+    if (!h && !result && rank % 5 === 0) return '조우 첫 타격 주의';
     return '';
   }
   function view(s) {
     const h=s.hunt;
     const result = !h && (reward || pending() || reason.startsWith('패배') || lastRound) ? s.lastHunt : null;
-    const rank=h?.rank || result?.rank || nextRank() || 60;
+    const targetRank=h?.rank || result?.rank || nextRank();
+    const rank=targetRank || 60;
     const encounter = h || result;
     const pack = Game.trail.lineup(rank,encounter?.bonusEncounter);
     const trail = !encounter || encounter.trailVersion === 1;
     const wave = encounter?.wave ?? 0;
     const enemy = encounter ? Game.huntEnemy(encounter) : Game.trail.enemy(rank,pack[0]);
+    const area=Game.trail.region(rank);
+    const bossKind = enemy.kind === 'crown' ? 'tusk' : enemy.kind;
+    const territory = trail ? targetRank && rank % 5 === 0 && area.id : enemy.elite && 'moss';
     const st=Game.huntStats(s),roll=encounter?.lastDice;
     const useDice=encounter?encounter.diceVersion===1:true;
     const blade=Game.huntBlade(s,encounter);
@@ -115,11 +119,11 @@ const HuntWatch=(()=>{
     const total=h?.enemyMax??resultHealth?.enemyMax??enemyHp;
     function fighter(side,label,level,asset,width,current,maxHp) {
       const elite = side === 'enemy' && enemy.elite;
-      const actor = ['wolf','moth','tree','goblin'].includes(asset)
+      const actor = elite ? '<img class="trail-creature boss-creature" src="assets/hunt/boss-'+bossKind+'.webp" alt="">' : ['wolf','moth','tree','goblin'].includes(asset)
         ? '<img class="trail-creature" src="assets/hunt/'+asset+'.webp" alt="">'
         : '<canvas width="'+width+'" height="144" data-sprite="'+asset+'" aria-hidden="true"></canvas>';
       const action = useDice ? die(roll?.[side+'Face'],roll?.[side],side) : '';
-      return '<div class="watch-fighter '+side+'"'+(elite?' data-elite="true"':'')+' data-action="'+(roll?.[side]||'')+'">'+
+      return '<div class="watch-fighter '+side+'"'+(elite?' data-elite="true" data-boss="'+bossKind+'"':'')+' data-action="'+(roll?.[side]||'')+'">'+
         '<div class="watch-readout">'+healthMeter(side,label,current,maxHp,level)+
         '<div class="watch-action">'+action+'</div>'+(side==='player'?skills(skillState):enemySkill(skillState))+'</div>'+
         '<div class="watch-actor'+(asset==='moth'?' airborne':'')+'"'+(current<=0?' data-defeated="true"':'')+'>'+
@@ -130,7 +134,6 @@ const HuntWatch=(()=>{
     const label = active ? '사냥 중단' : finished ? '구역 선택' :
       held ? (mode === 'repeat' ? '반복 재개' : s.huntBest >= 60 ? '재도전 재개' : '진행 재개') :
       empty ? '충전 보기' : mode === 'repeat' ? '반복 시작' : s.huntBest >= 60 ? '1회 재도전' : '사냥';
-    const area=Game.trail.region(rank);
     const detail = encounterHint(h,result,enemy,rank,pack);
     const home = !active && (!encounter || location.hash === '#world');
     const control = finished ? 'data-open="huntPlan"' : empty && !active ? 'data-open="huntWallet"' : 'data-watch="toggle"';
@@ -139,8 +142,8 @@ const HuntWatch=(()=>{
     const controls = '<div class="watch-home-actions">' +
       go('forest/field', icon('hand-coins') + '<span>배치 수익</span>', 'action') + start +
       go('world/map', icon('compass') + '<span>모험 지도</span>', 'action') + '</div>';
-    return '<section class="watch-view watch-ground' + (home ? ' watch-home' : '') + '"><div class="watch-stage">' +
-      '<span class="watch-stage-name">'+icon('trees')+'사냥터</span> · <b>'+rank+'단계'+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+'<small class="watch-version">v'+UpdateNotice.version()+'</small>'+(h?.ripostes>0 && !h.journeyBattle?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+'</div>'+
+    return '<section class="watch-view watch-ground' + (home ? ' watch-home' : '') + '"' + (territory ? ' data-boss-territory="'+territory+'"' : '') + '><div class="watch-stage">' +
+      '<span class="watch-stage-name">'+(territory ? icon('crown')+'우두머리 영역' : icon('trees')+'사냥터')+'</span> · <b>'+rank+'단계'+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+'<small class="watch-version">v'+UpdateNotice.version()+'</small>'+(h?.ripostes>0 && !h.journeyBattle?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+'</div>'+
       '<div class="scene watch-arena combat-hud" data-region="'+area.id+'">'+fighter('player',blade.name,'+'+fmt(blade.level),sprite,128,hp,max)+fighter('enemy',enemy.name,'Lv.'+rank,enemy.sprite||'boar',144,enemyHp,total)+
       '<div class="watch-report">'+
       '<div class="watch-reward" role="status">'+(detail?'<div class="trail-detail">'+detail+'</div>':'')+(reward?'<div class="watch-receipt"><div class="watch-receipt-head"><b>'+reward.rank+'단계 클리어</b><strong>'+icon('coins')+' +'+fmt(reward.gold)+' G</strong></div><div class="watch-loot">'+
@@ -180,6 +183,13 @@ const HuntWatch=(()=>{
         await act(null,'',undefined,undefined,()=>live(token)&&state.hunt?.id===id&&state.hunt.wave===wave?
           {action:'huntAdvance',arg:{id,wave}}:null);
         if(storageError)stop('저장 상태를 확인해 주세요');
+        else if(live(token) && state.hunt?.id===id && state.hunt.wave===wave+1 && motionEnabled()) {
+          document.querySelector('.watch-ground .boss-creature')?.animate([
+            {opacity:0, transform:'translate(12%, -9%) scale(.9)'},
+            {opacity:1, transform:'translate(-2%, 0) scale(1.035)',offset:.72},
+            {opacity:1, transform:'none'}
+          ],{duration:460,easing:'ease-out'});
+        }
       } else if(h) {
         const id=h.id,turn=h.turn,wave=h.wave;
         if (h.journeyBattle === 1) nextStrikeAt = performance.now() + 2000;
