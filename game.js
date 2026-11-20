@@ -381,6 +381,17 @@ const Game = (() => {
     const base = stats(s);
     return { attack: base.attack, hp: Math.round(base.hp * (100 + 4 * s.huntLining) / 100) };
   }
+  function huntBladeState(s, encounter) {
+    if (encounter?.blade) return encounter.blade;
+    const key = encounter?.weaponKey;
+    const weapon = key && [s.weapon, ...s.bag, ...s.field].find(gear => (gear.recordId || gear.huntKey) === key);
+    const blade = weapon || s.weapon;
+    return { stage: bladeStage(blade), level: blade.level };
+  }
+  function huntBlade(s, encounter) {
+    const blade = huntBladeState(s, encounter);
+    return { ...blade, name: live.current.game.swords[blade.stage] };
+  }
   function weaponAttack(weapon, level = weapon.level) {
     return Math.round(
       (24 + 9 * level ** 1.65 + weapon.star) *
@@ -401,8 +412,11 @@ const Game = (() => {
     s.hunt.weaponKey = s.weapon.recordId || (s.weapon.huntKey ??= s.hunt.id);
   }
   function restoreHuntWeapon(s) {
+    if (s.lastHunt) s.lastHunt.blade ??= huntBladeState(s, s.lastHunt);
     const h = s.hunt;
-    if (h?.journeyBattle !== 1 || h.weaponKey !== undefined) return;
+    if (!h) return;
+    h.blade ??= huntBladeState(s, h);
+    if (h.journeyBattle !== 1 || h.weaponKey !== undefined) return;
     // Old saves did not identify the entry weapon. Recover a pending upgrade
     // when the recorded blade's pre-forge attack matches the saved encounter.
     const currentAttack = journeyHuntAttack(s.weapon, h.rank);
@@ -415,8 +429,10 @@ const Game = (() => {
   }
   function applyHuntWeaponUpgrade(s) {
     const h = s.hunt;
-    if (h?.journeyBattle === 1 && h.weaponKey && h.weaponKey === (s.weapon.recordId || s.weapon.huntKey))
+    if (h?.journeyBattle === 1 && h.weaponKey && h.weaponKey === (s.weapon.recordId || s.weapon.huntKey)) {
       h.attack = journeyHuntAttack(s.weapon, h.rank);
+      h.blade = huntBladeState(s);
+    }
   }
   function stats(s, trial = false, raid = false) {
     let attack = weaponAttack(s.weapon);
@@ -1227,6 +1243,7 @@ const Game = (() => {
           request,
           ticketSource: source,
           number: s.huntNumber,
+          blade: huntBladeState(s),
           rank,
           enemyKind: enemy.kind,
           turn: 1,
@@ -1330,6 +1347,7 @@ const Game = (() => {
             id: h.id, ticketSource: h.ticketSource,
             ...(roll ? {diceVersion:1, lastDice:roll} : {}),
             health: huntHealth(h),
+            blade: huntBladeState(s, h),
             rank: h.rank,
             enemyKind: huntEnemy(h).kind,
             turns: h.turn,
@@ -1364,6 +1382,7 @@ const Game = (() => {
             id: h.id, ticketSource: h.ticketSource,
             ...(roll ? {diceVersion:1, lastDice:roll} : {}),
             health: huntHealth(h),
+            blade: huntBladeState(s, h),
             rank: h.rank,
             enemyKind: huntEnemy(h).kind,
             turns: h.turn,
@@ -1715,7 +1734,7 @@ const Game = (() => {
     return 1 - Math.abs((elapsed % 1800) / 900 - 1);
   }
   return {
-    forestYield, liningCosts, huntStats, restoreHuntWeapon, hunting, settleHunting, huntingStatus, resetProgress,
+    forestYield, liningCosts, huntStats, huntBlade, restoreHuntWeapon, hunting, settleHunting, huntingStatus, resetProgress,
     startSwordRecord, freshJourney, enableJourney, isJourneyGear, canAdoptSword, journeyForge, journeySmith, saleValue, currentOrder, dailyGold,
     journeyProcessOptions: i => journey.processOptions[i],
     huntArea: journey.area, journeyTraits: journey.bladeTraits,

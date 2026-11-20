@@ -21,6 +21,9 @@ const SaveStore = (() => {
     if (data?.heirloom !== undefined) throw fault("future");
     if (data?.version > 2 || data?._save?.format > 1 || data?.hunting?.version > 1) throw fault("future");
     for (const h of [data?.hunt, data?.lastHunt]) {
+      if (h?.blade !== undefined && (!object(h.blade) ||
+          !Number.isInteger(h.blade.stage) || h.blade.stage < 0 || h.blade.stage >= 4 ||
+          !Number.isSafeInteger(h.blade.level) || h.blade.level < 0)) throw fault("corrupt");
       if (h?.journeyWork !== undefined && !validWork(h.journeyWork)) throw fault("corrupt");
       if (h?.journeyBattle > 1) throw fault("future");
       if (h?.journeyBattle !== undefined && (h.journeyBattle !== 1 || h.trailVersion !== 1 ||

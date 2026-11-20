@@ -5,11 +5,16 @@ function healthAmount(n) {
   const unit = n >= 100000000 ? 100000000 : 10000;
   return (Math.floor(n / unit * 10) / 10).toLocaleString("ko-KR") + (unit === 10000 ? "만" : "억");
 }
-function healthMeter(side, name, hp, max) {
+function healthMeter(side, name, hp, max, level = "") {
   const scale = "scaleX(" + hp / max + ")";
-  return '<div class="hp-meter" data-side="' + side + '" role="meter" aria-label="' + name +
+  const label = escapeHtml(level ? name + " " + level : name);
+  const identity = level
+    ? '<span class="hp-identity" title="' + label + '"><span class="hp-title">' + escapeHtml(name) +
+      '</span> <span class="hp-level">' + escapeHtml(level) + '</span></span>'
+    : label;
+  return '<div class="hp-meter" data-side="' + side + '" role="meter" aria-label="' + label +
     ' HP" aria-valuemin="0" aria-valuemax="' + max + '" aria-valuenow="' + hp + '">' +
-    '<div class="hp-name">' + icon(side === "player" ? "shield" : "sword") + name +
+    '<div class="hp-name">' + icon(side === "player" ? "shield" : "sword") + identity +
     '<b class="hp-loss" aria-hidden="true"></b></div>' +
     '<div class="hp-track"><i class="hp-trail" style="transform:' + scale + '"></i>' +
     '<i class="hp-fill" style="transform:' + scale + '"></i></div>' +

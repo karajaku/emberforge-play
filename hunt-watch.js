@@ -107,19 +107,20 @@ const HuntWatch=(()=>{
     const enemy = encounter ? Game.huntEnemy(encounter) : Game.trail.enemy(rank,pack[0]);
     const st=Game.huntStats(s),roll=encounter?.lastDice;
     const useDice=encounter?encounter.diceVersion===1:true;
-    const sprite='blade'+(Game.bladeStage(s.weapon)||'');
+    const blade=Game.huntBlade(s,encounter);
+    const sprite='blade'+(blade.stage||'');
     const resultHealth=result?.health;
     const skillState=h || (lastRound?.id===result?.id ? lastRound : null);
     const hp=h?.hp??resultHealth?.hp??st.hp,max=h?.maxHp??resultHealth?.maxHp??st.hp,enemyHp=h?.enemyHp??resultHealth?.enemyHp??Game.trail.opponent(rank,enemy.kind,true).hp;
     const total=h?.enemyMax??resultHealth?.enemyMax??enemyHp;
-    function fighter(side,label,asset,width,current,maxHp) {
+    function fighter(side,label,level,asset,width,current,maxHp) {
       const elite = side === 'enemy' && enemy.elite;
       const actor = ['wolf','moth','tree','goblin'].includes(asset)
         ? '<img class="trail-creature" src="assets/hunt/'+asset+'.webp" alt="">'
         : '<canvas width="'+width+'" height="144" data-sprite="'+asset+'" aria-hidden="true"></canvas>';
       const action = useDice ? die(roll?.[side+'Face'],roll?.[side],side) : '';
       return '<div class="watch-fighter '+side+'"'+(elite?' data-elite="true"':'')+' data-action="'+(roll?.[side]||'')+'">'+
-        '<div class="watch-readout">'+healthMeter(side,label,current,maxHp)+
+        '<div class="watch-readout">'+healthMeter(side,label,current,maxHp,level)+
         '<div class="watch-action">'+action+'</div>'+(side==='player'?skills(skillState):enemySkill(skillState))+'</div>'+
         '<div class="watch-actor'+(asset==='moth'?' airborne':'')+'"'+(current<=0?' data-defeated="true"':'')+'>'+
         actor+'<div class="watch-ward" aria-hidden="true">'+icon('shield')+'</div></div></div>';
@@ -140,7 +141,7 @@ const HuntWatch=(()=>{
       go('world/map', icon('compass') + '<span>모험 지도</span>', 'action') + '</div>';
     return '<section class="watch-view watch-ground' + (home ? ' watch-home' : '') + '"><div class="watch-stage">' +
       '<span class="watch-stage-name">'+icon('trees')+'사냥터</span> · <b>'+rank+'단계'+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+'<small class="watch-version">v'+UpdateNotice.version()+'</small>'+(h?.ripostes>0 && !h.journeyBattle?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+'</div>'+
-      '<div class="scene watch-arena combat-hud" data-region="'+area.id+'">'+fighter('player','나',sprite,128,hp,max)+fighter('enemy',enemy.name,enemy.sprite||'boar',144,enemyHp,total)+
+      '<div class="scene watch-arena combat-hud" data-region="'+area.id+'">'+fighter('player',blade.name,'+'+fmt(blade.level),sprite,128,hp,max)+fighter('enemy',enemy.name,'Lv.'+rank,enemy.sprite||'boar',144,enemyHp,total)+
       '<div class="watch-report">'+
       '<div class="watch-reward" role="status">'+(detail?'<div class="trail-detail">'+detail+'</div>':'')+(reward?'<div class="watch-receipt"><div class="watch-receipt-head"><b>'+reward.rank+'단계 클리어</b><strong>'+icon('coins')+' +'+fmt(reward.gold)+' G</strong></div><div class="watch-loot">'+
         (reward.fiber ? '<span>'+icon('trees')+'숲결 섬유 +'+reward.fiber+'</span>' : '')+

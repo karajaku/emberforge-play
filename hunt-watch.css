@@ -197,9 +197,17 @@ body.ui-game:has(.watch-ground)::after {
 .player > .watch-readout { grid-column:1; grid-template-columns:minmax(0,1fr) var(--action-width); --fighter-ink:#cdffda; }
 .enemy > .watch-readout { grid-column:2; --fighter-ink:#ffccad; }
 .ui-game .watch-ground .hp-meter {
-  position:static; width:auto; padding:0; min-width:0; grid-column:1/-1; display:grid; row-gap:2px;
+  position:static; width:auto; padding:0; min-width:0; grid-column:1/-1; display:grid; grid-template-columns:minmax(0,1fr); row-gap:2px;
 }
-.watch-ground .hp-name { font-size:clamp(13px,3.6vw,16px); color:var(--fighter-ink); }
+.watch-ground .hp-name { position:relative; overflow:visible; font-size:clamp(13px,3.6vw,16px); color:var(--fighter-ink); }
+.watch-ground .hp-identity { display:inline-flex; min-width:0; align-items:baseline; gap:3px; }
+.watch-ground .hp-title { overflow:hidden; text-overflow:ellipsis; }
+.watch-ground .hp-level { flex:none; font-size:.87em; }
+.watch-ground .hp-loss { position:absolute; bottom:100%; right:0; }
+.watch-ground .player .hp-loss { right:auto; left:0; }
+@media (max-width:360px) {
+  .watch-ground .hp-name > svg { display:none; }
+}
 .watch-ground .hp-name svg { width:16px; height:16px; flex:none; }
 .watch-ground .hp-track { height:6px; margin:0; box-shadow:0 0 0 1px #15241dee; }
 .watch-ground .hp-count { font-size:11px; line-height:1.15; text-align:left; }
