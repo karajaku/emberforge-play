@@ -21,6 +21,7 @@ try {
   Object.assign(prefs, JSON.parse(localStorage.getItem(settingsKey) || "{}"));
 } catch {}
 let archiveBlade = false;
+let forgeOutfitSlot = "";
 let gear = "weapon",
   towerMode = "infinite",
   modal = "",
@@ -264,7 +265,12 @@ function outfitQuote(s, action, arg) {
   const wearing = Object.entries(data.equipped).find(([, value]) => value === id);
   return JSON.stringify([action, item, wearing?.[0], second && data.equipped[first]]);
 }
+function bindOutfitQuotes(container) {
+  for (const button of container.querySelectorAll('[data-act^="outfit"]'))
+    button.outfitQuote = outfitQuote(state, button.dataset.act, button.dataset.arg);
+}
 function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedSoul, expectedOutfit) {
+  const forgeWornItem = action === "outfitForge" && current() === "forge" && !modal;
   const sourceInventoryMenu = modal.startsWith("inventory-") && !automaticGuard && !repeatGuard ? modal : "";
   const bulkQuote = action === "journeyBulk" && typeof arg === "object" ? arg : null;
   if (bulkQuote) arg = bulkQuote.type;
@@ -339,7 +345,12 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     GameSound.stop();
     const goldBefore = state.gold;
     const breaksBefore = state.breaks;
-    const actionLevel = () => armorAction ? Game.blades.currentArmor(state).level : ["bladeForge","bladeWorkFinish","bladeFinalMove"].includes(action) ? Game.blades.current(state).level : state[arg === "armor" ? "armor" : "weapon"].level;
+    const actionLevel = () => {
+      if (forgeWornItem) return Game.outfit.state(state).items.find(item => item.id === arg)?.level;
+      if (armorAction) return Game.blades.currentArmor(state).level;
+      if (["bladeForge","bladeWorkFinish","bladeFinalMove"].includes(action)) return Game.blades.current(state).level;
+      return state[arg === "armor" ? "armor" : "weapon"].level;
+    };
     const gearBefore = actionLevel();
     const workWeapon = armorAction ? Game.blades.currentArmor(state) : action.startsWith("blade") ? Game.blades.current(state) : state.weapon;
     const sparring = ["craftMove","bladeWorkMove"].includes(equivalent) && workWeapon.work?.index === 1;
@@ -366,7 +377,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     autoCombat.refresh(false);
     if (result.ok && ["craftMove","bladeWorkMove"].includes(equivalent)) animationStart = performance.now();
     if (result.impact) huntStart = performance.now();
-    const forgeAction = [
+    const forgeAction = forgeWornItem || [
       "enhance",
       "bladeForge",
       "bladeArmor",
@@ -401,6 +412,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     if (inventoryAction) modal = "";
     if (result.ok && action === "bladeMaster") { HuntWatch.selectMaster(); modal = ""; }
     if (result.ok && action === "outfitSalvage") modal = "outfit:slots";
+    if (result.ok && action === "outfitEquip" && modal === "outfit:forgeEquip:" + forgeOutfitSlot) modal = "";
     if (result.ok && equivalent === "bladeSalvage") modal = armorAction ? "bladeArmorCollection" : "bladeCollection";
     if (result.ok && action === "soulRebirth") {
       const targets = Game.endgame.transferTargets(state,arg);
@@ -608,6 +620,7 @@ function render() {
       orderView(state));
   const screen = el("screen");
   screen.innerHTML = view;
+  bindOutfitQuotes(screen);
   renderLesson();
   GameUI.shell();
   syncMusic();
@@ -639,7 +652,7 @@ function focusLesson() {
   const n = Apprentice.next(state);
   if (n < 0) return;
   const tip = Apprentice.guidance(state, n);
-  if (tip.route === "forge") gear = "weapon";
+  if (tip.route === "forge") { gear = "weapon"; forgeOutfitSlot = ""; }
   const destination = phoneLessonDestination(tip);
   if ((location.hash.slice(1) || "forge") !== destination) {
     pendingLessonFocus = true;
@@ -1070,8 +1083,7 @@ function displayModal() {
   el("modalBody").innerHTML = html;
   for (const button of el("modalBody").querySelectorAll("[data-soul-act]"))
     button.soulQuote = soulQuote(state, JSON.parse(button.dataset.soulArg));
-  for (const button of el("modalBody").querySelectorAll('[data-act^="outfit"]'))
-    button.outfitQuote = outfitQuote(state, button.dataset.act, button.dataset.arg);
+  bindOutfitQuotes(el("modalBody"));
   if (el("saleItem")) {
     el("saleItem").value = selectedSale || "";
     if (el("saleItem").selectedIndex < 0) el("saleItem").value = "";
@@ -1290,10 +1302,21 @@ document.addEventListener("click", (e) => {
     render();
     return;
   }
-  if ("archiveBlade" in d) { archiveBlade = true; gear = d.archiveBlade === "armor" ? "armor" : "weapon"; return nav("forge"); }
+  if ("archiveBlade" in d) { archiveBlade = true; forgeOutfitSlot = ""; gear = d.archiveBlade === "armor" ? "armor" : "weapon"; return nav("forge"); }
   if ("bladeTarget" in d) return act(d.bladeTarget, el("bladeTarget").value);
-  if ("bladeHome" in d) { archiveBlade = false; gear = d.bladeHome === "armor" ? "armor" : "weapon"; return nav("forge"); }
-  if (d.gear) { gear = d.gear; if (d.go) archiveBlade = false; }
+  if ("bladeHome" in d) { archiveBlade = false; forgeOutfitSlot = ""; gear = d.bladeHome === "armor" ? "armor" : "weapon"; return nav("forge"); }
+  if (d.forgeSlot) {
+    const key = d.forgeSlot;
+    if (key !== "weapon" && !Game.outfit.slots.some(slot => slot.key === key)) return;
+    archiveBlade = false;
+    gear = key === "weapon" ? "weapon" : "armor";
+    forgeOutfitSlot = key === "weapon" || key === "chest" ? "" : key;
+    closeModal(false);
+    render();
+    el("screen").querySelector('.forge-slot-switch [data-open]')?.focus({preventScroll:true});
+    return;
+  }
+  if (d.gear) { gear = d.gear; forgeOutfitSlot = ""; if (d.go) archiveBlade = false; }
   if (d.go) return nav(d.go);
   if (d.open) return showModal(d.open, b);
   if ("close" in d) return dismissModal();

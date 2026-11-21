@@ -25,6 +25,57 @@ const OutfitView = (() => {
       };
     });
   }
+  function forgeSlots(s) {
+    const kit = api().state(s);
+    const chosen = forgeOutfitSlot || (gear === "armor" ? "chest" : "weapon");
+    const slots = [{key:"weapon",name:"검신"}, ...api().slots];
+    const cells = slots.map(slot => {
+      const blade = slot.key === "weapon", chest = slot.kind === "armor";
+      const item = blade ? Game.blades.current(s) : chest ? Game.blades.currentArmor(s) :
+        kit.items.find(it => it.id === kit.equipped[slot.key]);
+      const image = blade || chest ? BladeView.artwork(item) : art(slot.kind);
+      const name = item ? (blade || chest ? Game.blades.name(item) : api().name(item)) + " +" + item.level : "빈칸";
+      const part = {shoulder:"어깨",legs:"다리"}[slot.key] || slot.name;
+      return '<button class="bag-slot bag-worn-slot" data-forge-slot="' + slot.key +
+        '" data-empty="' + !item + '" data-rarity="' + (item?.grade ?? "") + '" aria-pressed="' + (slot.key === chosen) +
+        '" aria-label="' + escapeHtml(slot.name + " · " + name) + '"><span class="bag-worn-part">' + part +
+        '</span><span class="bag-slot-art">' + image + '</span><b class="bag-slot-name">' +
+        (item ? "+" + item.level : "빈칸") + '</b></button>';
+    });
+    return ["강화할 부위 선택", '<div class="bag-loadout-grid forge-slot-grid">' + cells.join("") + '</div>'];
+  }
+  function forge(s, key) {
+    const slot = api().slots.find(part => part.key === key);
+    const kit = api().state(s), item = kit.items.find(it => it.id === kit.equipped[key]);
+    const done = item?.level === 20, detail = item ? "outfit:item:" + item.id + ":" + key : "outfit:slot:" + key;
+    let readout, odds, strike;
+    if (item) {
+      const {cost,success} = api().quote(item);
+      const stat = item.mode === "expose" ? "exposure" : "conversion";
+      const name = api().elements[item.element] + (stat === "exposure" ? " 저항 감소" : " 피해 전환");
+      const next = api().effect({...item,level:item.level + 1});
+      const unit = stat === "exposure" ? "%p" : "%";
+      readout = line(name, api().effect(item)[stat] + unit + (done ? "" : ' <span class="mint">→ ' + next[stat] + unit + '</span>'));
+      odds = done ? '<b>최고 강화 +20</b>' :
+        "<b>강화 +" + item.level + " → +" + (item.level + 1) + '</b><div class="odds-bar" aria-hidden="true"><i class="odds-success" style="width:' +
+        pct(success) + '"></i><i class="odds-hold" style="width:' + pct(100-success) + '"></i></div><span>성공 ' + pct(success) + " · 유지 " + pct(100-success) + "</span>";
+      const fee = fmt(cost) + " G" + (s.gold < cost ? " · 부족 " + fmt(cost-s.gold) + " G" : "");
+      strike = done ? '<button class="primary" disabled>' + icon("check") + '강화 완료<small>+20</small></button>' :
+        btn("outfitForge",icon("hammer") + "강화<small>" + fee + "</small>",item.id,"primary",s.gold < cost);
+    } else {
+      const spare = kit.items.some(it => it.kind === slot.kind && !slotFor(s,it.id));
+      readout = line("착용 장비","빈칸");
+      odds = "<span>" + (spare ? "보관 중인 장비를 착용하세요." : "숲 사냥에서 장비를 얻을 수 있습니다.") + "</span>";
+      strike = spare ? openBtn("outfit:forgeEquip:" + key,icon("backpack") + "장비 착용","primary") :
+        '<button class="primary" disabled>' + icon("hammer") + '강화 대기</button>';
+    }
+    const heading = item ? grade(item) + " " + api().name(item) + " +" + item.level : slot.name;
+    return '<div class="columns forge-layout outfit-layout" data-empty="' + !item + '"><div class="stage-side">' +
+      BladeView.switches("outfit") + scene("forge",heading,"",slot.name,"",0,null,art(slot.kind)) +
+      '</div><section class="panel"><div class="stats">' + readout + '<div class="forge-odds journey-odds">' + odds + '</div></div>' +
+      strike + '<div class="actions forge-support">' + openBtn("bladeStyles",icon("swords")+"검술") + go("forest",icon("trees")+"숲 사냥","action") +
+      '<button class="round" data-open="' + detail + '" aria-label="' + slot.name + ' 상세">' + icon("circle-help") + '</button></div></section></div>';
+  }
   function slots(s) {
     const data = api().state(s), armor = Game.blades.currentArmor(s);
     const cells = api().slots.map(slot => {
@@ -139,6 +190,17 @@ const OutfitView = (() => {
   }
   function modal(s,key) {
     const [,page,arg,target,context] = key.split(":");
+    if (page === "forge") return forgeSlots(s);
+    if (page === "forgeEquip") {
+      const slot = api().slots.find(part => part.key === arg);
+      const kit = api().state(s), worn = kit.items.find(it => it.id === kit.equipped[arg]);
+      const choices = kit.items.filter(it => it.kind === slot.kind && !slotFor(s,it.id));
+      const current = worn ? line("현재 착용",api().name(worn) + " +" + worn.level) + line("속성 효과",effectLabel(worn)) : "";
+      return [slot.name + " 착용", current + (choices.length ? choices.map(it =>
+        row(grade(it) + " " + api().name(it) + " +" + it.level, effectLabel(it),
+          btn("outfitEquip",worn ? "교체" : "착용",arg + ":" + it.id,"mini"),"",art(it.kind))).join("") :
+        desc("숲 사냥에서 얻은 장비를 여기에 착용할 수 있습니다."))];
+    }
     if (page === "slots") return slots(s);
     if (page === "enemy") return enemyDetail(s,Number(arg),target,context === "live");
     if (page === "slot") {
@@ -162,5 +224,5 @@ const OutfitView = (() => {
       openBtn("outfit:item:"+item.id,content,"loot-gear loot-grade-"+item.grade) :
       '<span class="loot-gear loot-grade-'+item.grade+'">'+content+'</span>';
   }
-  return {art,loadout,entries,modal,encounterChip,receipt};
+  return {art,loadout,entries,forge,modal,encounterChip,receipt};
 })();

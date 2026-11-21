@@ -93,7 +93,7 @@ const tier = (g, type) => Game.grades[g.grade] + " " + (type === "armor" ? "방�
 function creature(f) {
   return ["scarecrow", "sentinel", "golem", "dragon"][Math.min(3, Math.floor((f - 1) / 5))];
 }
-function scene(id, heading, english, loc, sprite = "", grade = 0, enemy = null) {
+function scene(id, heading, english, loc, sprite = "", grade = 0, enemy = null, artwork = "") {
   return (
     '<div class="scene"' + (enemy ? ' data-enemy="' + enemy.kind + '" data-depth="' + Math.min(3, Math.floor((enemy.rank - 1) / 15)) + '"' : "") + ' style="--image:url(assets/' +
     (id === "forge" ? "hud/workshop.webp" : id + ".png") +
@@ -108,7 +108,7 @@ function scene(id, heading, english, loc, sprite = "", grade = 0, enemy = null) 
         '" aria-label="' +
         heading +
         ' 애니메이션"></canvas>'
-      : "") +
+      : artwork) +
     (enemy ? '<span class="forest-rank">' + (enemy.elite ? "우두머리 · " : "") + "Lv." + enemy.rank + '</span>' : "") +
     '<span class="scene-ambient" aria-hidden="true"></span><div class="caption"><span class="eyebrow">' +
     english +
@@ -293,7 +293,10 @@ function smithExperienceBar(s) {
 }
 function forgeView(s) {
   const g = s[gear], weapon = gear === "weapon", page = phonePage("forge");
-  if (typeof BladeView !== "undefined" && !archiveBlade && page === "work") return weapon ? BladeView.forge(s) : BladeView.armor(s);
+  if (typeof BladeView !== "undefined" && !archiveBlade && page === "work") {
+    if (forgeOutfitSlot) return OutfitView.forge(s, forgeOutfitSlot);
+    return weapon ? BladeView.forge(s) : BladeView.armor(s);
+  }
   const plan = Game.journeyForge(s, gear);
   const recovery = weapon && !plan ? Game.midRecovery(g) : null;
   const cost = Game.enhancementCost(s, g);

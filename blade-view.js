@@ -14,8 +14,11 @@ const BladeView = (() => {
   const sprite = item => isArmor(item) ? "cuirass" : "blade" + (Game.bladeStage({level:item.level,grade:0}) || "");
   const artwork = item => '<span class="gear-portrait" aria-hidden="true" style="background-image:url(assets/' + sprite(item) + '-sheet.png)"></span>';
   function switches(type) {
-    return '<div class="segment gear-switch">' + [["weapon","sword","무기"],["armor","shield","방어구"]].map(([id,ic,label]) =>
-      '<button data-gear="' + id + '" aria-pressed="' + (type === id) + '" class="' + (type === id ? "sel" : "") + '">' + icon(ic) + label + "</button>").join("") + "</div>";
+    const quick = [["weapon","sword","검신"],["armor","shield","흉갑"]].map(([id,ic,label]) =>
+      '<button data-gear="' + id + '" aria-pressed="' + (type === id) + '">' + icon(ic) + label + "</button>");
+    return '<div class="segment gear-switch forge-slot-switch">' + quick.join("") +
+      '<button data-open="outfit:forge" aria-haspopup="dialog" class="' + (type === "outfit" ? "sel" : "") + '">' +
+      icon("layers") + '부위 선택</button></div>';
   }
   function forge(s) {
     const b = rules(), item = b.current(s), style = b.state(s).style;
@@ -207,5 +210,5 @@ const BladeView = (() => {
       btn("bladeSalvage","각인석으로 분해",target.id,"action",target.id===item.id)];
     return [label(target),itemDetail(s,target)];
   }
-  return {forge, armor, modal, artwork, itemDetail, armorDetail, label};
+  return {forge, armor, switches, modal, artwork, itemDetail, armorDetail, label};
 })();
