@@ -19,11 +19,18 @@ const SaveStore = (() => {
     let data;
     try { data = JSON.parse(raw); } catch { throw fault("corrupt"); }
     if (data?.heirloom !== undefined) throw fault("future");
-    const maxFormat=data?.bladeForge?.soul?.version===1 ? 3 : data?.bladeForge?.version===1 ? 2 : 1;
+    const maxFormat=data?.bladeForge?.armors!==undefined ? 4 : data?.bladeForge?.soul?.version===1 ? 3 : data?.bladeForge?.version===1 ? 2 : 1;
     if (data?.bladeForge?.soul?.version>1) throw fault("future");
     if (data?.version > 2 || data?._save?.format > maxFormat || data?.hunting?.version > 1 || data?.bladeForge?.version>1) throw fault("future");
     if (data?.bladeForge!==undefined && (!game.blades.valid(data.bladeForge) || !game.endgame.valid(data.bladeForge))) throw fault("corrupt");
     if (data?.bladeForge?.extraDeployed && !data.bladeForge.soul?.learned?.land && !(data.imprints?.land > 0)) throw fault("corrupt");
+    const drops=data?.lastHunt?.gearDrops;
+    if (drops!==undefined && (!Array.isArray(drops) || drops.length>2 || typeof data.lastHunt.materialPrize!=="string" ||
+        !drops.every(d=>d && ["weapon","armor"].includes(d.type) && typeof d.id==="string" &&
+          (d.type==="armor"?/^a[1-9]\d*$/:/^b[1-9]\d*$/).test(d.id) && Number.isInteger(d.base) && d.base>0 &&
+          d.base<game.blades.bases.length && [0,1,2,3].includes(d.grade) && Number.isInteger(d.lines) &&
+          d.lines>=game.blades.rarityRules[d.grade].min && d.lines<=game.blades.rarityRules[d.grade].max) ||
+        new Set(drops.map(d=>d.type)).size!==drops.length)) throw fault("corrupt");
     for (const h of [data?.hunt, data?.lastHunt]) {
       if (h?.blade !== undefined && (!object(h.blade) ||
           !Number.isInteger(h.blade.stage) || h.blade.stage < 0 || h.blade.stage >= 4 ||
@@ -46,6 +53,7 @@ const SaveStore = (() => {
         if (h.bladeCombat && (!data.bladeForge || !Object.hasOwn(game.blades.styles,h.bladeCombat.style) ||
             (h.bladeCombat.ascension !== undefined && !Object.hasOwn(game.blades.styles,h.bladeCombat.ascension)) ||
             !object(h.bladeCombat.mods) || !["attack","hp","defense","heavy","counter","rupture","strike","opening","finish"].every(k=>Number.isFinite(h.bladeCombat[k]) && h.bladeCombat[k]>=0) ||
+            (h.armorId!==undefined && (typeof h.armorId!=="string" || !/^a[1-9]\d*$/.test(h.armorId) || (h===data.hunt && !data.bladeForge.armors?.some(i=>i.id===h.armorId)))) ||
             (h===data.hunt && !data.bladeForge.items.some(i=>i.id===h.bladeId)) ||
             !Number.isInteger(h.wounds) || h.wounds<0 || h.wounds>4)) throw fault("corrupt");
         const pack = game.trail.lineup(h.territoryRank || h.rank, h.bonusEncounter);
@@ -273,7 +281,7 @@ const SaveStore = (() => {
       // generation). No new game/action/random roll is executed on retry.
       if (!pending) {
         const generation = mode === "reset" || !state._save ? id() : state._save.generation;
-        const value = { ...state, version: 2, _save: { format: state.bladeForge?.soul?3:state.bladeForge?2:1, revision: (state._save?.revision || 0) + 1,
+        const value = { ...state, version: 2, _save: { format: state.bladeForge?.armors?4:state.bladeForge?.soul?3:state.bladeForge?2:1, revision: (state._save?.revision || 0) + 1,
           generation, savedAt: Date.now() } };
         const raw = JSON.stringify(value);
         decode(raw);

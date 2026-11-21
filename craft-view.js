@@ -1,7 +1,17 @@
 "use strict";
-function grindSummary(passes) {
-  return Swordcraft.grindZones.flatMap((z, i) => {
-    const value = Swordcraft.grindBonus(passes, i);
+const armorStageNames = Game.blades.armorStageNames;
+const armorTraitNames = {edge:"겹친 흉판", ward:"보강한 이음새", yield:"회복 안감"};
+const armorGrindZones = [
+  {name:"어깨",effect:"방어 중 피격 피해",sign:"−",icon:"shield"},
+  {name:"안감",effect:"처치 시 체력 회복",sign:"+",icon:"heart"},
+  {name:"흉판",effect:"최대 체력",sign:"+",icon:"shield"}
+];
+function zoneBonus(passes, zone, armor) {
+  return armor && zone === 1 ? (passes || []).filter(n=>n===1).length : Swordcraft.grindBonus(passes,zone);
+}
+function grindSummary(passes, armor = false) {
+  return (armor ? armorGrindZones : Swordcraft.grindZones).flatMap((z, i) => {
+    const value = zoneBonus(passes, i, armor);
     return value ? [z.effect + " " + z.sign + value + "%"] : [];
   }).join(" · ");
 }
@@ -246,21 +256,23 @@ function inheritancePicker(s) {
   );
 }
 function craftWorkshop(s, bladeMode = false) {
-  const craftButton = (action, ...args) => btn(bladeMode ? {craftStart:"bladeWorkStart",craftMove:"bladeWorkMove",craftFinish:"bladeWorkFinish"}[action] : action, ...args);
+  const armor = bladeMode === "armor";
+  const prefix = armor ? "bladeArmorWork" : "bladeWork";
+  const craftButton = (action, ...args) => btn(bladeMode ? prefix+action.slice(5) : action, ...args);
   const g = s.weapon,
     i = Swordcraft.stageIndex(g),
     w = g.work;
   if (i < 0 || !w || w.index !== i)
-    return ["검 제작", desc("장착 무기가 바뀌었습니다. 대장간에서 진행할 공정을 확인하세요.")];
+    return [armor?"방어구 제작":"검 제작", desc("장착 장비가 바뀌었습니다. 대장간에서 진행할 공정을 확인하세요.")];
   const st = Swordcraft.stages[i],
     fee = Swordcraft.fee(g, Game.price, i);
-  const title = i + 1 + " / 3 · " + st.title;
+  const title = i + 1 + " / 3 · " + (armor ? armorStageNames[i] : st.title);
   const redesign = w.stock ? craftButton("craftMove", "새 방식으로 연마 배분하기 · 처음부터 3회", "redesign", "action") : "";
   const stageScene =
     '<div class="modal-scene craft-scene ' +
     (i === 1 ? "sparring" : "") +
     '"><canvas data-sprite="' +
-    (i === 1 ? "sentinel" : "blade" + (Game.bladeStage(g) || "")) +
+    (i === 1 ? "sentinel" : armor ? "cuirass" : "blade" + (Game.bladeStage(g) || "")) +
     '" width="' +
     (i === 1 ? 144 : 128) +
     '" height="144"></canvas></div>';
@@ -269,8 +281,8 @@ function craftWorkshop(s, bladeMode = false) {
     const recorded = Game.isJourneyGear(s, g);
     const stageIcons = [["sword", "shield"], ["shield", "swords"], ["waves", "flame"]];
     const choices = bladeMode ? Object.entries(Swordcraft.traits).map(([key, trait]) => ({
-      key, name:trait.name, icon:trait.icon,
-      detail:{edge:"공격력 +2%",ward:"피해 감소 +3%p",yield:"배치 수익 +20%"}[key] + " · +19 " + Breakthrough.methods[key].name
+      key, name:armor ? armorTraitNames[key] : trait.name, icon:trait.icon,
+      detail:(armor ? {edge:"최대 체력 +2%",ward:"피해 감소 +3%p",yield:"처치 시 최대 체력 1% 회복"} : {edge:"공격력 +2%",ward:"피해 감소 +3%p",yield:"배치 수익 +20%"})[key] + " · +19 " + Breakthrough.methods[key].name
     })) : recorded
       ? Game.journeyProcessOptions(i).map((option, j) => ({ ...option, icon: stageIcons[i][j] }))
       : Object.entries(Swordcraft.traits).map(([key, v]) => {
@@ -294,9 +306,9 @@ function craftWorkshop(s, bladeMode = false) {
       title,
       stageScene +
         '<div class="craft-body">' +
-        (w.passes ? line("연마 효과", grindSummary(w.passes)) + craftButton("craftMove", "마지막 연마 되돌리기", "undo", "mini") : "") +
-        redesign + '<h3>이 검에 남길 특성</h3>' +
-        desc("한 가지를 고르면 +" + at + " 검이 완성됩니다." + (recorded ? "" : " 같은 특성은 누적됩니다.")) +
+        (w.passes ? line("연마 효과", grindSummary(w.passes,armor)) + craftButton("craftMove", "마지막 연마 되돌리기", "undo", "mini") : "") +
+        redesign + '<h3>'+ (armor ? "방어구에 남길 특성" : "이 검에 남길 특성") + '</h3>' +
+        desc("한 가지를 고르면 +" + at + (armor?" 방어구가 완성됩니다.":" 검이 완성됩니다.") + (recorded ? "" : " 같은 특성은 누적됩니다.")) +
         line("마감 비용", fmt(fee) + " G") +
         (s.gold < fee
           ? desc(
@@ -314,15 +326,15 @@ function craftWorkshop(s, bladeMode = false) {
       title,
       stageScene +
         desc((i === 1 ? "시검 패배 · " : "") + w.note) +
-        desc("검과 골드는 그대로입니다. 다시 시도할 수 있습니다.") +
+        desc("장비와 골드는 그대로입니다. 다시 시도할 수 있습니다.") +
         (redesign || craftButton("craftStart", "다시 연습하기", "", "primary")),
     ];
   let controls = "";
   if (i === 0 && w.passes) {
     controls = line("남은 연마", (3 - w.passes.length) + "회") +
-      '<div class="grind-options">' + Swordcraft.grindZones.map((z, j) => {
-        const current = Swordcraft.grindBonus(w.passes, j);
-        const next = Swordcraft.grindBonus([...w.passes, j], j);
+      '<div class="grind-options">' + (armor ? armorGrindZones : Swordcraft.grindZones).map((z, j) => {
+        const current = zoneBonus(w.passes, j, armor);
+        const next = zoneBonus([...w.passes, j], j, armor);
         return craftButton("craftMove", icon(z.icon) + "<span><b>" + z.name + "</b><small>" + z.effect +
           "</small></span><strong>" + (current ? z.sign : "") + current + "% → " + z.sign + next + "%</strong>", j, "grind-zone");
       }).join("") + "</div>" +
@@ -363,7 +375,7 @@ function craftWorkshop(s, bladeMode = false) {
   } else {
     const b = Swordcraft.baths[w.dips];
     controls =
-      line(b.name, w.dips + 1 + " / 2") +
+      line(armor ? ["흉판 · 물 담금질","이음새 · 기름 담금질"][w.dips] : b.name, w.dips + 1 + " / 2") +
       '<div class="tempo"><span class="target" style="left:' +
       b.low * 100 +
       "%;width:" +
@@ -376,7 +388,7 @@ function craftWorkshop(s, bladeMode = false) {
     stageScene +
       '<div class="craft-body">' +
       redesign +
-      desc(w.stock ? "세 번 안에 남은 돌기를 모두 갈아내세요." : st.detail) +
+      desc(w.stock ? "세 번 안에 남은 돌기를 모두 갈아내세요." : armor ? ["세 번의 연마를 원하는 방어 부위에 배분하세요.", st.detail, "흉판과 이음새를 차례로 식히세요."][i] : st.detail) +
       controls +
       (w.note ? '<p role="status">' + w.note + "</p>" : "") +
       line("완성 시 마감 비용", fmt(fee) + " G") +

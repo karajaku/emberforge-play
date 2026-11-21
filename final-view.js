@@ -1,8 +1,9 @@
 "use strict";
 function finalWorkshop(s, bladeMode = false) {
+  const armor=bladeMode==="armor", prefix=armor ? "bladeArmorFinal" : "bladeFinal";
   const w = s.weapon,
     f = w.finalTrial;
-  if (w.level !== 19) return ["마지막 돌파", desc("+19 검을 장착하세요.")];
+  if (w.level !== 19) return ["마지막 돌파", desc(armor ? "+19 방어구를 장착하세요." : "+19 검을 장착하세요.")];
   if (!f) {
     const choices = Breakthrough.choices(w, Game.price)
       .map((o) => {
@@ -20,10 +21,10 @@ function finalWorkshop(s, bladeMode = false) {
           icon(trait.icon) +
           m.name +
           "</h3>" +
-          desc(trait.name + " ×" + o.count + " · " + advantage) +
+          desc((armor ? armorTraitNames[o.key] : trait.name) + " ×" + o.count + " · " + advantage) +
           desc(m.description) +
           btn(
-            bladeMode ? "bladeFinalStart" : "finalStart",
+            bladeMode ? prefix+"Start" : "finalStart",
             o.fee ? "도전 · " + fmt(o.fee) + " G" : "재료 배합하기",
             o.key,
             "action",
@@ -36,15 +37,15 @@ function finalWorkshop(s, bladeMode = false) {
     return [
       "+20 돌파 방식 선택",
       desc(
-        "검에 새긴 특성으로 도전합니다. 가호·보강·호위는 적용되지 않으며, 실패 결과는 방식마다 다릅니다.",
+        "장비에 새긴 특성으로 도전합니다. 가호·보강·호위는 적용되지 않으며, 실패 결과는 방식마다 다릅니다.",
       ) + choices,
     ];
   }
   const title = Breakthrough.methods[f.key].name;
   const button = (action, label, style = "action", disabled = false) =>
-    btn(bladeMode ? "bladeFinalMove" : "finalMove", label, [f.key, f.id || 0, f.revision, action].join(":"), style, disabled);
+    btn(bladeMode ? prefix+"Move" : "finalMove", label, [f.key, f.id || 0, f.revision, action].join(":"), style, disabled);
   const scene =
-    '<div class="modal-scene final-scene"><canvas width="128" height="144" data-sprite="blade3"></canvas></div>';
+    '<div class="modal-scene final-scene"><canvas width="128" height="144" data-sprite="'+(armor?"cuirass":"blade3")+'"></canvas></div>';
   let controls = "";
   if (f.key === "edge") {
     const band = Breakthrough.cutWindow(f);

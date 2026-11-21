@@ -194,7 +194,7 @@ const BladeEndgame = (() => {
           !/^b[1-9]\d*$/.test(t.id) ||
           Number(t.id.slice(1)) > b.serial ||
           ids.has(t.id) ||
-          !owns(blades.modDefs, t.key) ||
+          (!owns(blades.modDefs, t.key) || owns(blades.armorDefs, t.key)) ||
           ![1, 2, 3, 4].includes(t.tier)
         )
           return false;

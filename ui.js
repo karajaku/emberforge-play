@@ -260,8 +260,10 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
   const sourceInventoryMenu = modal.startsWith("inventory-") && !automaticGuard && !repeatGuard ? modal : "";
   const bulkQuote = action === "journeyBulk" && typeof arg === "object" ? arg : null;
   if (bulkQuote) arg = bulkQuote.type;
-  const bladeTargeted = ["bladeForge","bladeEtch","bladePolish","bladeWorkStart","bladeWorkMove","bladeWorkFinish","bladeFinalStart","bladeFinalMove","bladeArmor"].includes(action);
-  const bladeQuote = () => JSON.stringify(action === "bladeArmor" ? state.armor : Game.blades.current(state));
+  const armorAction = !!action?.startsWith("bladeArmor");
+  const equivalent = armorAction ? action.replace("bladeArmor","blade") : action;
+  const bladeTargeted = ["bladeForge","bladeEtch","bladePolish","bladeWorkStart","bladeWorkMove","bladeWorkFinish","bladeFinalStart","bladeFinalMove","blade"].includes(equivalent);
+  const bladeQuote = () => JSON.stringify(armorAction ? Game.blades.currentArmor(state) : Game.blades.current(state));
   const expectedBlade = bladeTargeted && bladeQuote();
   if (!repeatGuard && action === "openChest" && repeatHunting.active) {
     repeatHunting.stop("수동 전환"); autoCombat.stop();
@@ -324,11 +326,11 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     GameSound.stop();
     const goldBefore = state.gold;
     const breaksBefore = state.breaks;
-    const actionLevel = () => action === "bladeArmor" ? state.armor.level : ["bladeForge","bladeWorkFinish","bladeFinalMove"].includes(action) ? Game.blades.current(state).level : state[arg === "armor" ? "armor" : "weapon"].level;
+    const actionLevel = () => armorAction ? Game.blades.currentArmor(state).level : ["bladeForge","bladeWorkFinish","bladeFinalMove"].includes(action) ? Game.blades.current(state).level : state[arg === "armor" ? "armor" : "weapon"].level;
     const gearBefore = actionLevel();
-    const workWeapon = action.startsWith("blade") ? Game.blades.current(state) : state.weapon;
-    const sparring = ["craftMove","bladeWorkMove"].includes(action) && workWeapon.work?.index === 1;
-    const finalKey = ["finalMove","bladeFinalMove"].includes(action) && workWeapon.finalTrial?.key;
+    const workWeapon = armorAction ? Game.blades.currentArmor(state) : action.startsWith("blade") ? Game.blades.current(state) : state.weapon;
+    const sparring = ["craftMove","bladeWorkMove"].includes(equivalent) && workWeapon.work?.index === 1;
+    const finalKey = ["finalMove","bladeFinalMove"].includes(equivalent) && workWeapon.finalTrial?.key;
     const strong = sparring && Swordcraft.heavy(workWeapon.work);
     const beforeHunt = state.hunt;
     const beforeHuntHealth = state.hunt && {...state.hunt};
@@ -349,13 +351,14 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     }
     // A completed/retreated battle must clear intent before rendering the result.
     autoCombat.refresh(false);
-    if (result.ok && ["craftMove","bladeWorkMove"].includes(action)) animationStart = performance.now();
+    if (result.ok && ["craftMove","bladeWorkMove"].includes(equivalent)) animationStart = performance.now();
     if (result.impact) huntStart = performance.now();
     const forgeAction = [
       "enhance",
       "bladeForge",
       "bladeArmor",
       "bladeWorkFinish",
+      "bladeArmorWorkFinish",
       "focusEnhance",
       "restorePeak",
       "recoverEdge",
@@ -384,14 +387,14 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     const inventoryAction = result.ok && !!sourceInventoryMenu && modal === sourceInventoryMenu;
     if (inventoryAction) modal = "";
     if (result.ok && action === "bladeMaster") { HuntWatch.selectMaster(); modal = ""; }
-    if (result.ok && action === "bladeSalvage") modal = "bladeCollection";
+    if (result.ok && equivalent === "bladeSalvage") modal = armorAction ? "bladeArmorCollection" : "bladeCollection";
     if (result.ok && action === "soulRebirth") modal = "soul:transfer:" + Game.blades.current(state).id;
     if (result.ok && ["soulLuck","soulPolish"].includes(action)) modal = "soul:craft:" + arg.id;
     if (result.ok && ["soulChoose","soulTransfer","soulAscend"].includes(action)) modal = "bladeItem-" + arg.id;
     if (result.ok && action === "temperStart") modal = "temper";
-    if (result.ok && action === "bladeWorkStart") modal = "bladeWork";
-    if (result.ok && action === "bladeFinalStart") modal = "bladeFinal";
-    if (result.ok && action === "bladeWorkFinish") modal = "";
+    if (result.ok && equivalent === "bladeWorkStart") modal = armorAction ? "bladeArmorWork" : "bladeWork";
+    if (result.ok && equivalent === "bladeFinalStart") modal = armorAction ? "bladeArmorFinal" : "bladeFinal";
+    if (result.ok && equivalent === "bladeWorkFinish") modal = "";
     if (result.ok && action === "craftStart") modal = "craft";
     if (!repeatGuard && result.ok && ["openChest", "openTowerChests"].includes(action)) modal = "treasure";
     if (result.ok && action === "stopTower") modal = "towerRun";
@@ -423,7 +426,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
         Impacts.play(stage, hit.kind, label, !state.hunt);
       } else if (finalKey && (finalKey !== "yield" || result.kind === "win")) {
         Impacts.play(
-          ["final","bladeFinal"].includes(modal) ? document.querySelector("#modalBody .final-scene") : stage,
+          ["final","bladeFinal","bladeArmorFinal"].includes(modal) ? document.querySelector("#modalBody .final-scene") : stage,
           result.kind === "loss"
             ? "fracture"
             : finalKey === "edge"
@@ -548,7 +551,7 @@ function render() {
     (id === "forge"
       ? openBtn("journal", icon("scroll-text") + "강화 기록", "ghost")
       : id === "forest" && phonePage(id) === "hunt"
-        ? (!HuntWatch.active && Game.blades.state(state).cleared ? openBtn("huntPlan", icon("compass") + "사냥 구역", "ghost") : "") +
+        ? (!HuntWatch.active && Game.blades.state(state).cleared ? openBtn("huntPlan", icon("compass") + "사냥 구역", "ghost") : !HuntWatch.active ? openBtn("bladeLoot-1","획득 확률","ghost") : "") +
           openBtn("huntRules", icon("swords") + "사냥 규칙", "ghost")
       : zones[id]
         ? go("world/map", icon("compass") + "모험 지도", "ghost")
@@ -1004,7 +1007,7 @@ function modalData() {
     case "huntRules":
       if (!s.hunt || s.hunt.bladeCombat) return ["숲 사냥", line("주사위", "1~3 타격 · 4~5 방어 · 6 강타") +
         desc("강공 검술은 기세 2를 써서 일격, 반격 검술은 적 스킬 방어 뒤 반격, 상처 검술은 상처 3겹부터 파열을 발동합니다.") +
-        desc("다섯 단계마다 우두머리를 만납니다. 검신은 검신함에서 비교하고 장착합니다.") + openBtn("bladeStyles","검술과 능력 확인")];
+        desc("다섯 단계마다 우두머리를 만납니다. 검신과 방어구는 보관함에서 비교하고 장착합니다.") + openBtn("bladeLoot-"+(s.hunt?.rank || Math.min(60,Game.blades.state(s).cleared+1)),"장비 획득 확률") + openBtn("bladeStyles","검술과 능력 확인")];
       return ["주사위 사냥", line("1~3 공격 · 4~5 방어 · 6 강공", "양쪽이 매 턴 굴립니다") +
         desc("강공은 공격력의 1.7배, 방어는 받는 피해를 75% 줄입니다. 먼저 쓰러뜨린 적은 반격하지 못합니다. 40턴 안에 쓰러뜨리지 못하면 패배합니다.") +
         desc("공격 주사위에 준비된 스킬이 자동 발동합니다. 강공은 2단계에서 열리고 기세 2가 필요합니다. 적 스킬을 방어하면 반격을 준비합니다.") +
@@ -1212,7 +1215,7 @@ document.addEventListener("pointerdown", (e) => {
   if (prefs.sound) GameSound.unlock();
   GameMusic.unlock();
   beginForgePress(e);
-  const button = e.target.closest("[data-act=finalMove],[data-act=bladeFinalMove]");
+  const button = e.target.closest("[data-act=finalMove],[data-act=bladeFinalMove],[data-act=bladeArmorFinalMove]");
   const needle = el("finalNeedle");
   cutPress = button && needle ? { button, time: needle.frameAt || Date.now() } : null;
 });
@@ -1266,9 +1269,9 @@ document.addEventListener("click", (e) => {
     render();
     return;
   }
-  if ("archiveBlade" in d) { archiveBlade = true; gear = "weapon"; return nav("forge"); }
-  if ("bladeTarget" in d) return act("bladeEtch", el("bladeTarget").value);
-  if ("bladeHome" in d) { archiveBlade = false; gear = "weapon"; return nav("forge"); }
+  if ("archiveBlade" in d) { archiveBlade = true; gear = d.archiveBlade === "armor" ? "armor" : "weapon"; return nav("forge"); }
+  if ("bladeTarget" in d) return act(d.bladeTarget, el("bladeTarget").value);
+  if ("bladeHome" in d) { archiveBlade = false; gear = d.bladeHome === "armor" ? "armor" : "weapon"; return nav("forge"); }
   if (d.gear) { gear = d.gear; if (d.go) archiveBlade = false; }
   if (d.go) return nav(d.go);
   if (d.open) return showModal(d.open, b);
@@ -1333,6 +1336,7 @@ document.addEventListener("click", (e) => {
 });
 document.addEventListener("change", (e) => {
   if (e.target.id === "saleItem") updateSaleQuote(true);
+  if (e.target.id === "lootRank") { modal = "bladeLoot-"+Number(e.target.value); displayModal(); el("lootRank").focus(); }
   if (e.target.id === "repeatRank") {
     huntPreviewRank = Number(e.target.value);
     render(); el("repeatRank")?.focus({ preventScroll:true });
@@ -1476,8 +1480,8 @@ setInterval(() => {
   if (supply) supply.disabled = !Game.routeTask(state)?.canSupply;
   if (escort) escort.disabled = !Game.techniqueAvailable(state, "land");
   const delivery = document.querySelector("#modalBody [data-arg$=':deliver']");
-  const finishing = modal === "bladeFinal" ? Game.blades.current(state) : state.weapon;
-  if (["final","bladeFinal"].includes(modal) && delivery && finishing.finalTrial?.key === "yield")
+  const finishing = modal === "bladeArmorFinal" ? Game.blades.currentArmor(state) : modal === "bladeFinal" ? Game.blades.current(state) : state.weapon;
+  if (["final","bladeFinal","bladeArmorFinal"].includes(modal) && delivery && finishing.finalTrial?.key === "yield")
     delivery.disabled = !Breakthrough.canDeliver(
       state,
       Breakthrough.invoice(finishing, Game.price),
@@ -1486,14 +1490,14 @@ setInterval(() => {
 function animate(now) {
   if (!document.hidden && ready && !storageError) {
     const needle = el("finalNeedle");
-    const working = ["bladeFinal","bladeWork"].includes(modal) ? Game.blades.current(state) : state.weapon;
-    if (["final","bladeFinal"].includes(modal) && working.finalTrial?.key === "edge" && needle) {
+    const working = ["bladeArmorFinal","bladeArmorWork"].includes(modal) ? Game.blades.currentArmor(state) : ["bladeFinal","bladeWork"].includes(modal) ? Game.blades.current(state) : state.weapon;
+    if (["final","bladeFinal","bladeArmorFinal"].includes(modal) && working.finalTrial?.key === "edge" && needle) {
       needle.frameAt = Date.now();
       needle.style.left =
         Breakthrough.position(working.finalTrial, needle.frameAt) * 100 + "%";
     }
     if (
-      ["craft","bladeWork"].includes(modal) &&
+      ["craft","bladeWork","bladeArmorWork"].includes(modal) &&
       el("bathNeedle") &&
       working.work?.index === 2 &&
       !working.work.ready
@@ -1515,7 +1519,7 @@ function animate(now) {
           index = 4 + (Math.floor((actor ? delta : now - huntStart) / 90) % 4);
         else if (
           id === "sentinel" &&
-          ["craft","bladeWork"].includes(modal) &&
+          ["craft","bladeWork","bladeArmorWork"].includes(modal) &&
           delta >= 0 &&
           delta < 360 &&
           canvas.closest(".craft-scene")

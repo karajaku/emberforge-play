@@ -1,7 +1,7 @@
 "use strict";
 const SoulView = (() => {
   const grade = tier => ["", "초벌", "중급", "상급", "최상급"][tier];
-  const label = item => Game.blades.name(item) + " +" + item.level;
+  const label = item => BladeView.label(item);
   const bosses = ["황금엄니 우두머리", "잿불 무리어미", "안개 비늘용", "천년 고목왕"];
   const lessons = {
     luck: "검마다 한 번, 무작위 각인 후보 두 줄 중 하나를 고릅니다.",

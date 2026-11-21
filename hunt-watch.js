@@ -41,7 +41,22 @@ const HuntWatch=(()=>{
       '<option value="repeat"' + (repeat ? ' selected' : '') + '>완료 구역 반복</option></select></label>' +
       '<label' + (chooseRank ? '' : ' hidden') + '>완료 구역<select class="trail-replay">' +
       '<option value="0" disabled' + (rank ? '' : ' selected') + '>단계 선택</option>' + choices + '</select></label>' +
-      '<button class="primary" data-hunt-plan-apply' + (chooseRank && !rank ? ' disabled' : '') + '>적용</button></div>' + mastery(s);
+      '<button class="primary" data-hunt-plan-apply' + (chooseRank && !rank ? ' disabled' : '') + '>적용</button></div>' + mastery(s) + openBtn("bladeLoot-"+(nextRank() || Math.min(60,cleared(s)+1)), "단계별 장비 획득 확률");
+  }
+  function gearReceipt(s, result) {
+    if (!Array.isArray(result?.gearDrops)) {
+      return result?.bladePrize ? '<span class="blade-drop">'+icon('backpack')+escapeHtml(result.bladePrize)+'</span>' : '';
+    }
+    const b=Game.blades;
+    const rows=result.gearDrops.map(drop=>{
+      const armor=drop.type==='armor';
+      const owned=(armor ? b.armors(s) : b.state(s).items).some(it=>it.id===drop.id);
+      const content=icon(armor?'shield':'sword')+'<b>'+escapeHtml(b.rarityNames[drop.grade]+' '+b.name(drop))+'</b><small>'+drop.lines+'줄</small>';
+      return owned ? openBtn((armor?'bladeArmorItem-':'bladeItem-')+drop.id,content,'loot-gear loot-grade-'+drop.grade) :
+        '<span class="loot-gear loot-grade-'+drop.grade+'">'+content+'</span>';
+    }).join("");
+    return (rows?'<div class="loot-gear-list">'+rows+'</div>':'')+
+      (result.materialPrize?'<span class="blade-drop">'+icon('gem')+escapeHtml(result.materialPrize)+'</span>':'');
   }
   function huntStatus(s, held) {
     const motion = motionEnabled() ? '' : '<div class="watch-motion-hint"><button class="mini" data-motion-policy="full"><small>' +
@@ -179,7 +194,7 @@ const HuntWatch=(()=>{
       '<div class="scene watch-arena combat-hud" data-region="'+area.id+'">'+fighter('player',blade.name,'+'+fmt(blade.level),sprite,128,hp,max)+fighter('enemy',enemy.name,'Lv.'+rank,enemy.sprite||'boar',144,enemyHp,total)+
       '<div class="watch-report">'+
       '<div class="watch-reward" role="status">'+(detail?'<div class="trail-detail">'+detail+'</div>':'')+(reward?'<div class="watch-receipt"><div class="watch-receipt-head"><b>'+reward.rank+'단계 클리어</b><strong>'+icon('coins')+' +'+fmt(reward.gold)+' G</strong></div><div class="watch-loot">'+
-        (result?.bladePrize ? '<span class="blade-drop">'+icon('sword')+escapeHtml(result.bladePrize)+'</span>' : '')+
+        gearReceipt(s,result)+
         (reward.fiber ? '<span>'+icon('trees')+'숲결 섬유 +'+reward.fiber+'</span>' : '')+
         (reward.goblinGold?'<span>'+icon('coins')+'고블린 +'+fmt(reward.goblinGold)+' G 포함</span>':'')+
         (reward.counter>0?'<span class="watch-counter-reward">반격 +'+fmt(reward.counter)+' G 포함</span>':'')+
@@ -271,6 +286,8 @@ const HuntWatch=(()=>{
     const repeat = fields.querySelector('.watch-mode').value === 'repeat';
     const rank = fields.querySelector('.trail-replay');
     rank.closest('label').hidden = !repeat && cleared(state) < 60;
+    const preview=fields.parentNode.querySelector('[data-open^="bladeLoot-"]');
+    if(preview) preview.dataset.open="bladeLoot-"+(!rank.closest('label').hidden && Number(rank.value) || Math.min(60,cleared(state)+1));
     fields.querySelector('[data-hunt-plan-apply]').disabled = !rank.closest('label').hidden && !Number(rank.value);
   }
   document.addEventListener('change', event => {

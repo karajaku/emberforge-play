@@ -106,11 +106,13 @@ const DiceCombat=(()=>{
     const ironCounter=ascended && st.style==="counter";
     const fortified = !!h.fortified || (skill === "counter" && (!!mods.fortify || ironCounter));
     const shield = fortified ? (1-(mods.fortify||0)/100)*(ironCounter ? 0.65 : 1) : 1;
+    const skillWard = enemySkill ? (st.skillWard || 0) : 0;
+    const lastWard = h.hp <= h.maxHp / 2 ? (st.lastWard || 0) : 0;
     const taken = Math.min(
       h.hp,
       Math.max(
         0,
-        Math.round(incoming * (1 - st.defense / 100) * shield),
+        Math.round(incoming * (1 - st.defense / 100) * shield * (1 - skillWard / 100) * (1 - lastWard / 100)),
       ),
     );
     const healPercent = guarded ? mods.guard || 0 : damage >= h.enemyHp ? mods.recovery || 0 : 0;

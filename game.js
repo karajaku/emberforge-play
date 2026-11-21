@@ -699,9 +699,10 @@ const Game = (() => {
       (blades.area(rank).g * live.forestMultiplier(t) * live.current.balance.journeyForestGold) / 1400,
     );
   }
-  function bladeWorkshop(s, action, arg, t, rng, pressedAt) {
-    const w = blades.current(s),
-      i = craft.stageIndex(w);
+  function bladeWorkshop(s, action, arg, t, rng, pressedAt, w) {
+    const i = craft.stageIndex(w);
+    const armor = w.type === "armor";
+    const stageName = armor ? blades.armorStageNames[i] : craft.stages[i]?.title;
     const fail = (message) => ({ ok: false, message });
     const ok = (message, kind = "craft") => ({ ok: true, message, kind });
     if (action === "bladeFinalStart" || action === "bladeFinalMove") {
@@ -715,7 +716,7 @@ const Game = (() => {
       const finish = w.finalTrial;
       let result;
       if (action === "bladeFinalStart") {
-        if (!finale.start(view, arg, price, t, rng)) return fail("검의 특성·단계·제련비를 확인하세요.");
+        if (!finale.start(view, arg, price, t, rng)) return fail("장비의 특성·단계·제련비를 확인하세요.");
         s.finalTrialNumber = view.finalTrialNumber;
         result = ok(finale.methods[arg].name + " 시작");
       } else {
@@ -740,16 +741,17 @@ const Game = (() => {
       s.unclaimed = view.unclaimed;
       return result;
     }
-    if (i < 0 || w.level >= 20 || w.finalTrial) return fail("지금 진행할 검신 공정이 없습니다.");
+    if (i < 0 || w.level >= 20 || w.finalTrial) return fail("지금 진행할 장비 공정이 없습니다.");
     if (action === "bladeWorkStart") {
       if (!w.work || w.work.failed) w.work = craft.makeWork(i, rng, t);
-      return ok(craft.stages[i].title);
+      return ok(stageName);
     }
     if (!w.work || w.work.index !== i) return fail("공정을 먼저 시작하세요.");
-    if (action === "bladeWorkMove")
-      return craft.play(w.work, String(arg), pressedAt)
-        ? ok(w.work.note || "공정 진행")
-        : fail("현재 사용할 수 없는 동작입니다.");
+    if (action === "bladeWorkMove") {
+      if (!craft.play(w.work,String(arg),pressedAt)) return fail("현재 사용할 수 없는 동작입니다.");
+      if (armor && i===2 && w.work.dips) w.work.note=w.work.ready ? "흉갑 담금질 완료" : "겉판 냉각 완료 · 안감을 식히세요.";
+      return ok(w.work.note || "공정 진행");
+    }
     if (action !== "bladeWorkFinish" || !w.work.ready || !Object.hasOwn(craft.traits, arg))
       return fail("공정을 마치고 특성을 선택하세요.");
     const fee = craft.fee(w, price, i);
@@ -759,13 +761,13 @@ const Game = (() => {
     if (i === 0) w.grind = [...w.work.passes];
     w.level = Math.max(w.level, craft.stages[i].target);
     delete w.work;
-    return ok(craft.stages[i].title + " 완료 · " + blades.name(w) + " +" + w.level, "win");
+    return ok(stageName + " 완료 · " + blades.name(w) + " +" + w.level, "win");
   }
-  function bindBladeCombat(s, h) {
-    const item = blades.current(s);
+  function bindBladeCombat(s, h, item=blades.current(s), armor=blades.currentArmor(s), style=blades.state(s).style) {
+    h.armorId = armor.id;
     h.bladeId = item.id;
     h.blade = { stage: gradeForLevel(item.level), level: item.level, name: blades.name(item) };
-    h.bladeCombat = blades.skills(s);
+    h.bladeCombat = blades.skills(s,item,armor,style);
     h.attack = h.bladeCombat.attack;
   }
   function bladeAttributes(s, trial = false, raid = false) {
@@ -853,16 +855,24 @@ const Game = (() => {
     const int = (a, b) => a + Math.floor(random() * (b - a + 1));
     const soulAction=typeof act==="string" && act.startsWith("soul");
     if (soulAction || (typeof act === "string" && act.startsWith("blade"))) {
-      const workshop=act.startsWith("bladeWork") || act.startsWith("bladeFinal");
+      const armorAction=act.startsWith("bladeArmor");
+      const workshopAction=armorAction ? act.replace("bladeArmor","blade") : act;
+      const workshop=workshopAction.startsWith("bladeWork") || workshopAction.startsWith("bladeFinal");
+      const target=armorAction ? blades.currentArmor(s) : blades.current(s);
       endgame.record(s);
       const result=soulAction ? endgame.act(s,act,arg,random) :
-        workshop ? bladeWorkshop(s,act,arg,t,random,pressedAt) : blades.act(s,act,arg,random,payForgeFee);
+        workshop ? bladeWorkshop(s,workshopAction,arg,t,random,pressedAt,target) : blades.act(s,act,arg,random,payForgeFee);
       if (!result.ok) return result;
       const h=s.hunt;
-      if (h?.bladeId===blades.current(s).id && (!soulAction || arg?.id===h.bladeId) && ["bladeForge","bladeEtch","bladePolish","bladeWorkFinish","bladeFinalMove","soulTransfer","soulChoose","soulAscend"].includes(act)) {
-        const style=h.bladeCombat.style;
-        bindBladeCombat(s,h);
-        h.bladeCombat.style=style;
+      const changedId=soulAction ? arg?.id : target.id;
+      const changedStats=["bladeForge","bladeEtch","bladePolish","bladeWorkFinish","bladeFinalMove","soulTransfer","soulChoose","soulAscend"].includes(workshopAction) || act==="bladeArmor";
+      if (h?.bladeCombat && changedStats && changedId===(armorAction ? h.armorId : h.bladeId)) {
+        const boundBlade=blades.state(s).items.find(i=>i.id===h.bladeId);
+        const boundArmor=blades.armors(s).find(i=>i.id===h.armorId) || blades.currentArmor(s);
+        const priorMax=h.maxHp;
+        bindBladeCombat(s,h,boundBlade,boundArmor,h.bladeCombat.style);
+        h.maxHp=h.bladeCombat.hp;
+        h.hp=Math.max(1,Math.min(h.maxHp,h.hp+h.maxHp-priorMax));
       }
       if (act==="bladeForge" || act==="bladeWorkFinish" || act==="bladeFinalMove") {
         s.best=Math.max(s.best,blades.current(s).level);
@@ -1412,7 +1422,8 @@ const Game = (() => {
         if (w.free + w.purchased < 1) return fail("사냥권이 부족합니다. 10분 충전·오늘의 출석을 확인하거나 대장간과 배치 수익을 이용하세요.");
         const journeyBattle = arg?.combat === "journey-v1";
         const bladeBattle=arg?.combat==="blade-v1";
-        if (bladeBattle && blades.state(s).items.length>=120) return fail("검신 보관함이 가득 찼습니다. 검신을 분해하세요.");
+        if (bladeBattle && (blades.state(s).items.length>=120 || blades.armors(s).length>=120))
+          return fail("장비 보관함이 가득 찼습니다. 가득 찬 부위의 여분 장비를 분해하세요.");
         const trailBattle = bladeBattle || journeyBattle || arg?.combat === "trail-v1";
         if (bladeBattle && rank>blades.state(s).cleared+1) return fail("검신으로 이전 지역을 먼저 토벌하세요.");
         const st = bladeBattle ? blades.skills(s) : trailBattle ? huntStats(s) : stats(s),
@@ -1520,7 +1531,7 @@ const Game = (() => {
         if (roll?roll.skill==='counter':!block&&h.counter) h.ripostes = (h.ripostes || 0) + 1;
         h.enemyHp = Math.max(0, h.enemyHp - damage);
         const trailResult = h.trailVersion ? {trailVersion:1, wave:h.wave, bonusEncounter:h.bonusEncounter} : {};
-        if (h.bladeCombat) Object.assign(trailResult,{bladeCombat:h.bladeCombat,wounds:h.wounds,territoryRank:h.territoryRank});
+        if (h.bladeCombat) Object.assign(trailResult,{bladeCombat:h.bladeCombat,armorId:h.armorId,wounds:h.wounds,territoryRank:h.territoryRank});
         if (!h.enemyHp) {
           if (h.trailVersion && h.wave + 1 < trail.lineup(h.territoryRank || h.rank, h.bonusEncounter).length) {
             if (h.enemyKind === "goblin") h.goblinCaught = true;
@@ -1553,7 +1564,11 @@ const Game = (() => {
             reward: chest.gold,
             bonus,
           };
-          if (h.bladeCombat) s.lastHunt.bladePrize=blades.reward(s,h,random)+endgame.victory(s,h);
+          if (h.bladeCombat) {
+            const receipt=blades.rollReward(s,h,random);
+            receipt.materialPrize+=endgame.victory(s,h);
+            Object.assign(s.lastHunt,receipt,{bladePrize:blades.rewardText(receipt)});
+          }
           s.huntBest = Math.max(s.huntBest, h.rank);
           const route = s.weapon.route;
           const trained =

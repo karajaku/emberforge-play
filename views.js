@@ -198,10 +198,11 @@ function swordOddsTable(level) {
     forgeOutcomes.map(([,label]) => '<th>' + label + '</th>').join("") + '</tr></thead><tbody>' +
     rows.join("") + '</tbody></table></details>';
 }
-function liningCard(s) {
+function liningCard(s, huntGear = false) {
   const level = s.huntLining, cost = Game.liningCosts[level];
-  const hp = fmt(Game.huntStats(s).hp);
-  const next = cost ? ' → ' + fmt(Game.huntStats({ ...s, huntLining: level + 1 }).hp) : '';
+  const stats = huntGear ? Game.blades.skills : Game.huntStats;
+  const hp = fmt(stats(s).hp);
+  const next = cost ? ' → ' + fmt(stats({ ...s, huntLining: level + 1 }).hp) : '';
   return '<section class="lining-card" aria-label="숲 방호 안감"><div><b>' + icon('shield') +
     '숲 방호 안감 ' + level + '/5</b><small>사냥 HP ' + hp + next + '</small><small>' +
     icon('trees') + '숲결 섬유 ' + fmt(s.forestFiber) + (cost ? ' / ' + cost + ' · 숲 승리 보물' : '') +

@@ -15,6 +15,10 @@ const GameUI = (() => {
       const emblem = ['map-pin', 'gem', 'sparkles', 'crown'][s.weapon.grade];
       scene.querySelector('.location svg').outerHTML = icon(emblem);
     }
+    if (layout.classList.contains("blade-layout")) {
+      const item = gear === "armor" ? Game.blades.currentArmor(s) : Game.blades.current(s);
+      if (item.grade>0) scene.dataset.swordGrade=item.grade;
+    }
     panel.className = 'forge-console';
     const stats = panel.querySelector('.stats');
     stats.className = 'forge-readout';
@@ -53,10 +57,11 @@ const GameUI = (() => {
     content.querySelector('.title-actions')?.remove();if(titleActions)content.prepend(titleActions);
     if(current()==='forge'&&phonePage('forge')==='work') {
       const rail=document.createElement('nav');rail.className='ui-forge-rail';rail.setAttribute('aria-label','대장간 작업');
-      rail.innerHTML = !archiveBlade ? openBtn('bladeCraft',icon('anvil')+'<span>제작</span>') + openBtn('bladeCollection',icon('sword')+'<span>검신함</span>') + go('forge/orders',icon('scroll-text')+'<span>의뢰</span>') : [['craft','anvil','제작'],['training','hammer','수련'],['orders','scroll-text','의뢰']].map(([page,ic,label])=>'<button data-go="forge/'+page+'">'+icon(ic)+'<span>'+label+'</span></button>').join('');
+      const armor = gear === "armor";
+      rail.innerHTML = !archiveBlade ? openBtn(armor ? 'bladeArmorCraft' : 'bladeCraft',icon('anvil')+'<span>제작</span>') + openBtn(armor ? 'bladeArmorCollection' : 'bladeCollection',icon(armor ? 'shield' : 'sword')+'<span>'+(armor?'방어구함':'검신함')+'</span>') + go('forge/orders',icon('scroll-text')+'<span>의뢰</span>') : [['craft','anvil','제작'],['training','hammer','수련'],['orders','scroll-text','의뢰']].map(([page,ic,label])=>'<button data-go="forge/'+page+'">'+icon(ic)+'<span>'+label+'</span></button>').join('');
       const stage = document.querySelector('.forge-layout .stage-side');
       if (archiveBlade) {
-        rail.lastElementChild.outerHTML = '<button data-blade-home>'+icon('sword')+'<span>검신 복귀</span></button>';
+        rail.lastElementChild.outerHTML = '<button data-blade-home="'+gear+'">'+icon(armor?'shield':'sword')+'<span>'+(armor?'방어구':'검신')+' 복귀</span></button>';
       }
       stage.append(rail);
       if (state.best > 0) {
