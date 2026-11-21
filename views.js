@@ -89,13 +89,23 @@ const navItems = [
   ["bag", "보관함", "backpack"],
   ["growth", "성장", "sparkles"],
 ];
+const GearGradeView = {
+  colored(item, text = Game.blades.itemRarity(item).name) {
+    return '<span class="gear-grade" data-rarity="' + Game.blades.itemRarity(item).key + '">' + escapeHtml(text) + '</span>';
+  },
+  detail(item) {
+    const count = item.mods?.length || 0;
+    return line("아이템 등급", this.colored(item) + " · 접두·접미 " + count + "개") +
+      line("베이스 등급", Game.blades.baseGradeNames[item.grade]);
+  },
+};
 const tier = (g, type) => Game.grades[g.grade] + " " + (type === "armor" ? "방어구" : "무기");
 function creature(f) {
   return ["scarecrow", "sentinel", "golem", "dragon"][Math.min(3, Math.floor((f - 1) / 5))];
 }
-function scene(id, heading, english, loc, sprite = "", grade = 0, enemy = null, artwork = "") {
+function scene(id, heading, english, loc, sprite = "", grade = 0, enemy = null, artwork = "", item = null) {
   return (
-    '<div class="scene"' + (enemy ? ' data-enemy="' + enemy.kind + '" data-depth="' + Math.min(3, Math.floor((enemy.rank - 1) / 15)) + '"' : "") + ' style="--image:url(assets/' +
+    '<div class="scene"' + (item ? ' data-rarity="' + Game.blades.itemRarity(item).key + '"' : "") + (enemy ? ' data-enemy="' + enemy.kind + '" data-depth="' + Math.min(3, Math.floor((enemy.rank - 1) / 15)) + '"' : "") + ' style="--image:url(assets/' +
     (id === "forge" ? "hud/workshop.webp" : id + ".png") +
     ')">' + (loc ? '<span class="location">' + icon("map-pin") + loc + "</span>" : "") +
     (sprite
@@ -120,7 +130,7 @@ function scene(id, heading, english, loc, sprite = "", grade = 0, enemy = null, 
 function adventureMap(s) {
   const details = {
     forest: s.hunt ? s.hunt.rank + "구역 전투 중" : Math.min(60, s.huntBest + 1) + "구역 사냥",
-    mine: s.autoMine ? "자동 탐사 " + s.autoMine.completed + " / " + s.autoMine.limit : s.dive ? fmt(s.dive.depth) + " m 탐사 중" : Game.canDive(s.weapon) ? "산소통 " + fmt(s.tanks) + "개" : "+19 또는 레어 필요",
+    mine: s.autoMine ? "자동 탐사 " + s.autoMine.completed + " / " + s.autoMine.limit : s.dive ? fmt(s.dive.depth) + " m 탐사 중" : Game.canDive(s.weapon) ? "산소통 " + fmt(s.tanks) + "개" : "+19 또는 베이스 II 이상 필요",
     tower: "무한의 탑 " + fmt(s.tower) + "층",
     altar: "별의 파편 " + fmt(s.shards) + "개",
   };
@@ -142,7 +152,7 @@ function portals() {
           '.png)"><small>' +
           {
             forest: "토벌 · 배치 수익",
-            mine: "무기 +19 또는 레어",
+            mine: "무기 +19 또는 베이스 II 이상",
             tower: "전투 · 층별 보상",
             altar: "장비 옵션 부여",
           }[id] +
@@ -246,10 +256,10 @@ function journeyDetails(s, type, plan) {
   html += line('대장장이 Lv.' + smith.level, fmt(smith.xp) + (smith.next ? ' / ' + fmt(smith.next) : '') + ' XP') +
     line('즉시 제작 상한', '+' + fmt(smith.cap)) + desc('재련비 1 G를 쓸 때마다 1 XP를 얻습니다. 검이 파괴되면 그 검의 판매가만큼 XP를 얻습니다.');
   if (s.hunt) html += desc('재련한 장비의 능력치는 다음 토벌부터 적용됩니다.');
-  if (type === 'weapon' && Number.isInteger(s.weapon.journeyTrait)) html += line('에픽 특성', Game.journeyTraits[s.weapon.journeyTrait]);
+  if (type === 'weapon' && Number.isInteger(s.weapon.journeyTrait)) html += line('베이스 III 특성', Game.journeyTraits[s.weapon.journeyTrait]);
   if (plan.canChooseTrait) {
     const lock = s.weapon.finalTrial ? ' · 돌파 중' : '';
-    html += openBtn('swordTrait', icon('sparkles') + '에픽 특성 새기기' + lock, 'action', !!lock);
+    html += openBtn('swordTrait', icon('sparkles') + '베이스 III 특성 새기기' + lock, 'action', !!lock);
   }
   if (type === 'weapon' && nextGrade) {
     html += line('다음 승급', nextGrade + ' · +' + fmt(plan.threshold)) +
@@ -271,9 +281,9 @@ function swordPromotionView(s, traitOnly = false) {
   const p = Game.journeyForge(s, 'weapon');
   const available = traitOnly ? p?.canChooseTrait : p?.canPromote;
   if (!available) return ['검의 기록', desc('대장간에서 이 검의 현재 조건을 확인하세요.')];
-  const title = traitOnly ? '에픽 특성 새기기' : Game.grades[p.targetGrade] + ' 승급';
+  const title = traitOnly ? '베이스 III 특성 새기기' : Game.grades[p.targetGrade] + ' 승급';
   const summary = line('현재 검', Game.name(s.weapon) + ' +' + fmt(p.level)) +
-    line('등급', traitOnly ? Game.grades[p.grade] : Game.grades[p.grade] + ' → ' + Game.grades[p.targetGrade]);
+    line('베이스 등급', traitOnly ? Game.grades[p.grade] : Game.grades[p.grade] + ' → ' + Game.grades[p.targetGrade]);
   if (!traitOnly && p.targetGrade !== 2) return [title, summary + btn('promoteSword', icon('hammer') + title, 0, 'primary')];
   return [title, summary + section('검에 새길 특성') + '<div class="journey-traits">' +
     Game.journeyTraits.map((name, index) => btn(traitOnly ? 'chooseSwordTrait' : 'promoteSword', icon(['shield','sword','heart','flame'][index]) + '<b>' + name + '</b><small>' +
@@ -318,8 +328,8 @@ function forgeView(s) {
   const hasNext = plan ? plan.next > g.level : g.level < 20;
   const switcher = '<div class="segment gear-switch">' + [["weapon","sword","무기"],["armor","shield","방어구"]].map(([id,ic,label]) =>
     '<button data-gear="' + id + '" aria-pressed="' + (gear === id) + '" class="' + (gear === id ? 'sel' : '') + '">' + icon(ic) + label + '</button>').join('') + '</div>';
-  return '<div class="columns forge-layout"><div class="stage-side">' + switcher + scene("forge", Game.name(g, gear) + " +" + g.level,
-    "", tier(g, gear), weapon ? "blade" + (Game.bladeStage(g) || "") : "cuirass", g.grade) + '</div><section class="panel">' +
+  return '<div class="columns forge-layout"><div class="stage-side">' + switcher + scene("forge", Game.blades.itemRarity(g).name + " " + Game.name(g, gear) + " +" + g.level,
+    "", tier(g, gear), weapon ? "blade" + (Game.bladeStage(g) || "") : "cuirass", 0, null, "", g) + '</div><section class="panel">' +
     '<div class="stats">' + line(weapon ? "공격력" : "체력", fmt(weapon ? stat.attack : stat.hp) + (hasNext ? ' <span class="mint">→ ' + fmt(weapon ? next.attack : next.hp) + '</span>' : '')) +
     (journey ? '<div class="forge-odds journey-odds"><b>' + journey.heading + '</b>' +
       (hasNext && !g.finalTrial ? '<div class="odds-bar" aria-hidden="true"><i class="odds-success" style="width:' +
@@ -637,7 +647,7 @@ function miningStatus(s) {
       d.oxygen <= 20 ? "red" : "mint") : "—")) + feverBar +
     (d ? btn("mine", icon("pickaxe") + (d.fever ? "피버 ×10 · " : "") + "50 m 하강 · " + Math.ceil(d.oxygen / 10) + "회 남음", "", "primary")
       : btn("dive", fever >= rules.feverCost ? "피버 탐사 ×10 · 산소통 1개 + 피버 100" : "직접 탐사 · 산소통 1개", "", "primary", !allowed || !s.tanks)) +
-    (!allowed && !d ? line("입장 조건", "무기 +19 또는 레어") : "") +
+    (!allowed && !d ? line("입장 조건", "무기 +19 또는 베이스 II 이상") : "") +
     '<div class="actions">' +
     (d ? btn("air", "산소 보충", "", "action", d.fever || !s.tanks) + btn("surface", "지상 복귀")
       : openBtn("autoMineSetup", "자동 탐사 예약")) +

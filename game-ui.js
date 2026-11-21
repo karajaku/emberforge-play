@@ -15,10 +15,6 @@ const GameUI = (() => {
       const emblem = ['map-pin', 'gem', 'sparkles', 'crown'][s.weapon.grade];
       scene.querySelector('.location svg').outerHTML = icon(emblem);
     }
-    if (layout.classList.contains("blade-layout")) {
-      const item = gear === "armor" ? Game.blades.currentArmor(s) : Game.blades.current(s);
-      if (item.grade>0) scene.dataset.swordGrade=item.grade;
-    }
     panel.className = 'forge-console';
     const stats = panel.querySelector('.stats');
     stats.className = 'forge-readout';

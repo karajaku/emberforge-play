@@ -1,7 +1,17 @@
 "use strict";
 const HuntLoot = (() => {
-  const rarityNames = ["일반", "레어", "에픽", "전설"];
-  const rarityRules = [
+  const baseGradeNames = ["베이스 I", "베이스 II", "베이스 III", "베이스 IV"];
+  const itemRarities = [
+    {key:"rare", name:"레어", minLines:4},
+    {key:"magic", name:"매직", minLines:1},
+    {key:"normal", name:"일반", minLines:0},
+  ];
+  function itemRarity(item) {
+    // Owned gear has mods. A hunt receipt keeps only the count at drop time.
+    const lines = item.mods?.length ?? item.lines ?? 0;
+    return itemRarities.find(rarity => lines >= rarity.minLines);
+  }
+  const baseGradeRules = [
     { caps: [1, 1], min: 0, max: 2 },
     { caps: [2, 1], min: 2, max: 3 },
     { caps: [2, 2], min: 3, max: 4 },
@@ -63,6 +73,6 @@ const HuntLoot = (() => {
   mod("suffix", "lastWard", "체력 절반 이하 피격 감소", small);
   mod("suffix", "retaliation", "반격 후 다음 피격 감소", small);
   const armorStageNames = ["흉갑 연마", "수문장의 내구 시험", "이중 담금질"];
-  return { rarityNames, rarityRules, dropOdds, rollGrade, armorDefs, armorStageNames };
+  return { baseGradeNames, itemRarity, baseGradeRules, dropOdds, rollGrade, armorDefs, armorStageNames };
 })();
 if (typeof module !== "undefined") module.exports = HuntLoot;

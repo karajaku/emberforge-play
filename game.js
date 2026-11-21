@@ -12,7 +12,7 @@ const Game = (() => {
   const shop = typeof module !== "undefined" ? require("./relic-shop.js") : RelicShop;
   const compare = typeof module !== "undefined" ? require("./gear-comparison.js") : createGearComparison;
   const compareGear = compare({blades, outfit, endgame, craft, dice, stats});
-  const grades = ["일반", "레어", "에픽", "전설"];
+  const grades = blades.baseGradeNames;
   const live = typeof module !== "undefined" ? require("./live-data.js") : LiveData;
   function baseSwordChances(level) {
     const swordRates = live.current.balance.swordRates;
@@ -1654,7 +1654,7 @@ const Game = (() => {
       case "dive": {
         if (s.dive || s.autoMine) return fail("진행 중인 탐사를 먼저 마치세요.");
         if (!canDive(s.weapon))
-          return fail("19강 무기 또는 레어 이상 무기를 장착하세요.");
+          return fail("무기를 +19 이상 강화하거나 " + grades[1] + " 이상 무기를 장착하세요.");
         if (!s.tanks) return fail("산소통이 필요합니다.");
         s.tanks--;
         const oxygen = 100 + 10 * s.imprints.lung;
@@ -1686,7 +1686,7 @@ const Game = (() => {
       }
       case "autoMine": {
         if (s.dive || s.autoMine) return fail("진행 중인 탐사를 먼저 마치세요.");
-        if (!canDive(s.weapon)) return fail("19강 무기 또는 레어 이상 무기를 장착하세요.");
+        if (!canDive(s.weapon)) return fail("무기를 +19 이상 강화하거나 " + grades[1] + " 이상 무기를 장착하세요.");
         const count = Number(arg);
         if (!Number.isInteger(count) || count < 1 || count > mining.maxTanks || count > s.tanks)
           return fail("보유 산소통 안에서 1~500개를 선택하세요.");
@@ -1932,7 +1932,7 @@ const Game = (() => {
           i = s.bag.findIndex((b) => !isJourneyGear(s, b) && b.level === l && b.grade === 3),
           idx = l - 20;
         if (s.rebirths < 2000 || a.grade !== 3 || idx < 0 || idx > 4 || i < 0)
-          return fail("환생 2,000회와 같은 단계 전설 무기 2개가 필요합니다.");
+          return fail("환생 2,000회와 강화 단계가 같은 " + grades[3] + " 무기 2개가 필요합니다.");
         const cost = [150e9, 300e9, 1e12, 2e12, 4e12][idx],
           stones = 10 * (idx + 1),
           souls = 5 * (idx + 1);

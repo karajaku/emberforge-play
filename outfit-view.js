@@ -5,7 +5,7 @@ const OutfitView = (() => {
   const elementIcon = key => key === "lightning" ? '<i aria-hidden="true">ϟ</i>' : icon(key === "fire" ? "flame" : "snowflake");
   const api = () => Game.outfit;
   const loadout = () => openBtn("outfit:slots", icon("shield") + "착용 장비", "action outfit-open");
-  const grade = item => Game.blades.rarityNames[item.grade];
+  const grade = item => Game.blades.itemRarity(item).name;
   const slotFor = (s, id) => api().slots.find(slot => api().state(s).equipped[slot.key] === id);
   function art(kind) {
     const i = spriteIndex[kind];
@@ -24,7 +24,7 @@ const OutfitView = (() => {
     return api().state(s).items.map(item => {
       const worn = slotFor(s,item.id);
       return {
-        key:"outfit-" + item.id, comparison:Game.compareGear(s,item,"outfit"), id:item.id, wornSlot:worn?.key, group:"gear", name:api().name(item), grade:item.grade, mark:"+" + item.level,
+        key:"outfit-" + item.id, comparison:Game.compareGear(s,item,"outfit"), id:item.id, wornSlot:worn?.key, group:"gear", name:api().name(item), rarity:Game.blades.itemRarity(item), baseGrade:Game.blades.baseGradeNames[item.grade], mark:"+" + item.level,
         art:art(item.kind), status:worn ? "착용" : "", open:"outfit:item:" + item.id,
       };
     });
@@ -38,13 +38,13 @@ const OutfitView = (() => {
       const item = blade ? Game.blades.current(s) : chest ? Game.blades.currentArmor(s) :
         kit.items.find(it => it.id === kit.equipped[slot.key]);
       const image = blade || chest ? BladeView.artwork(item) : art(slot.kind);
-      const name = item ? (blade || chest ? Game.blades.name(item) : api().name(item)) + " +" + item.level : "빈칸";
+      const name = item ? grade(item) + " " + (blade || chest ? Game.blades.name(item) : api().name(item)) + " +" + item.level : "빈칸";
       const part = {shoulder:"어깨",legs:"다리"}[slot.key] || slot.name;
       return '<button class="bag-slot bag-worn-slot" data-forge-slot="' + slot.key +
-        '" data-empty="' + !item + '" data-rarity="' + (item?.grade ?? "") + '" aria-pressed="' + (slot.key === chosen) +
+        '" data-empty="' + !item + '" data-rarity="' + (item ? Game.blades.itemRarity(item).key : "") + '" aria-pressed="' + (slot.key === chosen) +
         '" aria-label="' + escapeHtml(slot.name + " · " + name) + '"><span class="bag-worn-part">' + part +
         '</span><span class="bag-slot-art">' + image + '</span><b class="bag-slot-name">' +
-        (item ? "+" + item.level : "빈칸") + '</b></button>';
+        (item ? grade(item) + " +" + item.level : "빈칸") + '</b></button>';
     });
     return ["강화할 부위 선택", '<div class="bag-loadout-grid forge-slot-grid">' + cells.join("") + '</div>'];
   }
@@ -78,7 +78,7 @@ const OutfitView = (() => {
     }
     const heading = item ? grade(item) + " " + api().name(item) + " +" + item.level : slot.name;
     return '<div class="columns forge-layout outfit-layout" data-empty="' + !item + '"><div class="stage-side">' +
-      BladeView.switches("outfit") + scene("forge",heading,"",slot.name,"",0,null,art(slot.kind)) +
+      BladeView.switches("outfit") + scene("forge",heading,"",item ? Game.blades.baseGradeNames[item.grade] + " · " + slot.name : slot.name,"",0,null,art(slot.kind),item) +
       '</div><section class="panel"><div class="stats">' + readout + '<div class="forge-odds journey-odds">' + odds + '</div></div>' +
       strike + '<div class="actions forge-support">' + openBtn("bladeStyles",icon("swords")+"검술") + go("forest",icon("trees")+"숲 사냥","action") +
       '<button class="round" data-open="' + detail + '" aria-label="' + slot.name + ' 상세">' + icon("circle-help") + '</button></div></section></div>';
@@ -89,11 +89,11 @@ const OutfitView = (() => {
       const chest = slot.kind === "armor";
       const item = chest ? armor : data.items.find(it => it.id === data.equipped[slot.key]);
       const picture = chest ? BladeView.artwork(armor) : art(slot.kind);
-      const label = item ? (chest ? Game.blades.name(item) : api().name(item)) + " +" + item.level : "비어 있음";
+      const label = item ? grade(item) + " " + (chest ? Game.blades.name(item) : api().name(item)) + " +" + item.level : "비어 있음";
       return '<button class="bag-slot outfit-slot" data-open="outfit:slot:' + slot.key +
         '" aria-label="' + escapeHtml(slot.name + ' · ' + label) + '" data-empty="' + !item + '" data-rarity="' +
-        (item?.grade ?? "") + '"><span class="outfit-slot-title">' + slot.name + '</span><span class="bag-slot-art">' +
-        picture + '</span><small>' + (item ? '착용 +' + item.level : '비어 있음') + '</small></button>';
+        (item ? Game.blades.itemRarity(item).key : "") + '"><span class="outfit-slot-title">' + slot.name + '</span><span class="bag-slot-art">' +
+        picture + '</span><small>' + (item ? grade(item) + ' +' + item.level : '비어 있음') + '</small></button>';
     });
     return ["착용 장비", '<div class="outfit-grid">' + cells.join("") + '</div>' +
       line("속성 장비 보관",data.items.length + " / " + api().capacity)];
@@ -112,7 +112,7 @@ const OutfitView = (() => {
       Number(data.equipped[slot.key] === b.id) - Number(data.equipped[slot.key] === a.id) || b.grade - a.grade);
     return [slot.name, list.length ? list.map(item => {
       const worn = slotFor(s,item.id);
-      return row(escapeHtml(api().name(item)) + " +" + item.level,
+      return row(GearGradeView.colored(item,grade(item) + " " + api().name(item) + " +" + item.level),
         GearCompareView.score(Game.compareGear(s,item,"outfit",slot.key)) + " · " + (worn ? worn.name + " 착용 · " : "") + statsLabel(item),
         openBtn("outfit:item:"+item.id+":"+slot.key,"살펴보기","mini"),"",art(item.kind));
     }).join("") : '<div class="bag-detail-art">' + art(slot.kind) + '</div>' +
@@ -124,7 +124,7 @@ const OutfitView = (() => {
     const targets = preferred ? kinds.filter(slot => slot.key === preferred) : kinds;
     const q = api().quote(item);
     const comparison = Game.compareGear(s,item,"outfit",preferred);
-    let body = '<div class="bag-detail-art">' + art(item.kind) + '</div>';
+    let body = '<div class="bag-detail-art">' + art(item.kind) + '</div>' + GearGradeView.detail(item);
     if (current) body += GearCompareView.detail(comparison, "outfit");
     else {
       const ordered = [...targets].sort((a,b) => Number(b.key === comparison.slot) - Number(a.key === comparison.slot));
@@ -136,7 +136,7 @@ const OutfitView = (() => {
         body += btn("outfitEquip", slot.name + (match.current ? " 교체" : " 착용"), slot.key + ":" + item.id, "primary");
       }
     }
-    body += line("장비",grade(item) + " · " + (current ? current.name + " 착용" : "미착용")) +
+    body += line("장비 상태",current ? current.name + " 착용" : "미착용") +
       line("획득", "숲 " + item.rank + "단계");
     const region = [1,6,11,16].find(rank => api().preferredElement(rank) === item.element);
     if (region) {
@@ -152,7 +152,7 @@ const OutfitView = (() => {
     if (s.hunt) body += desc("착용과 재련으로 바뀐 능력치는 다음 사냥부터 적용됩니다.");
     if (!current) body += openBtn("outfit:salvage:" + item.id, "분해");
     body += openBtn("outfit:slots","착용 장비로");
-    return [api().name(item) + " +" + item.level, body];
+    return [grade(item) + " " + api().name(item) + " +" + item.level, body];
   }
   function enemyInfo(rank,kind,build) {
     const profile = api().profile(rank,kind);
@@ -211,7 +211,7 @@ const OutfitView = (() => {
       const choices = kit.items.filter(it => it.kind === slot.kind && !slotFor(s,it.id));
       const current = worn ? line("현재 착용",api().name(worn) + " +" + worn.level) + line("능력치",statsLabel(worn)) : "";
       return [slot.name + " 착용", current + (choices.length ? choices.map(it =>
-        row(grade(it) + " " + api().name(it) + " +" + it.level, GearCompareView.score(Game.compareGear(s,it,"outfit",arg)) + " · " + statsLabel(it),
+        row(GearGradeView.colored(it,grade(it) + " " + api().name(it) + " +" + it.level), GearCompareView.score(Game.compareGear(s,it,"outfit",arg)) + " · " + statsLabel(it),
           btn("outfitEquip",worn ? "교체" : "착용",arg + ":" + it.id,"mini"),"",art(it.kind))).join("") :
         desc("숲 사냥에서 얻은 장비를 여기에 착용할 수 있습니다."))];
     }
@@ -233,10 +233,10 @@ const OutfitView = (() => {
     if (result.outfitSalvaged) return '<span class="blade-drop">'+icon("gem")+'착용 장비 보관함 가득 참 · 각인석 +1</span>';
     const item = result.outfitDrop;
     if (!item) return "";
-    const content = art(item.kind) + '<b>' + escapeHtml(grade(item)+" "+api().name(item)) + '</b><small>' + effectLabel(item) + '</small>';
+    const content = art(item.kind) + '<b>' + GearGradeView.colored(item,grade(item)+" "+api().name(item)) + '</b><small>' + effectLabel(item) + '</small>';
     return api().state(s).items.some(it => it.id === item.id) ?
-      openBtn("outfit:item:"+item.id,content,"loot-gear loot-grade-"+item.grade) :
-      '<span class="loot-gear loot-grade-'+item.grade+'">'+content+'</span>';
+      openBtn("outfit:item:"+item.id,content,"loot-gear") :
+      '<span class="loot-gear">'+content+'</span>';
   }
   return {art,loadout,entries,forge,modal,encounterChip,receipt};
 })();

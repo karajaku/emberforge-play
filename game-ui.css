@@ -340,9 +340,16 @@ body.ui-game {
 .blade-mastery { margin-top:14px; }
 .blade-mastery button { margin:2px;min-height:44px; }
 .blade-drop { color:#ffe29a; word-break:keep-all; }
-.bag-slot[data-rarity="1"] { --slot-light:#375e76; }
-.bag-slot[data-rarity="2"] { --slot-light:#624580; }
-.bag-slot[data-rarity="3"] { --slot-light:#88652e; }
+[data-rarity="normal"] { --rarity-ink:#eceff0; --slot-light:#515955; }
+[data-rarity="magic"] { --rarity-ink:#a3dcff; --slot-light:#34536a; }
+[data-rarity="rare"] { --rarity-ink:#ffda79; --slot-light:#705932; }
+.dialog .gear-grade[data-rarity="normal"] { --rarity-ink:#414748; }
+.dialog .gear-grade[data-rarity="magic"] { --rarity-ink:#165e89; }
+.dialog .gear-grade[data-rarity="rare"] { --rarity-ink:#805000; }
+.gear-grade, .bag-slot .bag-rarity, .scene[data-rarity] .caption b,
+.forge-slot-grid [data-rarity] .bag-slot-name { color:var(--rarity-ink); }
+.bag-rarity { font-size:10px; font-weight:750; line-height:1.15; }
+.bag-rarity span { color:#d2c9b6; font-weight:500; }
 .loot-table { width:100%; border-collapse:collapse; margin:9px 0; font-size:.9rem; font-variant-numeric:tabular-nums; }
 .loot-table caption { text-align:left; font-weight:700; margin-bottom:4px; }
 .loot-table th,.loot-table td { padding:6px 4px; text-align:right; border-bottom:1px solid #87795748; }
@@ -352,9 +359,6 @@ body.ui-game {
 .watch-loot button.loot-gear { min-height:30px; padding:3px 8px; background:#1d2924ec; border:1px solid #9d8965; border-radius:5px; }
 .watch-loot .loot-gear svg { width:15px; height:15px; }
 .watch-loot .loot-gear small { font-size:11px; }
-.watch-loot .loot-grade-1 b { color:#a7deff; }
-.watch-loot .loot-grade-2 b { color:#f0c0ff; }
-.watch-loot .loot-grade-3 b { color:#ffe395; }
 .loot-rules summary { cursor:pointer; padding:8px 0; font-weight:700; }
 .ui-forge-rail :is(.action,.mini) { padding:3px; }
 .blade-layout .ui-forge-rail span { white-space:nowrap; }

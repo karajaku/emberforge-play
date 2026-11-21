@@ -903,7 +903,7 @@ function modalData() {
           ) +
           desc("② +13 이상 보조 검을 보관함에 넣고 사냥터에 배치하면 접속을 종료해도 골드가 쌓입니다.") +
           desc(
-            "③ 기록 중인 검은 세 제작 공정을 마친 뒤 +20에서 레어, +200에서 에픽, +1,000에서 전설로 승급합니다. +20 보조 검은 환생 의식에 쓸 수 있습니다.",
+            "③ 기록 중인 검은 세 제작 공정을 마친 뒤 +20에서 베이스 II, +200에서 베이스 III, +1,000에서 베이스 IV로 승급합니다. +20 보조 검은 환생 의식에 쓸 수 있습니다.",
           ) +
           desc("④ 도전의 탑에서는 무기의 공격력과 방어구의 체력이 모두 적용됩니다.") +
           "</div>",
@@ -999,13 +999,13 @@ function modalData() {
           btn("rebirth", s.armor.journeyArmor ? "보조 검을 바치고 환생" : "장착 장비를 바치고 환생", "", "primary", s.weapon.level !== 20),
       ];
     case "fusion": {
-      if (Game.isJourneyGear(s, s.weapon)) return ["초월 합성", desc("초월에 사용할 전설 보조 검을 장착하세요. 기록 중인 검은 대장간에서 계속 벼릴 수 있습니다.") +
+      if (Game.isJourneyGear(s, s.weapon)) return ["초월 합성", desc("초월에 사용할 베이스 IV 보조 검을 장착하세요. 기록 중인 검은 대장간에서 계속 벼릴 수 있습니다.") +
         go("bag/stored", "보관 무기 보기", "primary")];
       const i = Math.max(0, Math.min(4, s.weapon.level - 20));
       return [
         "초월 합성",
         desc(
-          "같은 단계 전설 무기 두 자루가 필요합니다. 실패 시 15% 확률로 보관함의 보조 무기가 파괴됩니다.",
+          "같은 단계 베이스 IV 무기 두 자루가 필요합니다. 실패 시 15% 확률로 보관함의 보조 무기가 파괴됩니다.",
         ) +
           line("환생", fmt(s.rebirths) + " / 2,000") +
           line("목표", "+" + (21 + i)) +

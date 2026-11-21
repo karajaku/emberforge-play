@@ -8,7 +8,7 @@ const BladeView = (() => {
   };
   const sideLabel = {prefix: "접두", suffix: "접미"};
   const isArmor = item => item.type === "armor";
-  const gradeName = item => rules().rarityNames[item.grade];
+  const gradeName = item => rules().itemRarity(item).name;
   const label = item => gradeName(item) + " " + rules().name(item) + " +" + item.level;
   const prefix = item => isArmor(item) ? "bladeArmor" : "blade";
   function sprite(item, stage = Game.bladeStage({level:item.level, grade:0})) {
@@ -37,7 +37,7 @@ const BladeView = (() => {
       finished ? openBtn("bladeCollection", icon("sword")+"무기 선택<small>+20 완성</small>", "primary") :
       btn("bladeForge", icon("hammer")+"강화<small>"+fmt(cost)+" G</small>", item.id, "primary", s.gold < cost);
     return '<div class="columns forge-layout blade-layout"><div class="stage-side">' + switches("weapon") +
-      scene("forge", label(item), "", b.styles[style] + " 검술", sprite(item), item.grade) + '</div><section class="panel"><div class="stats">' +
+      scene("forge", label(item), "", b.baseGradeNames[item.grade] + " · " + b.styles[style] + " 검술", sprite(item), 0, null, "", item) + '</div><section class="panel"><div class="stats">' +
       line("공격력", fmt(b.attack(item)) + next) + '<div class="forge-odds journey-odds">' + odds + "</div></div>" + main +
       '<div class="actions forge-support">' + openBtn("bladeStyles", icon("swords")+"검술") + go("forest", icon("trees")+"숲 사냥", "action") +
       '<button class="round" data-open="bladeInfo" aria-label="무기 능력과 강화 조건">' + icon("circle-help") + "</button></div></section></div>";
@@ -53,7 +53,7 @@ const BladeView = (() => {
     const button=item.finalTrial ? openBtn("bladeArmorFinal",icon("shield")+"돌파 계속<small>+20 마감</small>","primary") : done ? openBtn("bladeArmorCollection",icon("shield")+"방어구 선택<small>+20 완성</small>","primary") :
       btn("bladeArmor",icon("hammer")+"강화<small>"+fmt(fee)+" G</small>",item.id,"primary",s.gold<fee);
     return '<div class="columns forge-layout blade-layout"><div class="stage-side">'+switches("armor")+
-      scene("forge",label(item),"","착용 방어력 "+fmt(stats.armorRating),"cuirass",item.grade)+'</div><section class="panel"><div class="stats">'+
+      scene("forge",label(item),"",b.baseGradeNames[item.grade]+" · 착용 방어력 "+fmt(stats.armorRating),"cuirass",0,null,"",item)+'</div><section class="panel"><div class="stats">'+
       readout+'<div class="forge-odds journey-odds">'+meter+'</div></div>'+button+'<div class="actions forge-support">'+
       openBtn("bladeStyles",icon("swords")+"검술")+go("forest",icon("trees")+"숲 사냥","action")+
       '<button class="round" data-open="bladeArmorInfo" aria-label="방어구 능력">'+icon("circle-help")+'</button></div>'+liningCard(s, true)+'</section></div>';
@@ -76,8 +76,8 @@ const BladeView = (() => {
   }
   function info(s, item, equip = "") {
     const b = rules(), profile = b.weaponProfile(item);
-    return GearCompareView.detail(Game.compareGear(s,item,"blade"), "blade") + equip +
-      line("무기 종류", gradeName(item) + " · " + profile.name) +
+    return GearGradeView.detail(item) + GearCompareView.detail(Game.compareGear(s,item,"blade"), "blade") + equip +
+      line("무기 종류", profile.name) +
       (item.weaponKind === "dagger" ? line("치명타 피해", "150%") : line("무기 특성", escapeHtml(profile.trait))) +
       (item.base ? line("재질 특성", escapeHtml(b.bases[item.base].trait)) : "") +
       line("획득", item.base ? "숲 " + item.rank + "단계" : "대장간 지급") +
@@ -102,7 +102,7 @@ const BladeView = (() => {
   }
   function collection(s) {
     const b = rules(), rack = b.state(s);
-    return line("무기",rack.items.length+" / 120자루") + (Game.endgame.info(s).gift ? SoulView.open("lessons","첫 +20 선물 선택","primary") : "") + rack.items.slice().reverse().map(item => row(label(item),
+    return line("무기",rack.items.length+" / 120자루") + (Game.endgame.info(s).gift ? SoulView.open("lessons","첫 +20 선물 선택","primary") : "") + rack.items.slice().reverse().map(item => row(GearGradeView.colored(item,label(item)),
       GearCompareView.score(Game.compareGear(s,item,"blade")) + " · 물리 " + damageRange(b.weaponStats(item)) + " · 치명타 " + pct(b.weaponStats(item).critChance) + (item.id === rack.equipped ? " · 장착 중" : [rack.deployed,rack.extraDeployed].includes(item.id) ? " · 배치 중" : ""),
       openBtn("bladeItem-"+item.id,"살펴보기","mini"),"",artwork(item))).join("") +
       '<button class="action" data-archive-blade>기록 검 대장간</button>';
@@ -126,7 +126,7 @@ const BladeView = (() => {
     const firstProcess = item.level===7 && Swordcraft.stageIndex(item)===0;
     const choice = firstProcess ? line("일반 강화 → +8",fmt(armor ? b.armorCost(s) : b.cost(item))+" G · 성공 "+pct(b.rate(item))) +
       line((armor ? armorStageNames[0] : Swordcraft.stages[0].title)+" → +"+Swordcraft.stages[0].target,"연마 3회 후 마감") : "";
-    return line(armor ? "장착 방어구" : "장착 무기", label(item)) + line("각인석 / 우두머리 인장",fmt(rack.ore)+"개 / "+fmt(rack.seals || 0)+"개") + choice + processes(s,item) +
+    return line(armor ? "장착 방어구" : "장착 무기", GearGradeView.colored(item,label(item))) + line("베이스 등급",b.baseGradeNames[item.grade]) + line("각인석 / 우두머리 인장",fmt(rack.ore)+"개 / "+fmt(rack.seals || 0)+"개") + choice + processes(s,item) +
       slots(item,true,rack.ore) + (available.length ? btn(prefix(item)+"Etch",icon("sparkles")+"무작위 각인 · 2석","","primary",rack.ore<2) +
         '<label for="bladeTarget">지정 각인</label><select id="bladeTarget">' + available.map(([key,def]) =>
           '<option value="'+key+'">'+sideLabel[def.side]+" · "+escapeHtml(def.name)+'</option>').join("") +
@@ -135,9 +135,9 @@ const BladeView = (() => {
   }
   function armorDetail(s, item) {
     const b=rules(), current=b.currentArmor(s), equipped=item.id===current.id;
-    return GearCompareView.detail(Game.compareGear(s,item,"chest"), "chest") +
+    return GearGradeView.detail(item) + GearCompareView.detail(Game.compareGear(s,item,"chest"), "chest") +
       (equipped ? "" : btn("bladeArmorEquip","이 방어구 장착",item.id,"primary")) +
-      line("장비 등급",gradeName(item)) + line("획득", item.base ? "숲 "+item.rank+"단계" : "대장간 지급") +
+      line("획득", item.base ? "숲 "+item.rank+"단계" : "대장간 지급") +
       line("착용 방어력 합계", fmt(b.armorStats(s,item).armorRating)) +
       desc("방어력은 약한 타격일수록 받는 피해를 더 높은 비율로 줄입니다.") + slots(item) + soulActions(s,item) + (equipped ? openBtn("bladeArmorCraft","각인·연마","primary") :
         openBtn("bladeArmorSalvage-"+item.id,"분해 · 각인석 회수","action",item.id===s.hunt?.armorId || !!item.soulChoice)) +
@@ -159,7 +159,7 @@ const BladeView = (() => {
       return [label(target),armorDetail(s,target)];
     }
     return ["방어구 보관함",OutfitView.loadout() + line("흉갑",list.length+" / 120벌") + (Game.endgame.info(s).gift ? SoulView.open("lessons","첫 +20 선물 선택","primary") : "") + list.slice().reverse().map(it=>
-      row(label(it),GearCompareView.score(Game.compareGear(s,it,"chest"))+" · 방어력 "+fmt(b.armorRating(it))+" · 체력 "+fmt(b.armorStats(s,it).hp)+(it.id===item.id?" · 장착 중":""),
+      row(GearGradeView.colored(it,label(it)),GearCompareView.score(Game.compareGear(s,it,"chest"))+" · 방어력 "+fmt(b.armorRating(it))+" · 체력 "+fmt(b.armorStats(s,it).hp)+(it.id===item.id?" · 장착 중":""),
         openBtn("bladeArmorItem-"+it.id,"살펴보기","mini"),"",artwork(it))).join("")+
       '<button class="action" data-archive-blade="armor">기록 방어구 대장간</button>'];
   }
@@ -172,11 +172,11 @@ const BladeView = (() => {
     const percent=value=>Number(value.toFixed(5))+"%";
     const stageText=rank%5===0 ? "우두머리" : first ? "구간 첫 승리" : "일반 사냥";
     const opts=Array.from({length:60},(_,i)=>'<option value="'+(i+1)+'"'+(i+1===rank?' selected':'')+'>'+(i+1)+'단계</option>').join("");
-    const table='<table class="loot-table"><caption>승리 한 번 · 부위별 확률</caption><thead><tr><th>장비 등급</th><th>무기</th><th>방어구</th></tr></thead><tbody>'+
-      odds.perWin.map((p,i)=>'<tr><th scope="row">'+b.rarityNames[i]+'</th><td>'+percent(p)+'</td><td>'+percent(p)+'</td></tr>').join("")+'</tbody></table>';
-    const affixes='<details class="loot-rules"><summary>등급별 접두·접미</summary><table class="loot-table"><thead><tr><th>장비 등급</th><th>획득 시</th><th>최대 접두 / 접미</th></tr></thead><tbody>'+
-      b.rarityRules.map((r,i)=>'<tr><th scope="row">'+b.rarityNames[i]+'</th><td>'+r.min+'~'+r.max+'줄</td><td>'+r.caps.join(' / ')+'</td></tr>').join("")+'</tbody></table>'+
-      desc("접두와 접미는 각기 다른 후보에서 뽑습니다. 높은 단계에서는 한 줄의 수치 등급도 높아질 수 있습니다.")+'</details>';
+    const table='<table class="loot-table"><caption>승리 한 번 · 부위별 확률</caption><thead><tr><th>베이스 등급</th><th>무기</th><th>방어구</th></tr></thead><tbody>'+
+      odds.perWin.map((p,i)=>'<tr><th scope="row">'+b.baseGradeNames[i]+'</th><td>'+percent(p)+'</td><td>'+percent(p)+'</td></tr>').join("")+'</tbody></table>';
+    const affixes='<details class="loot-rules"><summary>베이스별 접두·접미</summary><table class="loot-table"><thead><tr><th>베이스 등급</th><th>획득 시</th><th>최대 접두 / 접미</th></tr></thead><tbody>'+
+      b.baseGradeRules.map((r,i)=>'<tr><th scope="row">'+b.baseGradeNames[i]+'</th><td>'+r.min+'~'+r.max+'줄</td><td>'+r.caps.join(' / ')+'</td></tr>').join("")+'</tbody></table>'+
+      desc("현재 접두·접미 합계가 0개면 일반, 1~3개면 매직, 4~6개면 레어입니다. 높은 단계에서는 한 줄의 수치 등급도 높아질 수 있습니다.")+'</details>';
     return ["장비 획득 확률",'<label for="lootRank">사냥 단계</label><select id="lootRank">'+opts+'</select>'+
       line(stageText,"무기 · 흉갑 각각 "+percent(odds.itemPercent)) + table +
       desc("1단계 첫 승리에는 도끼·철퇴·단검 중 하나를 얻습니다. 이후 무기가 떨어지면 한손검·도끼·철퇴·단검이 각각 25%입니다.") +

@@ -58,9 +58,9 @@ const HuntWatch=(()=>{
     const rows=result.gearDrops.map(drop=>{
       const armor=drop.type==='armor';
       const owned=(armor ? b.armors(s) : b.state(s).items).some(it=>it.id===drop.id);
-      const content=BladeView.artwork(drop)+'<b>'+escapeHtml(b.rarityNames[drop.grade]+' '+b.name(drop))+'</b><small>'+drop.lines+'줄</small>';
-      return owned ? openBtn((armor?'bladeArmorItem-':'bladeItem-')+drop.id,content,'loot-gear loot-grade-'+drop.grade) :
-        '<span class="loot-gear loot-grade-'+drop.grade+'">'+content+'</span>';
+      const content=BladeView.artwork(drop)+'<b>'+GearGradeView.colored(drop,b.itemRarity(drop).name+' '+b.name(drop))+'</b><small>'+b.baseGradeNames[drop.grade]+' · '+drop.lines+'줄</small>';
+      return owned ? openBtn((armor?'bladeArmorItem-':'bladeItem-')+drop.id,content,'loot-gear') :
+        '<span class="loot-gear">'+content+'</span>';
     }).join("") + OutfitView.receipt(s,result);
     return (rows?'<div class="loot-gear-list">'+rows+'</div>':'')+
       (result.materialPrize?'<span class="blade-drop">'+icon('gem')+escapeHtml(result.materialPrize)+'</span>':'');
@@ -90,7 +90,7 @@ const HuntWatch=(()=>{
           value(pct(worn.critChance),pct(stats.critChance));
       }
       const mods = item.mods.map(m => b.modDefs[m.key].name+' +'+m.value+(m.key === 'plating' ? '%p' : '%'));
-      return row(BladeView.label(item), numbers+(mods.length ? '<br>'+mods.join(' · ') : ''),
+      return row(GearGradeView.colored(item,BladeView.label(item)), numbers+(mods.length ? '<br>'+mods.join(' · ') : ''),
         btn(armor ? 'bladeArmorEquip' : 'bladeEquip',equipped ? '장착 중' : '장착',item.id,'mini',equipped),'',BladeView.artwork(item));
     }).join('');
     const drop = s.lastHunt.outfitDrop;
@@ -106,7 +106,7 @@ const HuntWatch=(()=>{
         const diff = outfit.profile(s.lastHunt.territoryRank || s.lastHunt.rank)[item.element] < 0 ? ' · '+area.name+' 약점' : '';
         const action = slot ? btn('outfitEquip',current ? slot.name+' 착용 중' : slot.name+' 착용',slot.key+':'+item.id,'mini',!!current) :
           openBtn('outfit:item:'+item.id,'교체할 부위 선택','mini');
-        regional = row(b.rarityNames[item.grade]+' '+outfit.name(item),(b.armorRating(item) ? '방어력 '+fmt(b.armorRating(item))+' · ' : '')+element+' 피해 전환 '+effect.conversion+'%'+
+        regional = row(GearGradeView.colored(item,b.itemRarity(item).name+' '+outfit.name(item)),(b.armorRating(item) ? '방어력 '+fmt(b.armorRating(item))+' · ' : '')+element+' 피해 전환 '+effect.conversion+'%'+
           (effect.exposure ? ' · 저항 −'+effect.exposure+'%p' : '')+diff,action,'',OutfitView.art(item.kind));
       }
     } else if (s.lastHunt.outfitSalvaged) regional = OutfitView.receipt(s,s.lastHunt);

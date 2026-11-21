@@ -109,7 +109,7 @@ const BladeRules = (() => {
     return kit.items.reduce((sum,item) => sum + (worn.has(item.id) ? armorRating(item) : 0), 0);
   }
   const caps = (r) => (r <= 10 ? [1, 1] : r <= 20 ? [2, 1] : r <= 40 ? [2, 2] : r <= 50 ? [3, 2] : [3, 3]);
-  const itemCaps = item => item.lootVersion === 1 ? loot.rarityRules[item.grade].caps : caps(item.rank);
+  const itemCaps = item => item.lootVersion === 1 ? loot.baseGradeRules[item.grade].caps : caps(item.rank);
   const maxTier = (r) => (r <= 10 ? 1 : r <= 20 ? 2 : r <= 40 ? 3 : 4);
   const cost = (item) =>
     Math.round((80 + 40 * item.level ** 1.8) * (1 + Math.floor(Math.max(0, item.base - 1) / 4) * 0.25));
@@ -285,11 +285,11 @@ const BladeRules = (() => {
       if (isArmor) item.type="armor";
       item.lootVersion=1;
       item.grade=loot.rollGrade(h.rank,rng);
-      const rule=loot.rarityRules[item.grade];
+      const rule=loot.baseGradeRules[item.grade];
       const count=integer(rule.min,rule.max,rng);
       for (let i=0;i<count;i++) addMod(item,null,rng);
       (isArmor ? armorRack : b.items).push(item);
-      gearDrops.push({id,type,base,grade:item.grade,lines:count});
+      gearDrops.push({id,type,base,grade:item.grade,lines:item.mods.length});
     }
     const weaponDrop = gearDrops.find(drop => drop.type === "weapon");
     if (weaponDrop) {
@@ -301,7 +301,9 @@ const BladeRules = (() => {
     return {gearDrops,materialPrize};
   }
   function rewardText({gearDrops,materialPrize}) {
-    return [...gearDrops.map(item=>loot.rarityNames[item.grade]+" "+name(item)+" · 옵션 "+item.lines+"줄"),materialPrize].join(" · ");
+    const gear = gearDrops.map(item =>
+      loot.itemRarity(item).name + " " + name(item) + " · " + loot.baseGradeNames[item.grade] + " · 옵션 " + item.lines + "줄");
+    return [...gear, materialPrize].join(" · ");
   }
   function reward(s,h,rng) {
     return rewardText(rollReward(s,h,rng));
@@ -458,7 +460,7 @@ const BladeRules = (() => {
         !Number.isInteger(i.grade) || i.grade<0 || i.grade>3 ||
         (i.lootVersion!==undefined && i.lootVersion!==1) ||
         (!armor && i.lootVersion===undefined && i.grade!==0) ||
-        (i.lootVersion===1 && i.mods.length<loot.rarityRules[i.grade].min) ||
+        (i.lootVersion===1 && i.mods.length<loot.baseGradeRules[i.grade].min) ||
         (i.marks !== undefined &&
           (!Array.isArray(i.marks) ||
             i.marks.length > 3 ||

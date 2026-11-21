@@ -53,7 +53,7 @@ const SaveStore = (() => {
           (d.weaponKind === undefined || (d.type === "weapon" && game.blades.weaponKinds.includes(d.weaponKind))) &&
           (d.type==="armor"?/^a[1-9]\d*$/:/^b[1-9]\d*$/).test(d.id) && Number.isInteger(d.base) && d.base>0 &&
           d.base<game.blades.bases.length && [0,1,2,3].includes(d.grade) && Number.isInteger(d.lines) &&
-          d.lines>=game.blades.rarityRules[d.grade].min && d.lines<=game.blades.rarityRules[d.grade].max) ||
+          d.lines>=game.blades.baseGradeRules[d.grade].min && d.lines<=game.blades.baseGradeRules[d.grade].max) ||
         new Set(drops.map(d=>d.type)).size!==drops.length)) throw fault("corrupt");
     for (const h of [data?.hunt, data?.lastHunt]) {
       if (h?.strongestHit !== undefined) {

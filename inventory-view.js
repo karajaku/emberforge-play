@@ -54,12 +54,12 @@ const InventoryView = (() => {
     const comparison = Game.compareGear(s, g, type === "weapon" ? "legacyWeapon" : "legacyArmor");
     const status = stored ? "" : deployed ? "배치" : type === "weapon" ? "기록 검" : "기록";
     return {
-      key, comparison, group: "gear", name: Game.name(g, type), mark: "+" + fmt(g.level),
+      key, comparison, rarity:Game.blades.itemRarity(g), baseGrade:Game.grades[g.grade], group: "gear", name: Game.name(g, type), mark: "+" + fmt(g.level),
       art: gearPortrait(g, type), status,
       detail() {
         const weapon = type === "weapon", journey = Game.isJourneyGear(s, g);
-        let info = GearCompareView.detail(comparison, weapon ? "legacyWeapon" : "legacyArmor") +
-          line("장비", escapeHtml([tier(g, type), status || "보관 중"].join(" · ")));
+        let info = GearGradeView.detail(g) + GearCompareView.detail(comparison, weapon ? "legacyWeapon" : "legacyArmor") +
+          line("장비 상태", status || "보관 중");
         const craft = craftSummary(g);
         if (craft) info += line("제작", escapeHtml(craft));
         if (journey && weapon) info += line("이력", "기록 중인 검");
@@ -89,10 +89,10 @@ const InventoryView = (() => {
   function entries(s) {
     const bladeId = Game.blades.current(s).id, armorId = Game.blades.currentArmor(s).id;
     const items = [
-      ...Game.blades.state(s).items.map(item => ({gearItem:item, comparison:Game.compareGear(s,item,"blade"), key: "blade-"+item.id, group: "gear", name: Game.blades.rarityNames[item.grade]+" "+Game.blades.name(item), grade:item.grade, mark: "+"+item.level,
-        shortName:Game.blades.name(item), wornSlot:item.id === bladeId ? "weapon" : "", id:item.id,
+      ...Game.blades.state(s).items.map(item => ({gearItem:item, comparison:Game.compareGear(s,item,"blade"), key: "blade-"+item.id, group: "gear", name: Game.blades.name(item), rarity:Game.blades.itemRarity(item), baseGrade:Game.blades.baseGradeNames[item.grade], mark: "+"+item.level,
+        wornSlot:item.id === bladeId ? "weapon" : "", id:item.id,
         art: BladeView.artwork(item), status: Game.endgame.info(s).deployed.includes(item.id) ? "배치" : item.ascended ? "초월" : item.id === bladeId ? "주력" : "", detail: () => BladeView.itemDetail(s,item)})),
-      ...Game.blades.armors(s).map(item => ({gearItem:item, comparison:Game.compareGear(s,item,"chest"), key:"huntarmor-"+item.id, group:"gear", name:Game.blades.rarityNames[item.grade]+" "+Game.blades.name(item), grade:item.grade, mark:"+"+item.level,
+      ...Game.blades.armors(s).map(item => ({gearItem:item, comparison:Game.compareGear(s,item,"chest"), key:"huntarmor-"+item.id, group:"gear", name:Game.blades.name(item), rarity:Game.blades.itemRarity(item), baseGrade:Game.blades.baseGradeNames[item.grade], mark:"+"+item.level,
         wornSlot:item.id === armorId ? "chest" : "", id:item.id,
         art:BladeView.artwork(item), status:item.id===armorId?"장착":"", detail:()=>BladeView.armorDetail(s,item)})),
       ...OutfitView.entries(s),
@@ -122,7 +122,7 @@ const InventoryView = (() => {
       go("altar", "별의 제단으로", "action") + openBtn("relicWorkshop", "유물 강화"));
     stack("fiber", "숲결 섬유", s.forestFiber, icon("trees"), "방어구의 숲 방호 안감을 제작하고 보강합니다.", forgeButton("armor", "방어구로"));
     stack("tickets", "탑 입장권", s.tickets, icon("ticket"), "도전의 탑 등반에 사용합니다.", go("tower", "도전의 탑으로", "action"));
-    stack("stones", "전설 제련석", s.stones, icon("gem"), "전설 무기의 초월 합성에 사용합니다.", openBtn("fusion", "합성 재료 보기"));
+    stack("stones", "전설 제련석", s.stones, icon("gem"), "베이스 IV 무기의 초월 합성에 사용합니다.", openBtn("fusion", "합성 재료 보기"));
     stack("marks", "길드 징표", s.marks, icon("castle"), "개인 길드 창설에 사용합니다.", openBtn("guild", "길드 열기"));
     stack("clues", "단조 단서", s.forgeClues, icon("book-open"), "단조 수첩에서 집중 강화와 최고점 복구에 사용합니다.", forgeButton("weapon", "대장간으로"));
     s.ore.forEach((count, i) => stack("ore-" + i, Game.oreNames[i], count, icon("gem"),
@@ -141,12 +141,18 @@ const InventoryView = (() => {
     return items;
   }
 
+  function gradeMark(item) {
+    if (!item?.rarity) return "";
+    return '<small class="bag-rarity">' + item.rarity.name + ' <span title="' + item.baseGrade + '">· ' +
+      item.baseGrade.split(" ").at(-1) + '</span></small>';
+  }
   function tile(item) {
-    const label = [item.name, item.mark, item.status, item.affix, item.comparison && GearCompareView.accessible(item.comparison)].filter(Boolean).join(" ");
-    return '<button class="bag-slot" data-rarity="'+(item.grade ?? "")+'" data-group="' + item.group + '" data-open="' + escapeHtml(item.open || "inventory-" + item.key) +
+    const label = [item.rarity?.name, item.name, item.baseGrade, item.mark, item.status, item.affix, item.comparison && GearCompareView.accessible(item.comparison)].filter(Boolean).join(" ");
+    return '<button class="bag-slot" data-rarity="'+(item.rarity?.key || "")+'" data-group="' + item.group + '" data-open="' + escapeHtml(item.open || "inventory-" + item.key) +
       '" aria-label="' + escapeHtml(label) + '" aria-haspopup="dialog">' +
       '<span class="bag-slot-art" aria-hidden="true">' + item.art + '</span>' +
       (item.status ? '<small class="bag-slot-status">' + item.status + '</small>' : '') +
+      gradeMark(item) +
       '<b class="bag-slot-name">' + escapeHtml(item.shortName || item.name) + '</b>' +
       (item.affix ? '<small class="bag-slot-affix">'+escapeHtml(item.affix)+'</small>' : '')+
       (item.comparison ? GearCompareView.score(item.comparison,true) : '') +
@@ -156,11 +162,11 @@ const InventoryView = (() => {
   function markMatchingGear(items) {
     const counts = new Map();
     for (const entry of items.filter(it=>it.gearItem)) {
-      const key = entry.name+entry.mark;
+      const key = entry.rarity.key+entry.name+entry.mark;
       counts.set(key,(counts.get(key)||0)+1);
     }
     for (const entry of items) {
-      if (!entry.gearItem || counts.get(entry.name+entry.mark)<2) continue;
+      if (!entry.gearItem || counts.get(entry.rarity.key+entry.name+entry.mark)<2) continue;
       const mod = entry.gearItem.mods[0];
       entry.affix = mod?.ascended ? SoulView.recipes(entry.gearItem)[mod.ascended].name :
         mod ? Game.blades.modDefs[mod.key].name+" +"+mod.value+(mod.key==="plating"?"%p":"%") : "옵션 없음";
@@ -176,12 +182,13 @@ const InventoryView = (() => {
       const part = {shoulder:"어깨", legs:"다리"}[slot.key] || slot.name;
       const name = item?.gearItem ? Game.blades.name(item.gearItem) : item?.name;
       const open = item ? item.open || "inventory-" + item.key : "outfit:slot:" + slot.key;
-      const label = [slot.name, item ? item.name + " " + item.mark : "빈칸", item?.affix, item?.comparison && GearCompareView.accessible(item.comparison)].filter(Boolean).join(" · ");
+      const label = [slot.name, item ? item.rarity.name + " " + item.name + " " + item.baseGrade + " " + item.mark : "빈칸", item?.affix, item?.comparison && GearCompareView.accessible(item.comparison)].filter(Boolean).join(" · ");
       return '<button class="bag-slot bag-worn-slot" data-slot="' + slot.key + '" data-empty="' + !item +
-        '" data-open="' + escapeHtml(open) + '" data-rarity="' + (item?.grade ?? "") + '"' +
+        '" data-open="' + escapeHtml(open) + '" data-rarity="' + (item?.rarity?.key || "") + '"' +
         (item ? ' data-item-id="' + escapeHtml(item.id) + '"' : '') + ' aria-haspopup="dialog" aria-label="' + escapeHtml(label) + '">' +
         '<span class="bag-worn-part">' + part + '</span><span class="bag-slot-art" aria-hidden="true">' +
         (item ? item.art : OutfitView.art(slot.kind)) + '</span>' +
+        gradeMark(item) +
         '<b class="bag-slot-name">' + escapeHtml(name || "빈칸") + '</b>' +
         (item?.affix ? '<small class="bag-slot-affix">' + escapeHtml(item.affix) + '</small>' : '') +
         (item ? GearCompareView.score(item.comparison,true) : '') +
@@ -218,7 +225,7 @@ const InventoryView = (() => {
   function menu(s, key) {
     const item = entries(s).find(item => item.key === key);
     if (!item) return ["아이템", desc("이미 사용했거나 옮긴 아이템입니다.")];
-    return [item.name + (item.group === "gear" ? " " + item.mark : ""),
+    return [(item.rarity ? item.rarity.name + " " : "") + item.name + (item.group === "gear" ? " " + item.mark : ""),
       '<div class="bag-detail-art" aria-hidden="true">' + item.art + '</div>' + item.detail()];
   }
   return { view, menu };
