@@ -278,8 +278,19 @@ body.ui-game {
 .bag-detail-art { margin: 0 auto 8px; width: 70px; height: 70px; color: #8a6833; }
 .bag-detail-art .gear-portrait { width: 70px; height: 70px; }
 .bag-detail-art img, .bag-detail-art svg { width: 45px; height: 45px; object-fit: contain; image-rendering: pixelated; }
-.bag-section-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
-.bag-section-head .outfit-open { min-height:40px; }
+.bag-loadout { padding:7px 5px 6px; border:1px solid #796a4f; border-radius:11px; background:#1a2420df; }
+.bag-loadout h2 { margin:0 3px 6px; color:#f5dfac; font-size:15px; line-height:1.3; }
+.bag-loadout-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; }
+.bag-loadout-grid .bag-worn-slot { align-content:start; grid-template-rows:auto 39px auto; gap:1px; padding:5px 2px; min-height:80px; }
+.bag-worn-part { color:#eee2c5; font-size:11px; font-weight:700; white-space:nowrap; }
+.bag-worn-slot .bag-slot-art { height:39px; width:100%; }
+.bag-worn-slot :is(.gear-portrait,.outfit-art) { width:38px; height:38px; }
+.bag-worn-slot .bag-slot-name { font-size:11px; }
+.bag-worn-slot .bag-slot-affix { font-size:10px; }
+.bag-worn-level { position:absolute; top:21px; right:2px; color:#ffedb8; background:#222821d9; padding:0 2px; border-radius:3px; font-size:10px; }
+.bag-worn-slot[data-empty="true"] { background:#27302a; border:1px dashed #81765d; box-shadow:none; }
+.bag-worn-slot[data-empty="true"] .outfit-art { opacity:.45; filter:grayscale(1); }
+.bag-worn-slot[data-empty="true"] .bag-slot-name { color:#c2b9a3; font-weight:500; }
 .outfit-art { display:inline-block; flex:none; width:46px; height:46px; background-image:url("assets/outfit-atlas.webp"); background-size:400% 200%; background-repeat:no-repeat; image-rendering:pixelated; }
 .outfit-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
 .outfit-slot { grid-template-rows:auto minmax(42px,1fr) auto; gap:2px; padding:7px 2px; }

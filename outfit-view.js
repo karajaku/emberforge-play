@@ -17,10 +17,13 @@ const OutfitView = (() => {
     return name + " 전환 " + pct(effect.conversion) + (effect.exposure ? " · 저항 −" + pct(effect.exposure) + "p" : "");
   }
   function entries(s) {
-    return api().state(s).items.map(item => ({
-      key:"outfit-" + item.id, group:"gear", name:api().name(item), grade:item.grade, mark:"+" + item.level,
-      art:art(item.kind), status:slotFor(s,item.id) ? "착용" : "", open:"outfit:item:" + item.id,
-    }));
+    return api().state(s).items.map(item => {
+      const worn = slotFor(s,item.id);
+      return {
+        key:"outfit-" + item.id, id:item.id, wornSlot:worn?.key, group:"gear", name:api().name(item), grade:item.grade, mark:"+" + item.level,
+        art:art(item.kind), status:worn ? "착용" : "", open:"outfit:item:" + item.id,
+      };
+    });
   }
   function slots(s) {
     const data = api().state(s), armor = Game.blades.currentArmor(s);
