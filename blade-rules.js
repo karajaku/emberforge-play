@@ -134,12 +134,13 @@ const BladeRules = (() => {
       hp: Math.round((170 + armor * 6) * (1 + 0.04 * (s.huntLining || 0))),
       defense,
       heavy: Math.round(a * 2.1 * pct("heavy") * (family === 2 ? 1.12 : 1)),
-      counter: Math.round(a * 2.8 * pct("counter") * (family === 3 ? 1.3 : 1)),
+      counter: Math.round(a * 2.8 * pct("counter") * (family === 3 ? 1.3 : 1) * (item.ascended?.style === "counter" ? 0.8 : 1)),
       rupture: Math.round(a * 0.85 * pct("rupture")),
       strike: Math.round(a * pct("strike")),
       opening: family === 0 ? 20 : 0,
       finish: value(item, "finish") + (family === 1 ? 15 : 0),
       style: state(s).style,
+      ascension: item.ascended?.style,
       guardBonus: craft.grindBonus(item.grind, 0),
       mods: Object.fromEntries(item.mods.map((m) => [m.key, m.value])),
     };
@@ -181,11 +182,21 @@ const BladeRules = (() => {
     const choices = available(item);
     if (!choices.length || (key && !choices.includes(key))) return false;
     key ||= choices[integer(0, choices.length - 1, rng)];
-    const roll = rng(),
-      tier = Math.min(maxTier(item.rank), roll < 0.4 ? 1 : roll < 0.72 ? 2 : roll < 0.94 ? 3 : 4);
-    const [lo, hi] = modDefs[key].ranges[tier - 1];
-    item.mods.push({ key, tier, value: integer(lo, hi, rng) });
+    item.mods.push(rollMod(key,item.rank,rng));
     return true;
+  }
+  function rollMod(key,rank,rng) {
+    const roll=rng();
+    return rollValue(key,Math.min(maxTier(rank),roll<.4?1:roll<.72?2:roll<.94?3:4),rng);
+  }
+  function rollValue(key,tier,rng) {
+    const [lo,hi]=modDefs[key].ranges[tier-1];
+    return {key,tier,value:integer(lo,hi,rng)};
+  }
+  function validMod(m,rank) {
+    if (!m || !Object.hasOwn(modDefs,m.key) || !Number.isInteger(m.tier) || m.tier<1 || m.tier>maxTier(rank) || m.ascended!==undefined) return false;
+    const [lo,hi]=modDefs[m.key].ranges[m.tier-1];
+    return Number.isInteger(m.value) && m.value>=lo && m.value<=hi;
   }
   function reward(s, h, rng) {
     const b = state(s),
@@ -214,6 +225,8 @@ const BladeRules = (() => {
       item = current(s);
     const ok = (message, kind = "win") => ({ ok: true, message, kind });
     const fail = (message) => ({ ok: false, message });
+    const deployed = (id) => !!id && (id===b.deployed || id===b.extraDeployed);
+    if (item.soulChoice && (action==="bladeEtch" || action==="bladePolish")) return fail("영혼각인 후보를 먼저 확정하세요.");
     switch (action) {
       case "bladeStyle":
         if (!Object.hasOwn(styles, arg)) return fail("검술을 확인하세요.");
@@ -227,7 +240,7 @@ const BladeRules = (() => {
       }
       case "bladeEquip": {
         const target = b.items.find((x) => x.id === arg);
-        if (!target || target.id === b.deployed) return fail("검신을 회수한 뒤 장착하세요.");
+        if (!target || deployed(target.id)) return fail("검신을 회수한 뒤 장착하세요.");
         b.equipped = target.id;
         return ok(name(target) + " 장착");
       }
@@ -236,21 +249,26 @@ const BladeRules = (() => {
         if (
           !target ||
           target.level < 13 ||
+          target.soulChoice ||
           target.id === b.equipped ||
           target.id === s.hunt?.bladeId ||
-          b.deployed
+          deployed(target.id) || (b.deployed && (b.extraDeployed || !(b.soul?.learned.land || s.imprints?.land)))
         )
           return fail("여분의 +13 이상 검신과 빈 배치 자리가 필요합니다.");
-        b.deployed = target.id;
+        if (b.deployed) b.extraDeployed=target.id;
+        else b.deployed=target.id;
         return ok(name(target) + " 배치 · 분당 " + income(target) + " G");
       }
-      case "bladeRecall":
-        if (!b.deployed) return fail("배치한 검신이 없습니다.");
-        b.deployed = null;
+      case "bladeRecall": {
+        const id=arg || b.deployed;
+        if (!deployed(id)) return fail("배치한 검신을 확인하세요.");
+        if (id===b.extraDeployed) b.extraDeployed=null;
+        else { b.deployed=b.extraDeployed || null; b.extraDeployed=null; }
         return ok("검신을 보관함으로 회수했습니다.");
+      }
       case "bladeSalvage": {
         const i = b.items.findIndex((x) => x.id === arg);
-        if (i < 0 || arg === b.equipped || arg === s.hunt?.bladeId || arg === b.deployed)
+        if (i < 0 || arg === b.equipped || arg === s.hunt?.bladeId || deployed(arg) || b.items[i].soulChoice)
           return fail("전투·장착 중인 검신은 분해할 수 없습니다.");
         const n = 1 + b.items[i].mods.length;
         b.items.splice(i, 1);
@@ -289,7 +307,7 @@ const BladeRules = (() => {
       }
       case "bladePolish": {
         const m = item.mods.find((x) => x.key === arg);
-        if (!m || b.ore < 3) return fail("연마할 옵션과 각인석 3개가 필요합니다.");
+        if (!m || m.ascended || b.ore < 3) return fail("연마할 옵션과 각인석 3개가 필요합니다.");
         const [lo, hi] = modDefs[m.key].ranges[m.tier - 1];
         if (m.value >= hi) return fail("이미 이 등급의 최고 수치입니다.");
         b.ore -= 3;
@@ -371,13 +389,14 @@ const BladeRules = (() => {
         if (!m || !available(seen).includes(m.key) || !nat(m.tier) || !m.tier || m.tier > maxTier(i.rank))
           return false;
         const [lo, hi] = modDefs[m.key].ranges[m.tier - 1];
-        if (!nat(m.value) || m.value < lo || m.value > hi) return false;
+        if (m.ascended===undefined ? !nat(m.value) || m.value<lo || m.value>hi : m.value!==0) return false;
         seen.mods.push(m);
       }
     }
     return (
       ids.has(b.equipped) &&
       nat(b.seals) &&
+      (b.extraDeployed==null || (b.deployed && b.extraDeployed!==b.deployed && b.extraDeployed!==b.equipped && b.items.some(i=>i.id===b.extraDeployed && i.level>=13))) &&
       (b.deployed === null ||
         (b.deployed !== b.equipped && b.items.some((i) => i.id === b.deployed && i.level >= 13)))
     );
@@ -398,7 +417,7 @@ const BladeRules = (() => {
     armorCost,
     armorRate,
     skills,
-    available,
+    available, maxTier, integer, rollMod, rollValue, validMod,
     reward,
     act,
     valid,

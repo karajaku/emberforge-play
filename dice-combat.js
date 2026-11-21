@@ -28,6 +28,7 @@ const DiceCombat=(()=>{
       mods = st.mods;
     let player = actions[playerFace - 1];
     const enemy = actions[enemyFace - 1];
+    const ascended = st.ascension === st.style;
     // A counter smith converts an ordinary swing into a parry on a telegraphed enemy skill.
     if (
       st.style === "counter" &&
@@ -50,6 +51,7 @@ const DiceCombat=(()=>{
       momentum = h.momentum ?? 1,
       counter = !!h.counter,
       skill = null,
+      ruptured = !!h.ruptured,
       raw = 0;
     if (!block) {
       if (st.style === "counter" && counter && cooldowns.counter === 0) {
@@ -60,12 +62,14 @@ const DiceCombat=(()=>{
       } else if (st.style === "wound" && wounds >= 3) {
         skill = "rupture";
         raw = st.attack + st.rupture * wounds;
-        wounds = 0;
+        if (ascended && !ruptured) raw *= .75;
+        ruptured = true;
+        wounds = ascended ? 1 : 0;
         if (player === "heavyStrike") raw *= st.heavy / (2.1 * st.attack);
       } else if (st.style === "heavy" && momentum >= 2 && !cooldowns.heavyStrike) {
         skill = "heavyStrike";
         raw = st.heavy;
-        cooldowns.heavyStrike = proc("cooldown") ? 2 : 3;
+        cooldowns.heavyStrike = (proc("cooldown") ? 2 : 3) + Number(ascended);
       } else {
         raw = player === "heavyStrike" ? (st.heavy * 1.7) / 2.1 : st.strike;
         if (st.style === "wound") wounds = Math.min(4, wounds + 1 + Number(proc("wounds")));
@@ -77,7 +81,8 @@ const DiceCombat=(()=>{
     }
     // A rupture ignores a defensive face. Bleeding continues even during a block.
     const bleed = st.style === "wound" ? Math.round((h.wounds || 0) * st.rupture * 0.14) : 0;
-    const damage = Math.min(h.enemyHp, Math.round(raw * (enemyBlocks && skill !== "rupture" ? 0.25 : 1)) + bleed);
+    const pierces = skill==="rupture" || (ascended && skill==="heavyStrike");
+    const damage = Math.min(h.enemyHp, Math.round(raw * (enemyBlocks && !pierces ? .25 : 1)) + bleed);
     const enemySkillState = { ...h.enemySkillState, cooldown: Math.max(0, h.enemySkillState.cooldown - 1) };
     const key = enemySkillState.key;
     const fires = key === "escape" ? h.waveTurn >= 2 : !enemyBlocks && !enemySkillState.cooldown;
@@ -98,12 +103,14 @@ const DiceCombat=(()=>{
       enemyBlocks || key === "escape" || damage >= h.enemyHp
         ? 0
         : h.enemyAttack * (enemySkill ? enemySkillState.power : power) * guard * (amplified ? 1.5 : 1);
-    const fortified = !!h.fortified || (skill === "counter" && !!mods.fortify);
+    const ironCounter=ascended && st.style==="counter";
+    const fortified = !!h.fortified || (skill === "counter" && (!!mods.fortify || ironCounter));
+    const shield = fortified ? (1-(mods.fortify||0)/100)*(ironCounter ? 0.65 : 1) : 1;
     const taken = Math.min(
       h.hp,
       Math.max(
         0,
-        Math.round(incoming * (1 - st.defense / 100) * (fortified ? 1 - (mods.fortify || 0) / 100 : 1)),
+        Math.round(incoming * (1 - st.defense / 100) * shield),
       ),
     );
     const healPercent = guarded ? mods.guard || 0 : damage >= h.enemyHp ? mods.recovery || 0 : 0;
@@ -117,6 +124,7 @@ const DiceCombat=(()=>{
       taken,
       healed,
       wounds,
+      ruptured,
       firstHit: !!(block && h.firstHit !== false),
       fortified: fortified && !taken,
       skill,

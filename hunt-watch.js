@@ -88,7 +88,7 @@ const HuntWatch=(()=>{
       const charge = style === "heavy" ? h.momentum ?? 1 : style === "wound" ? h.wounds || 0 : Number(!!h.counter);
       const need = style === "heavy" ? 2 : style === "wound" ? 3 : 1;
       const ready = !cd && charge >= need;
-      const label = {heavy:"일격",counter:"반격",wound:"파열"}[style];
+      const label = h.bladeCombat.ascension === style ? Game.endgame.transform[style].name : {heavy:"일격",counter:"반격",wound:"파열"}[style];
       const hint = h.lastDice?.skill === key && !motionEnabled() ? "발동" : cd ? cd + "턴 대기" : ready ? "준비 완료" : style === "heavy" ? "기세 "+charge+"/2" :
         style === "wound" ? "상처 "+charge+"/3" : "방어 대기";
       const meter = Array.from({length:need},(_,i)=>'<i'+(i < charge && !cd ? ' class="filled"' : '')+'></i>').join("");

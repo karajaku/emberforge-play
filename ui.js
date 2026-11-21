@@ -223,7 +223,7 @@ for (const type of ["pointermove", "pointerup", "pointercancel", "lostpointercap
 function notify(msg, kind = "info") {
   if (HuntWatch.active && current() === 'forest' && !modal) return;
   if (!msg) return;
-  if (modal.startsWith("blade") && !el("shade").hidden) {
+  if ((modal.startsWith("blade") || modal.startsWith("soul:")) && !el("shade").hidden) {
     let status=el("bladeActionStatus");
     if (!status) {
       status=document.createElement("p");
@@ -251,7 +251,12 @@ function syncMusic() {
   GameMusic.update(GameMusic.resolve({ route, modal, story: storyScene, state, page: phonePage(route), towerMode }),
     { enabled: prefs.music, volume: prefs.musicVolume, hidden: document.hidden });
 }
-function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
+function soulQuote(s, arg) {
+  const b = Game.blades.state(s), g = Game.endgame.info(s);
+  return JSON.stringify([b.items.find(item => item.id === arg.id), b.equipped, s.hunt?.bladeId,
+    b.ore, b.cleared, g.deployed, g.souls, g.gift, g.unlocked, g.tokens, g.bossSeals]);
+}
+function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedSoul) {
   const sourceInventoryMenu = modal.startsWith("inventory-") && !automaticGuard && !repeatGuard ? modal : "";
   const bulkQuote = action === "journeyBulk" && typeof arg === "object" ? arg : null;
   if (bulkQuote) arg = bulkQuote.type;
@@ -291,6 +296,11 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
       autoCombat.stop();
     }
     sync();
+    if (expectedSoul && expectedSoul !== soulQuote(state, arg)) {
+      render(); if (modal) displayModal();
+      notify("검신이나 재료가 바뀌었습니다. 새 조건을 확인하세요.");
+      return;
+    }
     if (bladeTargeted && expectedBlade !== bladeQuote()) {
       render(); if (modal) displayModal();
       notify("장비가 바뀌었습니다. 비용과 제작할 장비를 다시 확인하세요.");
@@ -375,6 +385,9 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
     if (inventoryAction) modal = "";
     if (result.ok && action === "bladeMaster") { HuntWatch.selectMaster(); modal = ""; }
     if (result.ok && action === "bladeSalvage") modal = "bladeCollection";
+    if (result.ok && action === "soulRebirth") modal = "soul:transfer:" + Game.blades.current(state).id;
+    if (result.ok && ["soulLuck","soulPolish"].includes(action)) modal = "soul:craft:" + arg.id;
+    if (result.ok && ["soulChoose","soulTransfer","soulAscend"].includes(action)) modal = "bladeItem-" + arg.id;
     if (result.ok && action === "temperStart") modal = "temper";
     if (result.ok && action === "bladeWorkStart") modal = "bladeWork";
     if (result.ok && action === "bladeFinalStart") modal = "bladeFinal";
@@ -669,6 +682,7 @@ function swordJournal(s, record = s.swordRecord) {
 }
 function modalData() {
   const s = state;
+  if (modal.startsWith("soul:")) return SoulView.modal(s, modal);
   if (modal.startsWith("blade")) return BladeView.modal(s, modal);
   if (!archiveBlade && (modal === "lessons" || modal === "help")) return BladeView.modal(s, "bladeGuide");
   if (modal.startsWith("inventory-")) return InventoryView.menu(s, modal.slice("inventory-".length));
@@ -1032,6 +1046,8 @@ function displayModal() {
   el("shade").dataset.modal = modal;
   el("modalTitle").textContent = title;
   el("modalBody").innerHTML = html;
+  for (const button of el("modalBody").querySelectorAll("[data-soul-act]"))
+    button.soulQuote = soulQuote(state, JSON.parse(button.dataset.soulArg));
   if (el("saleItem")) {
     el("saleItem").value = selectedSale || "";
     if (el("saleItem").selectedIndex < 0) el("saleItem").value = "";
@@ -1257,6 +1273,10 @@ document.addEventListener("click", (e) => {
   if (d.go) return nav(d.go);
   if (d.open) return showModal(d.open, b);
   if ("close" in d) return dismissModal();
+  if (d.soulAct) {
+    b.disabled = true;
+    return act(d.soulAct, JSON.parse(d.soulArg), undefined, undefined, undefined, b.soulQuote);
+  }
   if (d.act) {
     if (modal.startsWith("inventory-")) {
       // A stored slot can change index as soon as one action commits.

@@ -1,5 +1,6 @@
 "use strict";
 const Game = (() => {
+  const endgame = typeof module !== "undefined" ? require("./blade-endgame.js") : BladeEndgame;
   const blades = typeof module !== "undefined" ? require("./blade-rules.js") : BladeRules;
   const journey = typeof module !== "undefined" ? require("./journey-rules.js") : JourneyRules;
   const story = typeof module !== "undefined" ? require("./charcoal-story.js") : CharcoalStory;
@@ -622,8 +623,9 @@ const Game = (() => {
       // Settle pre-update time at the old rate before switching existing saves.
       const divisor = s.fieldIncomeVersion === 2 ? 1 : 6;
       const fieldRate=s.field.reduce((n,g)=>n+perMinute(g)/divisor,0);
-      const stationed=s.bladeForge?.items.find(i=>i.id===s.bladeForge.deployed);
-      s.unclaimed += ((t - s.last) / 60000) * (fieldRate+blades.income(stationed));
+      const b=s.bladeForge;
+      const bladeIncome=b ? b.items.reduce((sum,i)=>sum+(i.id===b.deployed || i.id===b.extraDeployed ? blades.income(i):0),0) : 0;
+      s.unclaimed += ((t - s.last) / 60000) * (fieldRate+bladeIncome);
       s.last = t;
     }
     s.fieldIncomeVersion = 2;
@@ -804,6 +806,7 @@ const Game = (() => {
       const m = dice.turn(h, dice.face(random), dice.face(random), random);
       Object.assign(h, {
         wounds: m.wounds,
+        ruptured: m.ruptured,
         firstHit: m.firstHit,
         fortified: m.fortified,
         counter: m.counter,
@@ -848,18 +851,22 @@ const Game = (() => {
       return { ok: true, message, kind };
     };
     const int = (a, b) => a + Math.floor(random() * (b - a + 1));
-    if (typeof act === "string" && act.startsWith("blade")) {
+    const soulAction=typeof act==="string" && act.startsWith("soul");
+    if (soulAction || (typeof act === "string" && act.startsWith("blade"))) {
       const workshop=act.startsWith("bladeWork") || act.startsWith("bladeFinal");
-      const result=workshop ? bladeWorkshop(s,act,arg,t,random,pressedAt) : blades.act(s,act,arg,random,payForgeFee);
+      endgame.record(s);
+      const result=soulAction ? endgame.act(s,act,arg,random) :
+        workshop ? bladeWorkshop(s,act,arg,t,random,pressedAt) : blades.act(s,act,arg,random,payForgeFee);
       if (!result.ok) return result;
       const h=s.hunt;
-      if (h?.bladeId===blades.current(s).id && ["bladeForge","bladeEtch","bladePolish","bladeWorkFinish","bladeFinalMove"].includes(act)) {
+      if (h?.bladeId===blades.current(s).id && (!soulAction || arg?.id===h.bladeId) && ["bladeForge","bladeEtch","bladePolish","bladeWorkFinish","bladeFinalMove","soulTransfer","soulChoose","soulAscend"].includes(act)) {
         const style=h.bladeCombat.style;
         bindBladeCombat(s,h);
         h.bladeCombat.style=style;
       }
       if (act==="bladeForge" || act==="bladeWorkFinish" || act==="bladeFinalMove") {
         s.best=Math.max(s.best,blades.current(s).level);
+        endgame.record(s);
       }
       return success(result.message,result.kind);
     }
@@ -1501,7 +1508,7 @@ const Game = (() => {
         if (!move.available) return fail("2구역부터 기세 2칸으로 강공을 사용할 수 있습니다.");
         const { damage, taken } = move;
         if (h.bladeCombat) {
-          h.wounds=roll.wounds; h.firstHit=roll.firstHit; h.fortified=roll.fortified;
+          h.wounds=roll.wounds; h.ruptured=roll.ruptured; h.firstHit=roll.firstHit; h.fortified=roll.fortified;
           if (!taken) h.hp=Math.min(h.maxHp,h.hp+roll.healed);
         }
         h.momentum = move.momentum;
@@ -1546,7 +1553,7 @@ const Game = (() => {
             reward: chest.gold,
             bonus,
           };
-          if (h.bladeCombat) s.lastHunt.bladePrize=blades.reward(s,h,random);
+          if (h.bladeCombat) s.lastHunt.bladePrize=blades.reward(s,h,random)+endgame.victory(s,h);
           s.huntBest = Math.max(s.huntBest, h.rank);
           const route = s.weapon.route;
           const trained =
@@ -1925,7 +1932,7 @@ const Game = (() => {
     return 1 - Math.abs((elapsed % 1800) / 900 - 1);
   }
   return {
-    blades, bladeAttributes, bladePrizeGold, forestYield, liningCosts, huntStats, huntBlade, restoreHuntWeapon, migrateJourneyOpponent, hunting, settleHunting, huntingStatus, resetProgress,
+    blades, endgame, bladeAttributes, bladePrizeGold, forestYield, liningCosts, huntStats, huntBlade, restoreHuntWeapon, migrateJourneyOpponent, hunting, settleHunting, huntingStatus, resetProgress,
     startSwordRecord, freshJourney, enableJourney, isJourneyGear, canAdoptSword, journeyForge, journeySmith, saleValue, currentOrder, dailyGold,
     journeyProcessOptions: i => journey.processOptions[i],
     huntArea: journey.area, journeyTraits: journey.bladeTraits,

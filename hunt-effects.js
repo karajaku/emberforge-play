@@ -69,8 +69,10 @@ const HuntEffects=(()=>{
     function skillFlare(side,key,at){if(!key)return;later(()=>{
       const def=side==='player' && before.bladeCombat && key==='rupture' ? {name:'파열',icon:'sword'} :
         side==='player' && before.bladeCombat && key==='heavyStrike' ? {name:'일격',icon:'hammer'} : (side==='player'?DiceCombat.skills:DiceCombat.enemySkills)[key];
+      const chosen = before.bladeCombat?.style;
+      const special = side === "player" && chosen && before.bladeCombat.ascension === chosen ? Game.endgame.transform[chosen].name : "";
       const banner=document.createElement('div');
-      banner.className='watch-skill-flare '+key+' '+side;banner.dataset.skillSide=side;banner.innerHTML=icon(def.icon)+'<b>'+def.name+'</b>';
+      banner.className='watch-skill-flare '+key+' '+side;banner.dataset.skillSide=side;banner.innerHTML=icon(def.icon)+'<b>'+(special || def.name)+'</b>';
       // Timer callbacks may arrive late on busy devices; never overlap action callouts.
       arena.querySelectorAll('.watch-skill-flare').forEach(node=>node.remove());
       arena.querySelector('.watch-fighter.'+side+' .watch-action').append(banner);nodes.push(banner);later(()=>banner.remove(),650);

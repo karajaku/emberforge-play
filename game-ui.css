@@ -154,6 +154,15 @@ body.ui-game { grid-template-rows:auto minmax(0,1fr) auto auto; }
 .ui-game #screen .field-slots .listrow { background:#27372de8;border-color:#8b865c;color:#e3dabd; }
 .ui-game .progression-stage { display:grid;place-items:center;min-height:112px;flex:0 0 112px!important;background:radial-gradient(ellipse,#d6c37a26,transparent 65%); }
 .ui-game .progression-stage svg { width:62px;height:62px;color:#eee1a0;filter:drop-shadow(0 0 12px #d7cf82); }
+.ui-game .soul-growth { margin-top:auto; padding:8px 6px; background:linear-gradient(transparent,#151d23cc 16%,#151d23cc 85%,transparent); }
+.ui-game #screen .soul-growth .card { padding:8px; }
+.soul-growth .soul-archive { float:right; margin:0 8px 8px; }
+#shade[data-modal^="soul:"] .listrow .grow { min-width:0; overflow-wrap:anywhere; }
+#shade[data-modal^="soul:"] .listrow .mini { flex-shrink:0; }
+.soul-special .blade-range { white-space:normal; }
+@media(max-height:680px) {
+  .ui-game .progression-stage:has(+ .soul-growth) { min-height:64px; flex-basis:64px!important; }
+}
 .ui-game .dialog { --text:#443021;--muted:#735d49;--gold:#805011;--mint:#187652; color:var(--text); }
 @media(max-height:760px) {
  .ui-game header .headwrap { height:54px; }

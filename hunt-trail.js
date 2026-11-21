@@ -56,7 +56,7 @@ const HuntTrail = (() => {
       const goblin=h.enemyKind==="goblin";
       const bossHealth=h.enemyKind==="wyrm"?2.7:h.enemyKind==="elder"?2.2:1.65;
       stats={hp:Math.round(a.enemyHp*(goblin?.36:boss?bossHealth:1)),attack:goblin?0:Math.round(a.enemyAttack*(boss?1.2:1))};
-      h.wounds=0; h.firstHit=true;
+      h.wounds=0; h.ruptured=false; h.firstHit=true;
     } else stats=opponent(h.rank, h.enemyKind, h.journeyBattle === 1);
     h.enemyMax = h.enemyHp = stats.hp;
     h.enemyAttack = stats.attack;

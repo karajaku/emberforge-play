@@ -571,9 +571,11 @@ function huntChoices(h) {
     }).join("") + "</div>";
 }
 function fieldView(s) {
-  const rack = Game.blades.state(s), held = rack.items.find(i => i.id === rack.deployed);
-  const bladeSlot = line("검신 배치", held ? Game.blades.name(held) + " +" + held.level : "빈자리") +
-    (held ? line("검신 수익", fmt(Game.blades.income(held))+" G / 분") + btn("bladeRecall","검신 회수") : openBtn("bladeCollection","+13 이상 검신 배치"));
+  const rack = Game.blades.state(s), progress = Game.endgame.info(s);
+  const held = progress.deployed.map(id=>rack.items.find(item=>item.id===id)).filter(Boolean);
+  const bladeSlot = line("검신 배치",held.length+" / "+(progress.unlocked.land?2:1)) +
+    held.map(item=>row(Game.blades.name(item)+" +"+item.level,fmt(Game.blades.income(item))+" G / 분",btn("bladeRecall","회수",item.id,"mini"))).join("") +
+    (held.length<(progress.unlocked.land?2:1) ? openBtn("bladeCollection","+13 이상 검신 배치") : "");
   const candidates = s.bag
     .map((g, i) =>
       g.level >= 13 && !Game.isJourneyGear(s, g)
@@ -591,7 +593,7 @@ function fieldView(s) {
   return (
     metrics(
       gaugeMetric("배치 무기", s.field.length, 2 + s.imprints.land, "mint"),
-      metric("10초당 골드", brief(s.field.reduce((n, g) => n + Game.perMinute(g) / 6, held ? Game.blades.income(held) / 6 : 0))),
+      metric("10초당 골드", brief((s.field.reduce((n,g)=>n+Game.perMinute(g),0) + held.reduce((n,item)=>n+Game.blades.income(item),0))/6)),
       metric("누적 배치 수익", '<span id="yield">' + brief(s.unclaimed) + "</span>"),
     ) +
     btn("collect", "배치 수익 수령", "", "primary") + bladeSlot +
@@ -767,7 +769,9 @@ function zoneView(s, id) {
     ""
   );
 }
-function growthView(s) {
+function growthView(s, archivePage) {
+  const page = archivePage || phonePage("growth");
+  if (!archivePage && page!=="guild" && typeof SoulView!=="undefined") return SoulView.growth(s,page);
   const imprint = Object.entries(Game.imprints)
     .map(([key, v]) =>
       row(
@@ -812,7 +816,7 @@ function growthView(s) {
       "castle",
     ),
   };
-  const page = phonePage("growth");
-  return page ? (page === "rebirth" ? '<div class="progression-stage" aria-hidden="true"></div>' : "") + summary + cards[page] : summary + section("영구 성장") +
+  // The archive modal selects its historical page explicitly.
+  return page ? summary + cards[page] : summary + section("영구 성장") +
     '<div class="baggrid">' + Object.values(cards).join("") + "</div>" + orderView(s);
 }

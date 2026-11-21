@@ -45,7 +45,7 @@ const InventoryView = (() => {
   function entries(s) {
     const items = [
       ...Game.blades.state(s).items.map(item => ({key: "blade-"+item.id, group: "gear", name: Game.blades.name(item), mark: "+"+item.level,
-        art: BladeView.artwork(item), status: Game.blades.current(s).id === item.id ? "주력" : "", detail: () => BladeView.itemDetail(s,item)})),
+        art: BladeView.artwork(item), status: Game.endgame.info(s).deployed.includes(item.id) ? "배치" : item.ascended ? "초월" : Game.blades.current(s).id === item.id ? "주력" : "", detail: () => BladeView.itemDetail(s,item)})),
       equipment(s, s.weapon, "weapon", "weapon"), equipment(s, s.armor, "armor", "armor"),
       ...s.bag.map((g, i) => equipment(s, g, "weapon", "stored-" + i, i)),
       ...s.field.map((g, i) => equipment(s, g, "weapon", "field-" + i, i)),
