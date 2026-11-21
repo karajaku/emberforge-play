@@ -108,14 +108,15 @@ const DiceCombat=(()=>{
     const shield = fortified ? (1-(mods.fortify||0)/100)*(ironCounter ? 0.65 : 1) : 1;
     const skillWard = enemySkill ? (st.skillWard || 0) : 0;
     const lastWard = h.hp <= h.maxHp / 2 ? (st.lastWard || 0) : 0;
-    const taken = Math.min(
-      h.hp,
-      Math.max(
-        0,
-        Math.round(incoming * (1 - st.defense / 100) * shield * (1 - skillWard / 100) * (1 - lastWard / 100)),
-      ),
-    );
-    const healPercent = guarded ? mods.guard || 0 : damage >= h.enemyHp ? mods.recovery || 0 : 0;
+    const armorEffect=st.armorAscension;
+    const wardFactor=armorEffect==="skillWard" ? (enemySkill ? 0.7 : 1.08) : 1;
+    const hit=incoming * (1-st.defense/100) * shield * (1-skillWard/100) * (1-lastWard/100) * wardFactor;
+    const absorbed=armorEffect==="plating" ? Math.max(0,hit-h.maxHp*0.15)*0.5 : 0;
+    const taken=Math.min(h.hp,Math.max(0,Math.round(hit-absorbed)));
+    const defeated=damage>=h.enemyHp;
+    let healPercent=guarded ? mods.guard || 0 : defeated ? mods.recovery || 0 : 0;
+    if (armorEffect==="vitality" && defeated) healPercent+=h.hp<=h.maxHp/2 ? 10 : 4;
+    if (armorEffect==="bracing" && guarded) healPercent+=6;
     const healed = taken < h.hp ? Math.min(h.maxHp - h.hp + taken, Math.round((h.maxHp * healPercent) / 100)) : 0;
     return {
       playerFace,

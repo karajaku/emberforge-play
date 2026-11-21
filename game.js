@@ -866,7 +866,7 @@ const Game = (() => {
       const h=s.hunt;
       const changedId=soulAction ? arg?.id : target.id;
       const changedStats=["bladeForge","bladeEtch","bladePolish","bladeWorkFinish","bladeFinalMove","soulTransfer","soulChoose","soulAscend"].includes(workshopAction) || act==="bladeArmor";
-      if (h?.bladeCombat && changedStats && changedId===(armorAction ? h.armorId : h.bladeId)) {
+      if (h?.bladeCombat && changedStats && changedId && (changedId===h.armorId || changedId===h.bladeId)) {
         const boundBlade=blades.state(s).items.find(i=>i.id===h.bladeId);
         const boundArmor=blades.armors(s).find(i=>i.id===h.armorId) || blades.currentArmor(s);
         const priorMax=h.maxHp;
@@ -876,8 +876,8 @@ const Game = (() => {
       }
       if (act==="bladeForge" || act==="bladeWorkFinish" || act==="bladeFinalMove") {
         s.best=Math.max(s.best,blades.current(s).level);
-        endgame.record(s);
       }
+      if (target.level===20) endgame.record(s);
       return success(result.message,result.kind);
     }
     const type = arg === "armor" ? "armor" : "weapon";

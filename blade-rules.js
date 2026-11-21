@@ -174,6 +174,7 @@ const BladeRules = (() => {
       finish: value(item, "finish") + (family === 1 ? 15 : 0),
       style,
       ascension: item.ascended?.style,
+      armorAscension: armor.ascended?.style,
       guardBonus: (1-blockBonus)*100,
       mods,
     };
@@ -274,7 +275,7 @@ const BladeRules = (() => {
     const ok = (message, kind = "win") => ({ ok: true, message, kind });
     const fail = (message) => ({ ok: false, message });
     const deployed = (id) => !!id && (id===b.deployed || id===b.extraDeployed);
-    if (item.soulChoice && (action==="bladeEtch" || action==="bladePolish")) return fail("영혼각인 후보를 먼저 확정하세요.");
+    if (item.soulChoice && ["bladeEtch","bladePolish","bladeArmorEtch","bladeArmorPolish"].includes(action)) return fail("영혼각인 후보를 먼저 확정하세요.");
     switch (action) {
       case "bladeStyle":
         if (!Object.hasOwn(styles, arg)) return fail("검술을 확인하세요.");
@@ -293,7 +294,7 @@ const BladeRules = (() => {
       }
       case "bladeArmorSalvage": {
         const rack=armors(s), index=rack.findIndex(i=>i.id===arg);
-        if (index<0 || arg===item.id || arg===s.hunt?.armorId) return fail("전투·장착 중인 방어구는 분해할 수 없습니다.");
+        if (index<0 || arg===item.id || arg===s.hunt?.armorId || rack[index].soulChoice) return fail("전투·장착 중인 방어구는 분해할 수 없습니다.");
         const ore=1+rack[index].mods.length;
         rack.splice(index,1);
         b.ore+=ore;
@@ -418,7 +419,6 @@ const BladeRules = (() => {
         (i.lootVersion!==undefined && i.lootVersion!==1) ||
         (!armor && i.lootVersion===undefined && i.grade!==0) ||
         (i.lootVersion===1 && i.mods.length<loot.rarityRules[i.grade].min) ||
-        (armor && (i.ascended!==undefined || i.soulChoice!==undefined)) ||
         (i.marks !== undefined &&
           (!Array.isArray(i.marks) ||
             i.marks.length > 3 ||
@@ -454,7 +454,6 @@ const BladeRules = (() => {
         if (!m || !available(seen).includes(m.key) || !nat(m.tier) || !m.tier || m.tier > maxTier(i.rank))
           return false;
         const [lo, hi] = modDefs[m.key].ranges[m.tier - 1];
-        if (armor && m.ascended!==undefined) return false;
         if (m.ascended===undefined ? !nat(m.value) || m.value<lo || m.value>hi : m.value!==0) return false;
         seen.mods.push(m);
       }

@@ -253,7 +253,7 @@ function syncMusic() {
 }
 function soulQuote(s, arg) {
   const b = Game.blades.state(s), g = Game.endgame.info(s);
-  return JSON.stringify([b.items.find(item => item.id === arg.id), b.equipped, s.hunt?.bladeId,
+  return JSON.stringify([(arg.id?.startsWith("a") ? Game.blades.armors(s) : b.items).find(item => item.id === arg.id), b.equipped, b.armorEquipped, s.hunt?.bladeId, s.hunt?.armorId,
     b.ore, b.cleared, g.deployed, g.souls, g.gift, g.unlocked, g.tokens, g.bossSeals]);
 }
 function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedSoul) {
@@ -388,9 +388,9 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     if (inventoryAction) modal = "";
     if (result.ok && action === "bladeMaster") { HuntWatch.selectMaster(); modal = ""; }
     if (result.ok && equivalent === "bladeSalvage") modal = armorAction ? "bladeArmorCollection" : "bladeCollection";
-    if (result.ok && action === "soulRebirth") modal = "soul:transfer:" + Game.blades.current(state).id;
+    if (result.ok && action === "soulRebirth") modal = "soul:transfer:" + (arg.id.startsWith("a") ? Game.blades.currentArmor(state) : Game.blades.current(state)).id;
     if (result.ok && ["soulLuck","soulPolish"].includes(action)) modal = "soul:craft:" + arg.id;
-    if (result.ok && ["soulChoose","soulTransfer","soulAscend"].includes(action)) modal = "bladeItem-" + arg.id;
+    if (result.ok && ["soulChoose","soulTransfer","soulAscend"].includes(action)) modal = (arg.id.startsWith("a") ? "bladeArmorItem-" : "bladeItem-") + arg.id;
     if (result.ok && action === "temperStart") modal = "temper";
     if (result.ok && equivalent === "bladeWorkStart") modal = armorAction ? "bladeArmorWork" : "bladeWork";
     if (result.ok && equivalent === "bladeFinalStart") modal = armorAction ? "bladeArmorFinal" : "bladeFinal";

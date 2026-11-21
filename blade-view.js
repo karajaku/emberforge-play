@@ -54,7 +54,7 @@ const BladeView = (() => {
     return ["prefix","suffix"].map((side, index) => {
       const list = item.mods.filter(m => b.modDefs[m.key].side === side);
       const filled = list.map(m => {
-        if (m.ascended) { const special=Game.endgame.transform[m.ascended]; return '<div class="blade-affix soul-special"><span><small>초월</small> <strong>'+escapeHtml(special.name)+'</strong><small class="blade-range">'+escapeHtml(special.detail)+'</small></span></div>'; }
+        if (m.ascended) { const special=SoulView.recipes(item)[m.ascended]; return '<div class="blade-affix soul-special"><span><small>초월</small> <strong>'+escapeHtml(special.name)+'</strong><small class="blade-range">'+escapeHtml(special.detail)+'</small></span></div>'; }
         const def = b.modDefs[m.key];
         const grade = ["초벌","중급","상급","최상급"][m.tier - 1] || "등급 " + m.tier;
         return '<div class="blade-affix"><span><small>' + grade + "</small> " + escapeHtml(def.name) + '</span><b>+' +
@@ -79,13 +79,17 @@ const BladeView = (() => {
     const g=Game.endgame.info(s), deployed=g.deployed.includes(item.id);
     const field = item.level >= 13 ? line("배치 수익",fmt(b.income(item)) + " G / 분") +
       (deployed ? btn("bladeRecall","배치 회수",item.id) : !on ? btn("bladeDeploy","사냥터 배치",item.id,"action",g.deployed.length >= (g.unlocked.land?2:1) || item.id===s.hunt?.bladeId || !!item.soulChoice) : "") : "";
-    const soul = (item.soulChoice || g.unlocked.luck || g.unlocked.lung || g.tokens.length)
+    return info(s,item) + compare + field + soulActions(s,item) + (on ? openBtn("bladeCraft","각인·연마","primary") :
+      btn("bladeEquip","이 검신 장착",item.id,"primary",deployed) +
+      openBtn("bladeSalvage-" + item.id, "분해 · 각인석 회수","action",deployed || item.id===s.hunt?.bladeId || !!item.soulChoice)) + (s.hunt && !on ? desc("새 장착 검신은 다음 사냥에 적용됩니다.") : "");
+  }
+  function soulActions(s,item) {
+    const g=Game.endgame.info(s), deployed=g.deployed.includes(item.id);
+    const soul = (item.soulChoice || g.unlocked.luck || g.unlocked.lung || SoulView.tokensFor(s,item).length)
       ? SoulView.open("craft:"+item.id,item.soulChoice?"남길 옵션 선택":"영혼 제작·전승","action",deployed) : "";
     const endgame = (SoulView.canOffer(s,item) ? SoulView.open("offer:"+item.id,"환생 · 옵션 전승") : "") +
       (item.level===20 ? SoulView.open("ascend:"+item.id,item.ascended?"초월 효과":"초월 공정","action",deployed) : "");
-    return info(s,item) + compare + field + soul + endgame + (on ? openBtn("bladeCraft","각인·연마","primary") :
-      btn("bladeEquip","이 검신 장착",item.id,"primary",deployed) +
-      openBtn("bladeSalvage-" + item.id, "분해 · 각인석 회수","action",deployed || item.id===s.hunt?.bladeId || !!item.soulChoice)) + (s.hunt && !on ? desc("새 장착 검신은 다음 사냥에 적용됩니다.") : "");
+    return soul + endgame;
   }
   function collection(s) {
     const b = rules(), rack = b.state(s);
@@ -115,7 +119,7 @@ const BladeView = (() => {
         '<label for="bladeTarget">지정 각인</label><select id="bladeTarget">' + available.map(([key,def]) =>
           '<option value="'+key+'">'+sideLabel[def.side]+" · "+escapeHtml(def.name)+'</option>').join("") +
         '</select><button class="action" data-blade-target="'+prefix(item)+'Etch"'+(rack.ore<8 || !rack.seals?' disabled':'')+'>지정 각인 · 8석 + 인장 1</button>' : '') +
-      (armor ? "" : SoulView.open("craft:"+item.id,"영혼 제작·전승")) + desc("각인은 빈자리에 새 옵션을 새깁니다. 연마는 선택한 옵션의 등급을 유지하고 수치를 다시 뽑습니다.");
+      SoulView.open("craft:"+item.id,"영혼 제작·전승") + desc("각인은 빈자리에 새 옵션을 새깁니다. 연마는 선택한 옵션의 등급을 유지하고 수치를 다시 뽑습니다.");
   }
   function armorDetail(s, item) {
     const b=rules(), current=b.currentArmor(s), equipped=item.id===current.id;
@@ -124,8 +128,8 @@ const BladeView = (() => {
     return line("장비 등급",gradeName(item)) + line("획득", item.base ? "숲 "+item.rank+"단계" : "대장간 지급") +
       line("장착 시 체력", fmt(stats.hp) + (equipped?"":" ("+delta(stats.hp-wearing.hp)+")")) +
       line("피해 감소", pct(stats.defense) + (equipped?"":" ("+delta(stats.defense-wearing.defense)+"%p)")) +
-      slots(item) + (equipped ? openBtn("bladeArmorCraft","각인·연마","primary") :
-        btn("bladeArmorEquip","이 방어구 장착",item.id,"primary") + openBtn("bladeArmorSalvage-"+item.id,"분해 · 각인석 회수","action",item.id===s.hunt?.armorId)) +
+      slots(item) + soulActions(s,item) + (equipped ? openBtn("bladeArmorCraft","각인·연마","primary") :
+        btn("bladeArmorEquip","이 방어구 장착",item.id,"primary") + openBtn("bladeArmorSalvage-"+item.id,"분해 · 각인석 회수","action",item.id===s.hunt?.armorId || !!item.soulChoice)) +
       (s.hunt && !equipped ? desc("새 방어구는 다음 사냥에 적용됩니다.") : "");
   }
   function armorModal(s, key) {
@@ -139,11 +143,11 @@ const BladeView = (() => {
       if (key.startsWith("bladeArmorSalvage-")) return ["방어구 분해",
         line("분해할 방어구",label(target)+" · "+target.id.toUpperCase()) +
         line("받는 각인석",1+target.mods.length+"개") + desc("방어구 한 벌과 강화·옵션이 함께 소모됩니다.") +
-        openBtn("bladeArmorItem-"+target.id,"방어구로 돌아가기") +
-        btn("bladeArmorSalvage","각인석으로 분해",target.id,"action",target.id===item.id || target.id===s.hunt?.armorId)];
+        (SoulView.canOffer(s,target) ? SoulView.open("offer:"+target.id,"환생 보상 보기 · 영혼 5 P와 전승 재료") : "") + openBtn("bladeArmorItem-"+target.id,"방어구로 돌아가기") +
+        btn("bladeArmorSalvage","각인석으로 분해",target.id,"action",target.id===item.id || target.id===s.hunt?.armorId || !!target.soulChoice)];
       return [label(target),armorDetail(s,target)];
     }
-    return ["방어구 보관함",line("방어구",list.length+" / 120벌") + list.slice().reverse().map(it=>
+    return ["방어구 보관함",line("방어구",list.length+" / 120벌") + (Game.endgame.info(s).gift ? SoulView.open("lessons","첫 +20 선물 선택","primary") : "") + list.slice().reverse().map(it=>
       row(label(it),"체력 "+fmt(b.armorStats(s,it).hp)+" · 옵션 "+it.mods.length+"줄"+(it.id===item.id?" · 장착 중":""),
         openBtn("bladeArmorItem-"+it.id,"살펴보기","mini"),"",artwork(it))).join("")+
       '<button class="action" data-archive-blade="armor">기록 방어구 대장간</button>'];

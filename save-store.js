@@ -15,12 +15,18 @@ const SaveStore = (() => {
   const fault = (code) => Object.assign(new Error(code), { code });
   const object = value => value !== null && typeof value === "object" && !Array.isArray(value);
   const validWork = w => Array.isArray(w) && w.length === 3 && w.every(v => v === null || v === 0 || v === 1);
+  function saveFormat(forge) {
+    if (forge?.soul?.version===2) return 5;
+    if (forge?.armors!==undefined) return 4;
+    if (forge?.soul?.version===1) return 3;
+    return forge?.version===1 ? 2 : 1;
+  }
   function decode(raw) {
     let data;
     try { data = JSON.parse(raw); } catch { throw fault("corrupt"); }
     if (data?.heirloom !== undefined) throw fault("future");
-    const maxFormat=data?.bladeForge?.armors!==undefined ? 4 : data?.bladeForge?.soul?.version===1 ? 3 : data?.bladeForge?.version===1 ? 2 : 1;
-    if (data?.bladeForge?.soul?.version>1) throw fault("future");
+    const maxFormat=saveFormat(data?.bladeForge);
+    if (data?.bladeForge?.soul?.version>2) throw fault("future");
     if (data?.version > 2 || data?._save?.format > maxFormat || data?.hunting?.version > 1 || data?.bladeForge?.version>1) throw fault("future");
     if (data?.bladeForge!==undefined && (!game.blades.valid(data.bladeForge) || !game.endgame.valid(data.bladeForge))) throw fault("corrupt");
     if (data?.bladeForge?.extraDeployed && !data.bladeForge.soul?.learned?.land && !(data.imprints?.land > 0)) throw fault("corrupt");
@@ -51,6 +57,7 @@ const SaveStore = (() => {
             typeof h.bonusEncounter !== "boolean" || !Number.isInteger(h.wave)) throw fault("corrupt");
         if (h.territoryRank!==undefined && (!h.bladeCombat || h.rank!==60 || ![45,50,55,60].includes(h.territoryRank))) throw fault("corrupt");
         if (h.bladeCombat && (!data.bladeForge || !Object.hasOwn(game.blades.styles,h.bladeCombat.style) ||
+            (h.bladeCombat.armorAscension !== undefined && (data.bladeForge.soul?.version!==2 || !Object.hasOwn(game.endgame.armorTransform,h.bladeCombat.armorAscension))) ||
             (h.bladeCombat.ascension !== undefined && !Object.hasOwn(game.blades.styles,h.bladeCombat.ascension)) ||
             !object(h.bladeCombat.mods) || !["attack","hp","defense","heavy","counter","rupture","strike","opening","finish"].every(k=>Number.isFinite(h.bladeCombat[k]) && h.bladeCombat[k]>=0) ||
             (h.armorId!==undefined && (typeof h.armorId!=="string" || !/^a[1-9]\d*$/.test(h.armorId) || (h===data.hunt && !data.bladeForge.armors?.some(i=>i.id===h.armorId)))) ||
@@ -281,7 +288,7 @@ const SaveStore = (() => {
       // generation). No new game/action/random roll is executed on retry.
       if (!pending) {
         const generation = mode === "reset" || !state._save ? id() : state._save.generation;
-        const value = { ...state, version: 2, _save: { format: state.bladeForge?.armors?4:state.bladeForge?.soul?3:state.bladeForge?2:1, revision: (state._save?.revision || 0) + 1,
+        const value = { ...state, version: 2, _save: { format: saveFormat(state.bladeForge), revision: (state._save?.revision || 0) + 1,
           generation, savedAt: Date.now() } };
         const raw = JSON.stringify(value);
         decode(raw);
