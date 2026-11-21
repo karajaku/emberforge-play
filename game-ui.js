@@ -61,13 +61,13 @@ const GameUI = (() => {
       const stage = document.querySelector('.forge-layout .stage-side');
       if (archiveBlade) {
         rail.innerHTML = go('forge/craft',icon('anvil')+'<span>제작</span>', '') + go('forge/training',icon('hammer')+'<span>수련</span>', '') +
-          '<button data-blade-home="'+gear+'">'+icon(armor?'shield':'sword')+'<span>'+(armor?'방어구':'검신')+' 복귀</span></button>';
+          '<button data-blade-home="'+gear+'">'+icon(armor?'shield':'sword')+'<span>'+(armor?'방어구':'무기')+' 복귀</span></button>';
       } else if (forgeOutfitSlot) {
         rail.innerHTML = openBtn('outfit:forgeEquip:' + forgeOutfitSlot,icon('backpack')+'<span>장비 선택</span>') +
           go('forge/orders',icon('scroll-text')+'<span>의뢰</span>');
       } else {
         rail.innerHTML = openBtn(armor ? 'bladeArmorCraft' : 'bladeCraft',icon('anvil')+'<span>제작</span>') +
-          openBtn(armor ? 'bladeArmorCollection' : 'bladeCollection',icon(armor ? 'shield' : 'sword')+'<span>'+(armor?'방어구함':'검신함')+'</span>') +
+          openBtn(armor ? 'bladeArmorCollection' : 'bladeCollection',icon(armor ? 'shield' : 'sword')+'<span>'+(armor?'방어구함':'무기함')+'</span>') +
           go('forge/orders',icon('scroll-text')+'<span>의뢰</span>');
         const item = armor ? Game.blades.currentArmor(state) : Game.blades.current(state);
         if (item.level === 7 && Swordcraft.stageIndex(item) === 0) {

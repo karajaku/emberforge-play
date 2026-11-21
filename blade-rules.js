@@ -72,15 +72,42 @@ const BladeRules = (() => {
   const value = (item, key) => item.mods.find((m) => m.key === key)?.value || 0;
   const craft = typeof module !== "undefined" ? require("./swordcraft.js") : Swordcraft;
   const marks = (item, key) => (item.marks || []).filter((mark) => mark === key).length;
-  const name = (item) => item.type === "armor" ? armorNames[item.base] : bases[item.base].name;
+  const weaponProfiles = {
+    sword: {name:"한손검", trait:"일정한 타격 피해", power:1, spread:0, critChance:5},
+    axe: {name:"도끼", trait:"강공 피해 +12%", power:.97, spread:.30, critChance:5, heavyMultiplier:1.12},
+    mace: {name:"철퇴", trait:"방어하는 적에게 피해 40% 전달", power:.98, spread:.16, critChance:3, blockedDamagePercent:40},
+    dagger: {name:"단검", trait:"치명타 확률 24%", power:.92, spread:.1, critChance:24},
+  };
+  const weaponKinds = Object.keys(weaponProfiles);
+  const weaponProfile = item => weaponProfiles[item.weaponKind ?? "sword"];
+  const name = item => item.type === "armor" ? armorNames[item.base] :
+    (item.base ? names[item.base - 1] : "순철") + " " + weaponProfile(item).name;
   const attack = (item, level = item.level) =>
     Math.round(
-      bases[item.base].power *
+      bases[item.base].power * weaponProfile(item).power *
         (1 + 0.08 * level) *
         (1 + value(item, "power") / 100) *
         (1 + 0.02 * marks(item, "edge")) *
         (1 + craft.grindBonus(item.grind, 2) / 100),
     );
+  function weaponStats(item, level=item.level) {
+    const power = attack(item,level);
+    const profile = weaponProfile(item);
+    const spread = Math.round(power * profile.spread);
+    return {attack:power, minDamage:power-spread, maxDamage:power+spread, critChance:profile.critChance};
+  }
+  const armorWeights = {armor:8, helm:4, shoulder:3, legs:5, gloves:2, cloak:2};
+  function armorRating(item, level=item.level ?? 0) {
+    const weight = armorWeights[item.type || item.kind];
+    if (!weight) return 0;
+    return Math.round(weight * (1 + .18*item.base + .12*item.grade) * (1 + .08*level)) + level;
+  }
+  function outfitArmorRating(s) {
+    const kit = s.bladeForge?.outfit;
+    if (!kit) return 0;
+    const worn = new Set(Object.values(kit.equipped));
+    return kit.items.reduce((sum,item) => sum + (worn.has(item.id) ? armorRating(item) : 0), 0);
+  }
   const caps = (r) => (r <= 10 ? [1, 1] : r <= 20 ? [2, 1] : r <= 40 ? [2, 2] : r <= 50 ? [3, 2] : [3, 3]);
   const itemCaps = item => item.lootVersion === 1 ? loot.rarityRules[item.grade].caps : caps(item.rank);
   const maxTier = (r) => (r <= 10 ? 1 : r <= 20 ? 2 : r <= 40 ? 3 : 4);
@@ -142,18 +169,19 @@ const BladeRules = (() => {
   function currentArmor(s) {
     return armors(s).find(i=>i.id===s.bladeForge.armorEquipped);
   }
-  function armorStats(s, armor=currentArmor(s), level=armor.level, weapon=current(s)) {
+  function armorStats(s, armor=currentArmor(s), level=armor.level, weapon=current(s), outfitRating=outfitArmorRating(s)) {
     const baseHealth=170 + 6*level + armor.base*2;
     const healthBonus= value(armor,"vitality")+2*marks(armor,"edge")+craft.grindBonus(armor.grind,2);
     const hp=Math.round(baseHealth*(1+healthBonus/100)*(1+.04*(s.huntLining||0)));
     const enhancedDefense=Math.round(level*1.3)+armor.grade*2+3*marks(weapon,"ward");
     const baseDefense=armor.lootVersion===1 ? enhancedDefense : Math.min(32,enhancedDefense);
     const defense=Math.min(45,baseDefense+Math.ceil(armor.base/3)+value(armor,"plating")+3*marks(armor,"ward"));
-    return {hp,defense};
+    return {hp,defense,armorRating:armorRating(armor,level)+outfitRating, outfitArmorRating:outfitRating};
   }
-  function skills(s, item=current(s), armor=currentArmor(s), style=state(s).style) {
+  function skills(s, item=current(s), armor=currentArmor(s), style=state(s).style, outfitRating) {
     const family = bases[item.base].family,
-      a = attack(item);
+      weapon = weaponStats(item), a = weapon.attack;
+    const profile = weaponProfile(item);
     const mods=Object.fromEntries(item.mods.map(m=>[m.key,m.value]));
     const combined={
       guard:value(armor,"parryHeal"), recovery:value(armor,"mending")+marks(armor,"yield")+(armor.grind||[]).filter(z=>z===1).length,
@@ -163,10 +191,11 @@ const BladeRules = (() => {
     const blockBonus=(1-craft.grindBonus(item.grind,0)/100)*(1-craft.grindBonus(armor.grind,0)/100)*(1-value(armor,"bracing")/100);
     const pct = (key) => 1 + value(item, key) / 100;
     return {
-      attack: a,
-      ...armorStats(s,armor,armor.level,item),
+      ...weapon,
+      blockedDamagePercent: profile.blockedDamagePercent ?? 25,
+      ...armorStats(s,armor,armor.level,item,outfitRating),
       skillWard:value(armor,"skillWard"), lastWard:value(armor,"lastWard"),
-      heavy: Math.round(a * 2.1 * pct("heavy") * (family === 2 ? 1.12 : 1)),
+      heavy: Math.round(a * 2.1 * pct("heavy") * (family === 2 ? 1.12 : 1) * (profile.heavyMultiplier ?? 1)),
       counter: Math.round(a * 2.8 * pct("counter") * (family === 3 ? 1.3 : 1) * (item.ascended?.style === "counter" ? 0.8 : 1)),
       rupture: Math.round(a * 0.85 * pct("rupture")),
       strike: Math.round(a * pct("strike")),
@@ -237,6 +266,8 @@ const BladeRules = (() => {
     const b = state(s),
       boss = h.rank % 5 === 0,
       first = h.rank > b.cleared && h.rank % 5 === 1;
+    const firstWeaponChoice = h.rank === 1 && b.cleared === 0;
+    b.equipmentVersion = 1;
     b.cleared = Math.max(b.cleared, h.rank);
     const ore = boss ? 3 : 1;
     b.ore += ore;
@@ -259,6 +290,13 @@ const BladeRules = (() => {
       for (let i=0;i<count;i++) addMod(item,null,rng);
       (isArmor ? armorRack : b.items).push(item);
       gearDrops.push({id,type,base,grade:item.grade,lines:count});
+    }
+    const weaponDrop = gearDrops.find(drop => drop.type === "weapon");
+    if (weaponDrop) {
+      // Roll the base after both independent loot rolls. The first reward introduces another weapon type.
+      const kind = weaponKinds[integer(firstWeaponChoice ? 1 : 0, weaponKinds.length-1, rng)];
+      b.items.at(-1).weaponKind = kind;
+      weaponDrop.weaponKind = kind;
     }
     return {gearDrops,materialPrize};
   }
@@ -302,7 +340,7 @@ const BladeRules = (() => {
       }
       case "bladeEquip": {
         const target = b.items.find((x) => x.id === arg);
-        if (!target || deployed(target.id)) return fail("검신을 회수한 뒤 장착하세요.");
+        if (!target || deployed(target.id)) return fail("무기를 회수한 뒤 장착하세요.");
         b.equipped = target.id;
         return ok(name(target) + " 장착");
       }
@@ -316,26 +354,26 @@ const BladeRules = (() => {
           target.id === s.hunt?.bladeId ||
           deployed(target.id) || (b.deployed && (b.extraDeployed || !(b.soul?.learned.land || s.imprints?.land)))
         )
-          return fail("여분의 +13 이상 검신과 빈 배치 자리가 필요합니다.");
+          return fail("여분의 +13 이상 무기와 빈 배치 자리가 필요합니다.");
         if (b.deployed) b.extraDeployed=target.id;
         else b.deployed=target.id;
         return ok(name(target) + " 배치 · 분당 " + income(target) + " G");
       }
       case "bladeRecall": {
         const id=arg || b.deployed;
-        if (!deployed(id)) return fail("배치한 검신을 확인하세요.");
+        if (!deployed(id)) return fail("배치한 무기를 확인하세요.");
         if (id===b.extraDeployed) b.extraDeployed=null;
         else { b.deployed=b.extraDeployed || null; b.extraDeployed=null; }
-        return ok("검신을 보관함으로 회수했습니다.");
+        return ok("무기를 보관함으로 회수했습니다.");
       }
       case "bladeSalvage": {
         const i = b.items.findIndex((x) => x.id === arg);
         if (i < 0 || arg === b.equipped || arg === s.hunt?.bladeId || deployed(arg) || b.items[i].soulChoice)
-          return fail("전투·장착 중인 검신은 분해할 수 없습니다.");
+          return fail("전투·장착 중인 무기는 분해할 수 없습니다.");
         const n = 1 + b.items[i].mods.length;
         b.items.splice(i, 1);
         b.ore += n;
-        return ok("검신 분해 · 각인석 +" + n);
+        return ok("무기 분해 · 각인석 +" + n);
       }
       case "bladeArmor":
       case "bladeForge": {
@@ -371,7 +409,7 @@ const BladeRules = (() => {
         return ok(modDefs[m.key].name + " 연마 · " + m.value + (m.key==="plating" ? "%p" : "%"));
       }
     }
-    return fail("알 수 없는 검신 행동입니다.");
+    return fail("알 수 없는 무기 행동입니다.");
   }
   function valid(b) {
     const nat = (n) => Number.isSafeInteger(n) && n >= 0,
@@ -379,6 +417,7 @@ const BladeRules = (() => {
     if (
       !b ||
       b.version !== 1 ||
+      (b.equipmentVersion !== undefined && b.equipmentVersion !== 1) ||
       !nat(b.serial) ||
       !nat(b.ore) ||
       !nat(b.cleared) ||
@@ -400,6 +439,7 @@ const BladeRules = (() => {
       const armor=i?.type==="armor";
       if (
         !i ||
+        (i.weaponKind !== undefined && (armor || !weaponKinds.includes(i.weaponKind))) ||
         typeof i.id !== "string" ||
         !(armor ? /^a[1-9]\d*$/ : /^b[1-9]\d*$/).test(i.id) ||
         Number(i.id.slice(1)) > (armor ? b.armorSerial : b.serial) ||
@@ -467,7 +507,7 @@ const BladeRules = (() => {
     );
   }
   return {
-    ...loot, armors, currentArmor, armorStats, itemCaps,
+    ...loot, armors, currentArmor, armorStats, armorRating, weaponKinds, weaponProfile, weaponStats, itemCaps,
     styles,
     bases,
     modDefs,

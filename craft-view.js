@@ -272,7 +272,7 @@ function craftWorkshop(s, bladeMode = false) {
     '<div class="modal-scene craft-scene ' +
     (i === 1 ? "sparring" : "") +
     '"><canvas data-sprite="' +
-    (i === 1 ? "sentinel" : armor ? "cuirass" : "blade" + (Game.bladeStage(g) || "")) +
+    (i === 1 ? "sentinel" : bladeMode ? BladeView.sprite(g) : "blade" + (Game.bladeStage(g) || "")) +
     '" width="' +
     (i === 1 ? 144 : 128) +
     '" height="144"></canvas></div>';

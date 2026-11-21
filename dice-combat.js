@@ -84,7 +84,17 @@ const DiceCombat=(()=>{
     const bleed = st.style === "wound" ? Math.round((h.wounds || 0) * st.rupture * 0.14) : 0;
     const pierces = skill==="rupture" || (ascended && skill==="heavyStrike");
     const elemental = h.fieldKit ? outfit.multiplier(outfit.profile(h.territoryRank || h.rank,h.enemyKind),h.fieldKit) : 1;
-    const damage = Math.min(h.enemyHp, Math.round(raw * elemental * (enemyBlocks && !pierces ? .25 : 1)) + bleed);
+    let critical = false;
+    if (raw > 0 && st.minDamage !== undefined) {
+      if (st.maxDamage > st.minDamage) {
+        const rolled = st.minDamage + Math.min(st.maxDamage-st.minDamage, Math.floor(rng()*(st.maxDamage-st.minDamage+1)));
+        raw *= rolled/st.attack;
+      }
+      critical = rng()*100 < st.critChance;
+      if (critical) raw *= 1.5;
+    }
+    const blocked = enemyBlocks && !pierces ? (st.blockedDamagePercent ?? 25)/100 : 1;
+    const damage = Math.min(h.enemyHp, Math.round(raw * elemental * blocked) + bleed);
     const enemySkillState = { ...h.enemySkillState, cooldown: Math.max(0, h.enemySkillState.cooldown - 1) };
     const key = enemySkillState.key;
     const fires = key === "escape" ? h.waveTurn >= 2 : !enemyBlocks && !enemySkillState.cooldown;
@@ -104,7 +114,7 @@ const DiceCombat=(()=>{
     const incoming =
       enemyBlocks || key === "escape" || damage >= h.enemyHp
         ? 0
-        : h.enemyAttack * (enemySkill ? enemySkillState.power : power) * guard * (amplified ? 1.5 : 1);
+        : h.enemyAttack * (enemySkill ? enemySkillState.power : power) * (amplified ? 1.5 : 1);
     const ironCounter=ascended && st.style==="counter";
     const fortified = !!h.fortified || (skill === "counter" && (!!mods.fortify || ironCounter));
     const shield = fortified ? (1-(mods.fortify||0)/100)*(ironCounter ? 0.65 : 1) : 1;
@@ -112,7 +122,10 @@ const DiceCombat=(()=>{
     const lastWard = h.hp <= h.maxHp / 2 ? (st.lastWard || 0) : 0;
     const armorEffect=st.armorAscension;
     const wardFactor=armorEffect==="skillWard" ? (enemySkill ? 0.7 : 1.08) : 1;
-    const hit=incoming * (1-st.defense/100) * shield * (1-skillWard/100) * (1-lastWard/100) * wardFactor;
+    // Rate the full incoming blow before guard, wards and the existing flat percentage reduction.
+    const rating = st.armorRating || 0;
+    const reduction = rating > 0 ? Math.min(.5, rating/(rating+8*incoming)) : 0;
+    const hit=incoming * (1-reduction) * guard * (1-st.defense/100) * shield * (1-skillWard/100) * (1-lastWard/100) * wardFactor;
     const absorbed=armorEffect==="plating" ? Math.max(0,hit-h.maxHp*0.15)*0.5 : 0;
     const taken=Math.min(h.hp,Math.max(0,Math.round(hit-absorbed)));
     const defeated=damage>=h.enemyHp;
@@ -126,6 +139,7 @@ const DiceCombat=(()=>{
       player,
       enemy,
       damage,
+      critical,
       taken,
       healed,
       wounds,

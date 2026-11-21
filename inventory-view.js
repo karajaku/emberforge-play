@@ -46,7 +46,7 @@ const InventoryView = (() => {
     const bladeId = Game.blades.current(s).id, armorId = Game.blades.currentArmor(s).id;
     const items = [
       ...Game.blades.state(s).items.map(item => ({gearItem:item, key: "blade-"+item.id, group: "gear", name: Game.blades.rarityNames[item.grade]+" "+Game.blades.name(item), grade:item.grade, mark: "+"+item.level,
-        wornSlot:item.id === bladeId ? "weapon" : "", id:item.id,
+        shortName:Game.blades.name(item), wornSlot:item.id === bladeId ? "weapon" : "", id:item.id,
         art: BladeView.artwork(item), status: Game.endgame.info(s).deployed.includes(item.id) ? "배치" : item.ascended ? "초월" : item.id === bladeId ? "주력" : "", detail: () => BladeView.itemDetail(s,item)})),
       ...Game.blades.armors(s).map(item => ({gearItem:item, key:"huntarmor-"+item.id, group:"gear", name:Game.blades.rarityNames[item.grade]+" "+Game.blades.name(item), grade:item.grade, mark:"+"+item.level,
         wornSlot:item.id === armorId ? "chest" : "", id:item.id,
@@ -124,8 +124,8 @@ const InventoryView = (() => {
   function grid(items) {
     return '<div class="bag-grid">' + items.map(tile).join("") + '</div>';
   }
-  function wornGear(items) {
-    const slots = [{key:"weapon",name:"검신"}, ...Game.outfit.slots];
+  function wornGear(s,items) {
+    const slots = [{key:"weapon",name:"무기"}, ...Game.outfit.slots];
     const cells = slots.map(slot => {
       const item = items.find(entry => entry.wornSlot === slot.key);
       const name = item?.gearItem ? Game.blades.name(item.gearItem) : item?.name;
@@ -140,7 +140,7 @@ const InventoryView = (() => {
         (item?.affix ? '<small class="bag-slot-affix">' + escapeHtml(item.affix) + '</small>' : '') +
         (item ? '<small class="bag-worn-level">' + item.mark + '</small>' : '') + '</button>';
     });
-    return '<section class="bag-loadout" aria-labelledby="bag-worn-title"><h2 id="bag-worn-title">착용 장비</h2>' +
+    return '<section class="bag-loadout" aria-labelledby="bag-worn-title"><h2 id="bag-worn-title">착용 장비 <small>방어력 ' + fmt(Game.blades.armorStats(s).armorRating) + '</small></h2>' +
       '<div class="bag-loadout-grid">' + cells.join("") + '</div></section>';
   }
   function storedSection(group, title, items) {
@@ -155,10 +155,10 @@ const InventoryView = (() => {
     markMatchingGear(all);
     const items = all.filter(item => !item.wornSlot);
     if (page === "all") {
-      return wornGear(all) + phonePages.bag.slice(1).map(([group, title]) =>
+      return wornGear(s,all) + phonePages.bag.slice(1).map(([group, title]) =>
         storedSection(group,group === "gear" ? "보관 장비" : title,items.filter(item => item.group === group))).join("");
     }
-    if (page === "gear") return wornGear(all) + storedSection("gear","보관 장비",items.filter(item => item.group === "gear"));
+    if (page === "gear") return wornGear(s,all) + storedSection("gear","보관 장비",items.filter(item => item.group === "gear"));
     const list = items.filter(item => page === item.group ||
       (page === "stored" && item.key.startsWith("stored-")));
     let html = list.length ? grid(list) :

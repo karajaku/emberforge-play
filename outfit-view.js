@@ -16,6 +16,10 @@ const OutfitView = (() => {
     const effect = api().effect(item), name = api().elements[item.element];
     return name + " 전환 " + pct(effect.conversion) + (effect.exposure ? " · 저항 −" + pct(effect.exposure) + "p" : "");
   }
+  function statsLabel(item) {
+    const rating = Game.blades.armorRating(item);
+    return (rating ? "방어력 " + fmt(rating) + " · " : "") + effectLabel(item);
+  }
   function entries(s) {
     return api().state(s).items.map(item => {
       const worn = slotFor(s,item.id);
@@ -28,7 +32,7 @@ const OutfitView = (() => {
   function forgeSlots(s) {
     const kit = api().state(s);
     const chosen = forgeOutfitSlot || (gear === "armor" ? "chest" : "weapon");
-    const slots = [{key:"weapon",name:"검신"}, ...api().slots];
+    const slots = [{key:"weapon",name:"무기"}, ...api().slots];
     const cells = slots.map(slot => {
       const blade = slot.key === "weapon", chest = slot.kind === "armor";
       const item = blade ? Game.blades.current(s) : chest ? Game.blades.currentArmor(s) :
@@ -56,6 +60,9 @@ const OutfitView = (() => {
       const next = api().effect({...item,level:item.level + 1});
       const unit = stat === "exposure" ? "%p" : "%";
       readout = line(name, api().effect(item)[stat] + unit + (done ? "" : ' <span class="mint">→ ' + next[stat] + unit + '</span>'));
+      const rating = Game.blades.armorRating(item);
+      if (rating) readout = line("방어력", fmt(rating) + (done ? "" : ' <span class="mint">→ ' +
+        fmt(Game.blades.armorRating(item,item.level+1)) + '</span>'));
       odds = done ? '<b>최고 강화 +20</b>' :
         "<b>강화 +" + item.level + " → +" + (item.level + 1) + '</b><div class="odds-bar" aria-hidden="true"><i class="odds-success" style="width:' +
         pct(success) + '"></i><i class="odds-hold" style="width:' + pct(100-success) + '"></i></div><span>성공 ' + pct(success) + " · 유지 " + pct(100-success) + "</span>";
@@ -106,7 +113,7 @@ const OutfitView = (() => {
     return [slot.name, list.length ? list.map(item => {
       const worn = slotFor(s,item.id);
       return row(escapeHtml(api().name(item)) + " +" + item.level,
-        (worn ? worn.name + " 착용 · " : "") + effectLabel(item),
+        (worn ? worn.name + " 착용 · " : "") + statsLabel(item),
         openBtn("outfit:item:"+item.id+":"+slot.key,"살펴보기","mini"),"",art(item.kind));
     }).join("") : '<div class="bag-detail-art">' + art(slot.kind) + '</div>' +
       desc("숲 사냥에서 얻은 " + (slot.kind === "ring" ? "반지" : slot.name) + "를 여기에 착용할 수 있습니다.")];
@@ -118,6 +125,7 @@ const OutfitView = (() => {
     const q = api().quote(item);
     let body = '<div class="bag-detail-art">' + art(item.kind) + '</div>' +
       line("장비",grade(item) + " · " + (current ? current.name + " 착용" : "미착용")) +
+      (Game.blades.armorRating(item) ? line("장비 방어력", fmt(Game.blades.armorRating(item))) : "") +
       line("획득", "숲 " + item.rank + "단계") + line("속성 효과",effectLabel(item));
     const region = [1,6,11,16].find(rank => api().preferredElement(rank) === item.element);
     if (region) {
@@ -133,9 +141,14 @@ const OutfitView = (() => {
     for (const slot of current ? [] : targets) {
       const other = data.items.find(it => it.id === data.equipped[slot.key]);
       if (other) body += line(slot.name + "에 착용 중", escapeHtml(api().name(other)) + " +" + other.level);
+      const rating = Game.blades.armorRating(item);
+      if (rating) {
+        const total = Game.blades.armorStats(s).armorRating;
+        body += line("착용 방어력 합계", fmt(total) + " → " + fmt(total + rating - (other ? Game.blades.armorRating(other) : 0)));
+      }
       body += btn("outfitEquip", slot.name + (other ? " 교체" : " 착용"), slot.key + ":" + item.id, "primary");
     }
-    if (s.hunt) body += desc("착용과 재련으로 바뀐 속성은 다음 사냥부터 적용됩니다.");
+    if (s.hunt) body += desc("착용과 재련으로 바뀐 능력치는 다음 사냥부터 적용됩니다.");
     if (!current) body += openBtn("outfit:salvage:" + item.id, "분해");
     body += openBtn("outfit:slots","착용 장비로");
     return [api().name(item) + " +" + item.level, body];
@@ -195,9 +208,9 @@ const OutfitView = (() => {
       const slot = api().slots.find(part => part.key === arg);
       const kit = api().state(s), worn = kit.items.find(it => it.id === kit.equipped[arg]);
       const choices = kit.items.filter(it => it.kind === slot.kind && !slotFor(s,it.id));
-      const current = worn ? line("현재 착용",api().name(worn) + " +" + worn.level) + line("속성 효과",effectLabel(worn)) : "";
+      const current = worn ? line("현재 착용",api().name(worn) + " +" + worn.level) + line("능력치",statsLabel(worn)) : "";
       return [slot.name + " 착용", current + (choices.length ? choices.map(it =>
-        row(grade(it) + " " + api().name(it) + " +" + it.level, effectLabel(it),
+        row(grade(it) + " " + api().name(it) + " +" + it.level, statsLabel(it),
           btn("outfitEquip",worn ? "교체" : "착용",arg + ":" + it.id,"mini"),"",art(it.kind))).join("") :
         desc("숲 사냥에서 얻은 장비를 여기에 착용할 수 있습니다."))];
     }

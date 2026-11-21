@@ -14,11 +14,11 @@ const HuntEffects=(()=>{
   function animate(node,frames,options){if(node&&motionEnabled())animations.push(node.animate(frames,{...options,duration:options.duration*timeScale}));}
   const names={strike:'공격',block:'방어',heavyStrike:'강타'},icons={strike:'sword',block:'shield',heavyStrike:'hammer'};
   function faceIcon(die,face){const action=DiceCombat.actions[face-1];die.innerHTML=icon(icons[action]);die.dataset.action=action;}
-  function burst(actor,kind,damage){
+  function burst(actor,kind,damage,critical = false){
     if(!actor||!motionEnabled())return;
     const node=document.createElement('div');node.className='hunt-burst '+kind;node.setAttribute('aria-hidden','true');
     node.innerHTML='<i class="hunt-cut"></i>'+Array.from({length:8},(_,i)=>'<i class="hunt-chip" style="--dx:'+Math.round(Math.cos(i*Math.PI/4)*68)+'px;--dy:'+Math.round(Math.sin(i*Math.PI/4)*60)+'px"></i>').join('')+
-      '<b>'+(damage?'−'+fmt(damage):icon('shield'))+'</b>';
+      '<b>'+(damage?(critical?'치명타 ':'')+'−'+fmt(damage):icon('shield'))+'</b>';
     actor.append(node);nodes.push(node);later(()=>node.remove(),700);
   }
   function reaction(actor,kind,skillName){
@@ -104,7 +104,7 @@ const HuntEffects=(()=>{
         const damage=side==='player'?hit.damage:hit.taken,guarded=actions[target]==='block',held=guarded&&end[target]>0;
         updateHealthMeter(meters[target],end[target],start[target],motionEnabled());
         if(side==='player'&&firstCounter){counterBonus(arena);bonusStatus?.style.removeProperty('visibility');}
-        burst(actors[target],guarded?'guarded':charge?'charge':side==='player'&&roll?.skill==='counter'?'counter':heavy?'heavy':'slash',damage);
+        burst(actors[target],guarded?'guarded':charge?'charge':side==='player'&&roll?.skill==='counter'?'counter':heavy?'heavy':'slash',damage,side==='player' && roll?.critical);
         const result=guarded?(held?(charge?'stopped':'guard'):'broken'):charge?'direct':null;
         if(result)reaction(actors[target],result,charge?DiceCombat.enemySkills[roll.enemySkill].name:null);
         if(held){

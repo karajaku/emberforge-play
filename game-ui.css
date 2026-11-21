@@ -376,3 +376,6 @@ body:has(#shade[data-modal^="blade"]:not([hidden])) #toast { visibility:hidden; 
   .ui-game .blade-layout .ui-forge-rail button { min-height:44px;height:44px; }
 }
 #shade[data-modal^="blade"] .dialog-head { position:sticky;top:-15px;z-index:2; }
+
+.bag-loadout h2 small { margin-left:6px; color:#a9d4bb; font-size:12px; }
+.watch-loot .loot-gear .gear-portrait { width:16px; height:20px; }

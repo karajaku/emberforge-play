@@ -45,7 +45,7 @@ function finalWorkshop(s, bladeMode = false) {
   const button = (action, label, style = "action", disabled = false) =>
     btn(bladeMode ? prefix+"Move" : "finalMove", label, [f.key, f.id || 0, f.revision, action].join(":"), style, disabled);
   const scene =
-    '<div class="modal-scene final-scene"><canvas width="128" height="144" data-sprite="'+(armor?"cuirass":"blade3")+'"></canvas></div>';
+    '<div class="modal-scene final-scene"><canvas width="128" height="144" data-sprite="'+(bladeMode ? BladeView.sprite(w,3) : "blade3")+'"></canvas></div>';
   let controls = "";
   if (f.key === "edge") {
     const band = Breakthrough.cutWindow(f);

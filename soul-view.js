@@ -6,14 +6,14 @@ const SoulView = (() => {
   const lessons = {
     luck: "장비마다 한 번, 무작위 각인 후보 두 줄 중 하나를 고릅니다.",
     lung: "장비마다 한 번, 기존 수치와 연마한 수치 중 하나를 고릅니다.",
-    land: "검신 배치 자리가 한 칸 늘어납니다.",
+    land: "무기 배치 자리가 한 칸 늘어납니다.",
   };
   const soulAction = (name, arg, title, disabled = false, cls = "action") =>
     '<button class="' + cls + '" data-soul-act="' + name + '" data-soul-arg="' + escapeHtml(JSON.stringify(arg)) +
     '"' + (disabled ? ' disabled' : '') + '>' + title + '</button>';
   const open = (path, title, cls = "action", disabled = false) => openBtn("soul:" + path, title, cls, disabled);
   const armor = item => item.type === "armor";
-  const kind = item => armor(item) ? "방어구" : "검신";
+  const kind = item => armor(item) ? "방어구" : "무기";
   const gear = s => [...Game.blades.state(s).items, ...Game.blades.armors(s)];
   const recipes = item => armor(item) ? Game.endgame.armorTransform : Game.endgame.transform;
   const tokensFor = (s,item) => Game.endgame.info(s).tokens.filter(t=>t.id.startsWith("a")===armor(item));
@@ -51,16 +51,16 @@ const SoulView = (() => {
   function skillLearn(s) {
     const g = Game.endgame.info(s);
     return [g.gift ? "첫 +20 영혼각인" : "영혼각인", line("보유 영혼",fmt(g.souls)+" P") +
-      (g.gift ? desc("완성한 장비를 간직하고 기술 하나를 무료로 배웁니다.") : !g.first ? desc("검신 또는 방어구를 처음 +20으로 완성하면 기술 하나를 무료로 배웁니다.") : "") +
+      (g.gift ? desc("완성한 장비를 간직하고 기술 하나를 무료로 배웁니다.") : !g.first ? desc("무기 또는 방어구를 처음 +20으로 완성하면 기술 하나를 무료로 배웁니다.") : "") +
       Object.keys(lessons).map(key => row(g.names[key],lessons[key],g.unlocked[key] ? "<strong>습득</strong>" :
         soulAction("soulLearn",{key,free:g.gift},g.gift ? "무료 습득" : g.costs[key]+" P",!g.first || (!g.gift && g.souls<g.costs[key]),"mini"))).join("")];
   }
   function offering(s,item,key) {
     if (!item) {
       const candidates = gear(s).filter(it=>canOffer(s,it));
-      return ["환생할 장비", desc("여분의 +20 검신이나 방어구 하나를 바치고 영혼 5 P와 선택한 옵션 한 줄의 전승 재료를 얻습니다.") +
+      return ["환생할 장비", desc("여분의 +20 무기나 방어구 하나를 바치고 영혼 5 P와 선택한 옵션 한 줄의 전승 재료를 얻습니다.") +
         (candidates.length ? candidates.map(it=>row(identity(it), normMods(it).map(prop).join(" · "),open("offer:"+it.id,"선택","mini"),"",BladeView.artwork(it))).join("") :
-          line("필요 장비","옵션이 붙은 보관 중 +20 검신·방어구") + openBtn("bladeCollection","검신함 열기") + openBtn("bladeArmorCollection","방어구함 열기"))];
+          line("필요 장비","옵션이 붙은 보관 중 +20 무기·방어구") + openBtn("bladeCollection","무기함 열기") + openBtn("bladeArmorCollection","방어구함 열기"))];
     }
     const m = normMods(item).find(mod=>mod.key===key);
     if (!m) return ["전승할 옵션 선택", line("환생할 "+kind(item),identity(item)) + line("장비 상태",where(s,item)) + desc("장비 하나에서 한 줄의 종류와 등급을 전승할 수 있습니다.") +
@@ -105,7 +105,7 @@ const SoulView = (() => {
       return ["초월 "+kind(item),line("완성한 장비",identity(item))+line("초월",def.name)+desc(def.detail)];
     }
     const def=defs[style], m=def && item.mods.find(m=>m.key===def.key && !m.ascended);
-    if(!def) return ["초월 공정",line("대상 "+kind(item),identity(item)) + desc(armor(item)?"이 흉갑을 착용한 채 60단계 우두머리를 잡으세요. 같은 우두머리의 인장 3개로 접두 한 줄을 바꿉니다.":"이 검에 맞는 검술을 장착하고 60단계 우두머리를 잡으세요. 초월에는 같은 우두머리의 인장 3개가 필요합니다.") +
+    if(!def) return ["초월 공정",line("대상 "+kind(item),identity(item)) + desc(armor(item)?"이 흉갑을 착용한 채 60단계 우두머리를 잡으세요. 같은 우두머리의 인장 3개로 접두 한 줄을 바꿉니다.":"이 무기에 맞는 검술을 장착하고 60단계 우두머리를 잡으세요. 초월에는 같은 우두머리의 인장 3개가 필요합니다.") +
       Object.entries(defs).map(([key,d])=>row((armor(item)?Game.blades.modDefs[d.key].name:Game.blades.styles[key])+" · "+d.name,d.detail,open("ascend:"+item.id+":"+key,"조건","mini"))).join("")];
     const mask=(armor(item) ? item.bossProofs : item.proofs?.[style]) || 0;
     const condition = armor(item) ? "이 흉갑으로" : "이 검술로";
@@ -141,7 +141,7 @@ const SoulView = (() => {
       return ["기록 검 성장",["rebirth","imprint","fusion"].map((p,i)=>open("archive:"+p,["환생","영혼각인","초월"][i],"mini",page===p)).join("")+growthView(s,page)];
     }
     if(view==="offer" && (!id || item)) return offering(s,item,option);
-    if(!item) return ["장비 보관함",openBtn("bladeCollection","검신함으로")+openBtn("bladeArmorCollection","방어구함으로")];
+    if(!item) return ["장비 보관함",openBtn("bladeCollection","무기함으로")+openBtn("bladeArmorCollection","방어구함으로")];
     if(view==="transfer") return transfer(s,item,option);
     if(view==="craft") return craft(s,item);
     return ascension(s,item,option,family);

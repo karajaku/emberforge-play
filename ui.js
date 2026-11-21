@@ -41,6 +41,9 @@ for (const id of [
   "blade1",
   "blade2",
   "blade3",
+  "blade-axe",
+  "blade-mace",
+  "blade-dagger",
   "cuirass",
   "boar",
   "scarecrow",
@@ -319,7 +322,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     }
     if (expectedSoul && expectedSoul !== soulQuote(state, arg)) {
       render(); if (modal) displayModal();
-      notify("검신이나 재료가 바뀌었습니다. 새 조건을 확인하세요.");
+      notify("무기나 재료가 바뀌었습니다. 새 조건을 확인하세요.");
       return;
     }
     if (bladeTargeted && expectedBlade !== bladeQuote()) {
@@ -1039,7 +1042,7 @@ function modalData() {
     case "huntRules":
       if (!s.hunt || s.hunt.bladeCombat) return ["숲 사냥", line("주사위", "1~3 타격 · 4~5 방어 · 6 강타") +
         desc("강공 검술은 기세 2를 써서 일격, 반격 검술은 적 스킬 방어 뒤 반격, 상처 검술은 상처 3겹부터 파열을 발동합니다.") +
-        desc("다섯 단계마다 우두머리를 만납니다. 검신과 방어구는 보관함에서 비교하고 장착합니다.") + openBtn("bladeLoot-"+(s.hunt?.rank || Math.min(60,Game.blades.state(s).cleared+1)),"장비 획득 확률") + openBtn("bladeStyles","검술과 능력 확인")];
+        desc("다섯 단계마다 우두머리를 만납니다. 무기와 방어구는 보관함에서 비교하고 장착합니다.") + openBtn("bladeLoot-"+(s.hunt?.rank || Math.min(60,Game.blades.state(s).cleared+1)),"장비 획득 확률") + openBtn("bladeStyles","검술과 능력 확인")];
       return ["주사위 사냥", line("1~3 공격 · 4~5 방어 · 6 강공", "양쪽이 매 턴 굴립니다") +
         desc("강공은 공격력의 1.7배, 방어는 받는 피해를 75% 줄입니다. 먼저 쓰러뜨린 적은 반격하지 못합니다. 40턴 안에 쓰러뜨리지 못하면 패배합니다.") +
         desc("공격 주사위에 준비된 스킬이 자동 발동합니다. 강공은 2단계에서 열리고 기세 2가 필요합니다. 적 스킬을 방어하면 반격을 준비합니다.") +

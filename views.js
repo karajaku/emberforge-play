@@ -577,9 +577,9 @@ function huntChoices(h) {
 function fieldView(s) {
   const rack = Game.blades.state(s), progress = Game.endgame.info(s);
   const held = progress.deployed.map(id=>rack.items.find(item=>item.id===id)).filter(Boolean);
-  const bladeSlot = line("검신 배치",held.length+" / "+(progress.unlocked.land?2:1)) +
+  const bladeSlot = line("무기 배치",held.length+" / "+(progress.unlocked.land?2:1)) +
     held.map(item=>row(Game.blades.name(item)+" +"+item.level,fmt(Game.blades.income(item))+" G / 분",btn("bladeRecall","회수",item.id,"mini"))).join("") +
-    (held.length<(progress.unlocked.land?2:1) ? openBtn("bladeCollection","+13 이상 검신 배치") : "");
+    (held.length<(progress.unlocked.land?2:1) ? openBtn("bladeCollection","+13 이상 무기 배치") : "");
   const candidates = s.bag
     .map((g, i) =>
       g.level >= 13 && !Game.isJourneyGear(s, g)

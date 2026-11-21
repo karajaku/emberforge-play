@@ -765,10 +765,12 @@ const Game = (() => {
     return ok(stageName + " 완료 · " + blades.name(w) + " +" + w.level, "win");
   }
   function bindBladeCombat(s, h, item=blades.current(s), armor=blades.currentArmor(s), style=blades.state(s).style) {
+    blades.state(s).equipmentVersion = 1;
+    const outfitRating = h.bladeCombat ? (h.bladeCombat.outfitArmorRating ?? 0) : undefined;
     h.armorId = armor.id;
     h.bladeId = item.id;
-    h.blade = { stage: gradeForLevel(item.level), level: item.level, name: blades.name(item) };
-    h.bladeCombat = blades.skills(s,item,armor,style);
+    h.blade = { stage: gradeForLevel(item.level), level: item.level, name: blades.name(item), weaponKind:item.weaponKind ?? "sword" };
+    h.bladeCombat = blades.skills(s,item,armor,style,outfitRating);
     h.attack = h.bladeCombat.attack;
   }
   function bladeAttributes(s, trial = false, raid = false) {
@@ -782,7 +784,7 @@ const Game = (() => {
     const relic = raid ? s.relics[s.equippedRelic] : null;
     if (relic)
       build.attack = Math.round((build.attack + Math.sqrt(relic.extraAttack || 0)) * (1 + relic.power / 100));
-    for (const key of ["heavy", "counter", "rupture", "strike"])
+    for (const key of ["heavy", "counter", "rupture", "strike", "minDamage", "maxDamage"])
       build[key] = Math.round((build[key] * build.attack) / original);
     return { attack: build.attack, hp: build.hp, bladeCombat: build };
   }
@@ -1434,7 +1436,7 @@ const Game = (() => {
         if (bladeBattle && (blades.state(s).items.length>=120 || blades.armors(s).length>=120))
           return fail("장비 보관함이 가득 찼습니다. 가득 찬 부위의 여분 장비를 분해하세요.");
         const trailBattle = bladeBattle || journeyBattle || arg?.combat === "trail-v1";
-        if (bladeBattle && rank>blades.state(s).cleared+1) return fail("검신으로 이전 지역을 먼저 토벌하세요.");
+        if (bladeBattle && rank>blades.state(s).cleared+1) return fail("무기로 이전 지역을 먼저 토벌하세요.");
         const st = bladeBattle ? blades.skills(s) : trailBattle ? huntStats(s) : stats(s),
           enemyHp = 90 + Math.round(36 * (rank - 1) ** 1.65);
         const enemy = huntEnemy(rank);

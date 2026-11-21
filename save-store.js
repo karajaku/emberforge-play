@@ -15,7 +15,16 @@ const SaveStore = (() => {
   const fault = (code) => Object.assign(new Error(code), { code });
   const object = value => value !== null && typeof value === "object" && !Array.isArray(value);
   const validWork = w => Array.isArray(w) && w.length === 3 && w.every(v => v === null || v === 0 || v === 1);
+  function validEquipmentStats(stats) {
+    const fields = ["minDamage","maxDamage","critChance","blockedDamagePercent","armorRating","outfitArmorRating"];
+    if (fields.every(key => stats[key] === undefined)) return true;
+    return fields.every(key => Number.isSafeInteger(stats[key]) && stats[key] >= 0) &&
+      stats.minDamage > 0 && stats.minDamage <= stats.attack && stats.attack <= stats.maxDamage &&
+      stats.critChance <= 100 && [25,40].includes(stats.blockedDamagePercent) &&
+      stats.outfitArmorRating <= stats.armorRating;
+  }
   function saveFormat(forge) {
+    if (forge?.equipmentVersion === 1) return 8;
     if (forge?.firstBossRetry !== undefined) return 7;
     if (forge?.outfit!==undefined) return 6;
     if (forge?.soul?.version===2) return 5;
@@ -28,6 +37,7 @@ const SaveStore = (() => {
     try { data = JSON.parse(raw); } catch { throw fault("corrupt"); }
     if (data?.heirloom !== undefined) throw fault("future");
     const maxFormat=saveFormat(data?.bladeForge);
+    if (data?.bladeForge?.equipmentVersion > 1) throw fault("future");
     if (data?.bladeForge?.soul?.version>2) throw fault("future");
     const outfit=data?.bladeForge?.outfit;
     if (outfit?.version>1) throw fault("future");
@@ -40,6 +50,7 @@ const SaveStore = (() => {
     if (retry !== undefined && !["ready", "used"].includes(retry)) throw fault("corrupt");
     if (drops!==undefined && (!Array.isArray(drops) || drops.length>2 || typeof data.lastHunt.materialPrize!=="string" ||
         !drops.every(d=>d && ["weapon","armor"].includes(d.type) && typeof d.id==="string" &&
+          (d.weaponKind === undefined || (d.type === "weapon" && game.blades.weaponKinds.includes(d.weaponKind))) &&
           (d.type==="armor"?/^a[1-9]\d*$/:/^b[1-9]\d*$/).test(d.id) && Number.isInteger(d.base) && d.base>0 &&
           d.base<game.blades.bases.length && [0,1,2,3].includes(d.grade) && Number.isInteger(d.lines) &&
           d.lines>=game.blades.rarityRules[d.grade].min && d.lines<=game.blades.rarityRules[d.grade].max) ||
@@ -56,6 +67,7 @@ const SaveStore = (() => {
           h.rank !== 1 || !h.bladeCombat || !h.chestId)) throw fault("corrupt");
       if (h?.fieldKit!==undefined && (!h.bladeCombat || !outfit || !game.outfit.validBuild(h.fieldKit))) throw fault("corrupt");
       if (h?.blade !== undefined && (!object(h.blade) ||
+          (h.blade.weaponKind !== undefined && !game.blades.weaponKinds.includes(h.blade.weaponKind)) ||
           !Number.isInteger(h.blade.stage) || h.blade.stage < 0 || h.blade.stage >= 4 ||
           !Number.isSafeInteger(h.blade.level) || h.blade.level < 0)) throw fault("corrupt");
       if (h?.journeyWork !== undefined && !validWork(h.journeyWork)) throw fault("corrupt");
@@ -74,6 +86,7 @@ const SaveStore = (() => {
             typeof h.bonusEncounter !== "boolean" || !Number.isInteger(h.wave)) throw fault("corrupt");
         if (h.territoryRank!==undefined && (!h.bladeCombat || h.rank!==60 || ![45,50,55,60].includes(h.territoryRank))) throw fault("corrupt");
         if (h.bladeCombat && (!data.bladeForge || !Object.hasOwn(game.blades.styles,h.bladeCombat.style) ||
+            !validEquipmentStats(h.bladeCombat) ||
             (h.bladeCombat.armorAscension !== undefined && (data.bladeForge.soul?.version!==2 || !Object.hasOwn(game.endgame.armorTransform,h.bladeCombat.armorAscension))) ||
             (h.bladeCombat.ascension !== undefined && !Object.hasOwn(game.blades.styles,h.bladeCombat.ascension)) ||
             !object(h.bladeCombat.mods) || !["attack","hp","defense","heavy","counter","rupture","strike","opening","finish"].every(k=>Number.isFinite(h.bladeCombat[k]) && h.bladeCombat[k]>=0) ||

@@ -117,7 +117,7 @@ const BladeEndgame = (() => {
       const { key, free } = arg;
       if (!owns(names, key) || typeof free !== "boolean" || status.unlocked[key])
         return fail("배울 영혼각인을 선택하세요.");
-      if (!status.first) return fail("검신 또는 흉갑 +20을 먼저 완성하세요.");
+      if (!status.first) return fail("무기 또는 흉갑 +20을 먼저 완성하세요.");
       if (free) {
         if (!status.gift) return fail("첫 완성 선물을 이미 사용했습니다.");
         r.claimed = true;
@@ -221,7 +221,7 @@ const BladeEndgame = (() => {
           return fail(
             armor
               ? "흉갑 +20·해당 접두·착용 중 60단계 처치·같은 우두머리 인장 3개가 필요합니다."
-              : "검신 +20·해당 접두·이 검과 검술의 60단계 처치·같은 우두머리 인장 3개가 필요합니다.",
+              : "무기 +20·해당 접두·이 무기와 검술의 60단계 처치·같은 우두머리 인장 3개가 필요합니다.",
           );
         line.ascended = style;
         line.value = 0;
