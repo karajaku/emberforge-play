@@ -273,3 +273,32 @@ body.ui-game {
   .bag-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
   .bag-slot { min-height: 90px; }
 }
+
+/* Blade crafting is inspected in the existing workshop sheet. */
+.blade-slots { margin:12px 0; }
+.blade-slots h4, .blade-mastery h4 { margin:0 0 5px;color:#f4d398; }
+.blade-affix { display:flex;align-items:center;gap:8px;min-height:36px;padding:4px 0;border-bottom:1px solid #b2a17b38; }
+.blade-affix > span { flex:1;min-width:0; }
+.blade-affix small, .blade-empty, .blade-range { color:#d7cbb7;font-size:12px; }
+.blade-range { display:block;text-align:right; }
+.blade-affix b { color:#a4ebc5; }
+.blade-mastery { margin-top:14px; }
+.blade-mastery button { margin:2px;min-height:44px; }
+.blade-drop { color:#ffe29a; }
+.ui-forge-rail :is(.action,.mini) { padding:3px; }
+.blade-layout .ui-forge-rail span { white-space:nowrap; }
+/* The sheet uses the light parchment palette. Keep notifications clear of its close button. */
+.dialog .blade-slots h4, .dialog .blade-mastery h4 { color:#62421c; }
+.dialog .blade-affix small, .dialog .blade-empty, .dialog .blade-range { color:#665947; }
+.dialog .blade-affix b { color:#185e43; }
+.dialog .blade-affix { border-color:#b1916659; }
+#shade[data-modal^="blade"] :is(#modalBody > button,select) { width:100%;min-height:44px;margin:4px 0; }
+#shade[data-modal^="blade"] .listrow { gap:8px; }
+#shade[data-modal^="blade"] label { display:block;margin-top:10px;color:#5f472d; }
+body:has(#shade[data-modal^="blade"]:not([hidden])) #toast { visibility:hidden; }
+#bladeActionStatus { color:#205238;border-inline-start:3px solid #629475;padding:4px 8px;margin:0 0 6px; }
+@media(max-height:640px) {
+  .ui-game .blade-layout .ui-forge-rail { top:58px;gap:3px; }
+  .ui-game .blade-layout .ui-forge-rail button { min-height:44px;height:44px; }
+}
+#shade[data-modal^="blade"] .dialog-head { position:sticky;top:-15px;z-index:2; }

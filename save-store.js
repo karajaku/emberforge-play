@@ -19,7 +19,9 @@ const SaveStore = (() => {
     let data;
     try { data = JSON.parse(raw); } catch { throw fault("corrupt"); }
     if (data?.heirloom !== undefined) throw fault("future");
-    if (data?.version > 2 || data?._save?.format > 1 || data?.hunting?.version > 1) throw fault("future");
+    const maxFormat=data?.bladeForge?.version===1?2:1;
+    if (data?.version > 2 || data?._save?.format > maxFormat || data?.hunting?.version > 1 || data?.bladeForge?.version>1) throw fault("future");
+    if (data?.bladeForge!==undefined && !game.blades.valid(data.bladeForge)) throw fault("corrupt");
     for (const h of [data?.hunt, data?.lastHunt]) {
       if (h?.blade !== undefined && (!object(h.blade) ||
           !Number.isInteger(h.blade.stage) || h.blade.stage < 0 || h.blade.stage >= 4 ||
@@ -38,7 +40,12 @@ const SaveStore = (() => {
       if (h?.trailVersion !== undefined) {
         if (h.trailVersion !== 1 || h.diceVersion !== 1 || !Number.isInteger(h.rank) || h.rank < 1 || h.rank > 60 ||
             typeof h.bonusEncounter !== "boolean" || !Number.isInteger(h.wave)) throw fault("corrupt");
-        const pack = game.trail.lineup(h.rank, h.bonusEncounter);
+        if (h.territoryRank!==undefined && (!h.bladeCombat || h.rank!==60 || ![45,50,55,60].includes(h.territoryRank))) throw fault("corrupt");
+        if (h.bladeCombat && (!data.bladeForge || !Object.hasOwn(game.blades.styles,h.bladeCombat.style) ||
+            !object(h.bladeCombat.mods) || !["attack","hp","defense","heavy","counter","rupture","strike","opening","finish"].every(k=>Number.isFinite(h.bladeCombat[k]) && h.bladeCombat[k]>=0) ||
+            (h===data.hunt && !data.bladeForge.items.some(i=>i.id===h.bladeId)) ||
+            !Number.isInteger(h.wounds) || h.wounds<0 || h.wounds>4)) throw fault("corrupt");
+        const pack = game.trail.lineup(h.territoryRank || h.rank, h.bonusEncounter);
         if (h.wave < 0 || h.wave >= pack.length || pack[h.wave] !== h.enemyKind) throw fault("corrupt");
         if (h === data.hunt) {
           if (h.skillVersion !== 2 || !Number.isInteger(h.waveTurn) || h.waveTurn < 1 || h.waveTurn > 40 ||
@@ -113,7 +120,7 @@ const SaveStore = (() => {
       for (const name of ["marks", "grind"])
         if (gear[name] != null && !Array.isArray(gear[name])) throw fault("corrupt");
     }
-    if (data._save && (!object(data._save) || data._save.format !== 1 ||
+    if (data._save && (!object(data._save) || ![1,maxFormat].includes(data._save.format) ||
         !Number.isSafeInteger(data._save.revision) || data._save.revision < 1 ||
         typeof data._save.generation !== "string" || !Number.isFinite(data._save.savedAt))) throw fault("corrupt");
     if ("hunting" in data) {
@@ -263,7 +270,7 @@ const SaveStore = (() => {
       // generation). No new game/action/random roll is executed on retry.
       if (!pending) {
         const generation = mode === "reset" || !state._save ? id() : state._save.generation;
-        const value = { ...state, version: 2, _save: { format: 1, revision: (state._save?.revision || 0) + 1,
+        const value = { ...state, version: 2, _save: { format: state.bladeForge?2:1, revision: (state._save?.revision || 0) + 1,
           generation, savedAt: Date.now() } };
         const raw = JSON.stringify(value);
         decode(raw);

@@ -245,7 +245,8 @@ function inheritancePicker(s) {
     )
   );
 }
-function craftWorkshop(s) {
+function craftWorkshop(s, bladeMode = false) {
+  const craftButton = (action, ...args) => btn(bladeMode ? {craftStart:"bladeWorkStart",craftMove:"bladeWorkMove",craftFinish:"bladeWorkFinish"}[action] : action, ...args);
   const g = s.weapon,
     i = Swordcraft.stageIndex(g),
     w = g.work;
@@ -254,7 +255,7 @@ function craftWorkshop(s) {
   const st = Swordcraft.stages[i],
     fee = Swordcraft.fee(g, Game.price, i);
   const title = i + 1 + " / 3 · " + st.title;
-  const redesign = w.stock ? btn("craftMove", "새 방식으로 연마 배분하기 · 처음부터 3회", "redesign", "action") : "";
+  const redesign = w.stock ? craftButton("craftMove", "새 방식으로 연마 배분하기 · 처음부터 3회", "redesign", "action") : "";
   const stageScene =
     '<div class="modal-scene craft-scene ' +
     (i === 1 ? "sparring" : "") +
@@ -267,7 +268,10 @@ function craftWorkshop(s) {
     const at = Math.max(g.level, st.target);
     const recorded = Game.isJourneyGear(s, g);
     const stageIcons = [["sword", "shield"], ["shield", "swords"], ["waves", "flame"]];
-    const choices = recorded
+    const choices = bladeMode ? Object.entries(Swordcraft.traits).map(([key, trait]) => ({
+      key, name:trait.name, icon:trait.icon,
+      detail:{edge:"공격력 +2%",ward:"피해 감소 +3%p",yield:"배치 수익 +20%"}[key] + " · +19 " + Breakthrough.methods[key].name
+    })) : recorded
       ? Game.journeyProcessOptions(i).map((option, j) => ({ ...option, icon: stageIcons[i][j] }))
       : Object.entries(Swordcraft.traits).map(([key, v]) => {
         const example = { ...g, grind: w.passes || g.grind, level: at, marks: [...(g.marks || []), key] };
@@ -283,14 +287,14 @@ function craftWorkshop(s) {
                 " G/분";
         return { key, name: v.name, icon: v.icon, detail: v.text + " · +19 " + Breakthrough.methods[key].name + " · " + amount };
       });
-    const choice = choices.map(option => btn("craftFinish",
+    const choice = choices.map(option => craftButton("craftFinish",
       icon(option.icon) + "<span><b>" + option.name + "</b><small>" + option.detail + "</small></span>",
       option.key, "craft-choice", s.gold < fee)).join("");
     return [
       title,
       stageScene +
         '<div class="craft-body">' +
-        (w.passes ? line("연마 효과", grindSummary(w.passes)) + btn("craftMove", "마지막 연마 되돌리기", "undo", "mini") : "") +
+        (w.passes ? line("연마 효과", grindSummary(w.passes)) + craftButton("craftMove", "마지막 연마 되돌리기", "undo", "mini") : "") +
         redesign + '<h3>이 검에 남길 특성</h3>' +
         desc("한 가지를 고르면 +" + at + " 검이 완성됩니다." + (recorded ? "" : " 같은 특성은 누적됩니다.")) +
         line("마감 비용", fmt(fee) + " G") +
@@ -311,7 +315,7 @@ function craftWorkshop(s) {
       stageScene +
         desc((i === 1 ? "시검 패배 · " : "") + w.note) +
         desc("검과 골드는 그대로입니다. 다시 시도할 수 있습니다.") +
-        (redesign || btn("craftStart", "다시 연습하기", "", "primary")),
+        (redesign || craftButton("craftStart", "다시 연습하기", "", "primary")),
     ];
   let controls = "";
   if (i === 0 && w.passes) {
@@ -319,10 +323,10 @@ function craftWorkshop(s) {
       '<div class="grind-options">' + Swordcraft.grindZones.map((z, j) => {
         const current = Swordcraft.grindBonus(w.passes, j);
         const next = Swordcraft.grindBonus([...w.passes, j], j);
-        return btn("craftMove", icon(z.icon) + "<span><b>" + z.name + "</b><small>" + z.effect +
+        return craftButton("craftMove", icon(z.icon) + "<span><b>" + z.name + "</b><small>" + z.effect +
           "</small></span><strong>" + (current ? z.sign : "") + current + "% → " + z.sign + next + "%</strong>", j, "grind-zone");
       }).join("") + "</div>" +
-      (w.passes.length ? btn("craftMove", "마지막 연마 되돌리기", "undo", "mini") : "");
+      (w.passes.length ? craftButton("craftMove", "마지막 연마 되돌리기", "undo", "mini") : "");
   } else if (i === 0) {
     controls =
       metrics(
@@ -338,7 +342,7 @@ function craftWorkshop(s) {
       ) +
       line("남은 연마", w.left + "회") +
       '<div class="craft-moves">' +
-      Swordcraft.cuts.map((c, j) => btn("craftMove", c.label, j)).join("") +
+      Swordcraft.cuts.map((c, j) => craftButton("craftMove", c.label, j)).join("") +
       "</div>";
   } else if (i === 1) {
     controls =
@@ -352,9 +356,9 @@ function craftWorkshop(s) {
         "속공은 피해 2와 기력 +1, 찌르기는 기력 2를 써서 피해 5입니다. 강타를 받아치면 피해 3과 기력 +1, 견제를 잘못 받아치면 내 자세가 2 줄어듭니다.",
       ) +
       '<div class="craft-moves">' +
-      btn("craftMove", "속공", "quick") +
-      btn("craftMove", "찌르기", "lunge", "action", w.stamina < 2) +
-      btn("craftMove", "받아치기", "parry") +
+      craftButton("craftMove", "속공", "quick") +
+      craftButton("craftMove", "찌르기", "lunge", "action", w.stamina < 2) +
+      craftButton("craftMove", "받아치기", "parry") +
       "</div>";
   } else {
     const b = Swordcraft.baths[w.dips];
@@ -365,7 +369,7 @@ function craftWorkshop(s) {
       "%;width:" +
       (b.high - b.low) * 100 +
       '%"></span><i id="bathNeedle"></i></div>' +
-      btn("craftMove", "지금 담그기", "dip", "primary");
+      craftButton("craftMove", "지금 담그기", "dip", "primary");
   }
   return [
     title,

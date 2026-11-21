@@ -1,5 +1,5 @@
 "use strict";
-function finalWorkshop(s) {
+function finalWorkshop(s, bladeMode = false) {
   const w = s.weapon,
     f = w.finalTrial;
   if (w.level !== 19) return ["마지막 돌파", desc("+19 검을 장착하세요.")];
@@ -23,7 +23,7 @@ function finalWorkshop(s) {
           desc(trait.name + " ×" + o.count + " · " + advantage) +
           desc(m.description) +
           btn(
-            "finalStart",
+            bladeMode ? "bladeFinalStart" : "finalStart",
             o.fee ? "도전 · " + fmt(o.fee) + " G" : "재료 배합하기",
             o.key,
             "action",
@@ -42,7 +42,7 @@ function finalWorkshop(s) {
   }
   const title = Breakthrough.methods[f.key].name;
   const button = (action, label, style = "action", disabled = false) =>
-    btn("finalMove", label, [f.key, f.id || 0, f.revision, action].join(":"), style, disabled);
+    btn(bladeMode ? "bladeFinalMove" : "finalMove", label, [f.key, f.id || 0, f.revision, action].join(":"), style, disabled);
   const scene =
     '<div class="modal-scene final-scene"><canvas width="128" height="144" data-sprite="blade3"></canvas></div>';
   let controls = "";

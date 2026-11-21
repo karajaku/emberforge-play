@@ -46,8 +46,18 @@ const HuntTrail = (() => {
   function enter(h, wave) {
     h.wave = wave;
     h.waveTurn = 1;
-    h.enemyKind = lineup(h.rank, h.bonusEncounter)[wave];
-    const def = enemies[h.enemyKind], stats = opponent(h.rank, h.enemyKind, h.journeyBattle === 1);
+    const territory=h.territoryRank || h.rank;
+    h.enemyKind = lineup(territory, h.bonusEncounter)[wave];
+    const def = enemies[h.enemyKind];
+    let stats;
+    if (h.bladeCombat) {
+      const blades=typeof module!=="undefined"?require("./blade-rules.js"):BladeRules;
+      const a=blades.area(h.rank), boss=h.enemyKind===region(territory).boss;
+      const goblin=h.enemyKind==="goblin";
+      const bossHealth=h.enemyKind==="wyrm"?2.7:h.enemyKind==="elder"?2.2:1.65;
+      stats={hp:Math.round(a.enemyHp*(goblin?.36:boss?bossHealth:1)),attack:goblin?0:Math.round(a.enemyAttack*(boss?1.2:1))};
+      h.wounds=0; h.firstHit=true;
+    } else stats=opponent(h.rank, h.enemyKind, h.journeyBattle === 1);
     h.enemyMax = h.enemyHp = stats.hp;
     h.enemyAttack = stats.attack;
     h.enemySkillState = { key: def.skill, cooldown: def.first, interval: def.interval, power: def.power };

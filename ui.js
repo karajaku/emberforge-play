@@ -20,6 +20,7 @@ let prefs = { sound: true, music: true, musicVolume: .35, motion: !matchMedia("(
 try {
   Object.assign(prefs, JSON.parse(localStorage.getItem(settingsKey) || "{}"));
 } catch {}
+let archiveBlade = false;
 let gear = "weapon",
   towerMode = "infinite",
   modal = "",
@@ -151,6 +152,7 @@ function showSaveGuard() {
   el("saveGuardTitle").focus();
 }
 function resumeSaved() {
+  Game.blades.state(state);
   HuntWatch.stop('', false);
   repeatHunting.stop("저장 복귀");
   autoCombat.stop();
@@ -221,6 +223,17 @@ for (const type of ["pointermove", "pointerup", "pointercancel", "lostpointercap
 function notify(msg, kind = "info") {
   if (HuntWatch.active && current() === 'forest' && !modal) return;
   if (!msg) return;
+  if (modal.startsWith("blade") && !el("shade").hidden) {
+    let status=el("bladeActionStatus");
+    if (!status) {
+      status=document.createElement("p");
+      status.id="bladeActionStatus"; status.setAttribute("role","status");
+      el("modalBody").prepend(status);
+    }
+    toast.classList.remove("on");
+    status.textContent=msg;
+    return;
+  }
   resetToastDrag();
   const titles = { "forge-success": "강화 성공", "forge-hold": "강화 유지",
     "forge-drop": "강화 하락", "forge-destroy": "장비 파괴", "forge-promotion": "검 승급", loss: "주의", win: "획득 · 완료" };
@@ -242,6 +255,9 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
   const sourceInventoryMenu = modal.startsWith("inventory-") && !automaticGuard && !repeatGuard ? modal : "";
   const bulkQuote = action === "journeyBulk" && typeof arg === "object" ? arg : null;
   if (bulkQuote) arg = bulkQuote.type;
+  const bladeTargeted = ["bladeForge","bladeEtch","bladePolish","bladeWorkStart","bladeWorkMove","bladeWorkFinish","bladeFinalStart","bladeFinalMove","bladeArmor"].includes(action);
+  const bladeQuote = () => JSON.stringify(action === "bladeArmor" ? state.armor : Game.blades.current(state));
+  const expectedBlade = bladeTargeted && bladeQuote();
   if (!repeatGuard && action === "openChest" && repeatHunting.active) {
     repeatHunting.stop("수동 전환"); autoCombat.stop();
   }
@@ -275,6 +291,11 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
       autoCombat.stop();
     }
     sync();
+    if (bladeTargeted && expectedBlade !== bladeQuote()) {
+      render(); if (modal) displayModal();
+      notify("장비가 바뀌었습니다. 비용과 제작할 장비를 다시 확인하세요.");
+      return;
+    }
     if (bulkQuote) {
       const currentQuote = Game.journeyForge(state, arg);
       if (!currentQuote || ["level", "bulk", "bulkCost", "bulkSuccess"].some(key => currentQuote[key] !== bulkQuote[key])) {
@@ -293,13 +314,15 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
     GameSound.stop();
     const goldBefore = state.gold;
     const breaksBefore = state.breaks;
-    const gearBefore = state[arg === "armor" ? "armor" : "weapon"].level;
-    const sparring = action === "craftMove" && state.weapon.work?.index === 1;
-    const finalKey = action === "finalMove" && state.weapon.finalTrial?.key;
-    const strong = sparring && Swordcraft.heavy(state.weapon.work);
+    const actionLevel = () => action === "bladeArmor" ? state.armor.level : ["bladeForge","bladeWorkFinish","bladeFinalMove"].includes(action) ? Game.blades.current(state).level : state[arg === "armor" ? "armor" : "weapon"].level;
+    const gearBefore = actionLevel();
+    const workWeapon = action.startsWith("blade") ? Game.blades.current(state) : state.weapon;
+    const sparring = ["craftMove","bladeWorkMove"].includes(action) && workWeapon.work?.index === 1;
+    const finalKey = ["finalMove","bladeFinalMove"].includes(action) && workWeapon.finalTrial?.key;
+    const strong = sparring && Swordcraft.heavy(workWeapon.work);
     const beforeHunt = state.hunt;
     const beforeHuntHealth = state.hunt && {...state.hunt};
-    if (action === "huntStart" && arg && typeof arg === "object" && !arg.combat) arg = { ...arg, combat: "journey-v1" };
+    if (action === "huntStart" && arg && typeof arg === "object" && !arg.combat) arg = { ...arg, combat: "blade-v1" };
     const result = Game.perform(state, action, arg, undefined, undefined, pressedAt);
     if (!result.ok && (action === "openChest" || action === "craftHuntLining")) {
       if (repeatGuard && repeatHunting.active) repeatHunting.stop("보물 수령 실패");
@@ -316,10 +339,13 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
     }
     // A completed/retreated battle must clear intent before rendering the result.
     autoCombat.refresh(false);
-    if (result.ok && action === "craftMove") animationStart = performance.now();
+    if (result.ok && ["craftMove","bladeWorkMove"].includes(action)) animationStart = performance.now();
     if (result.impact) huntStart = performance.now();
     const forgeAction = [
       "enhance",
+      "bladeForge",
+      "bladeArmor",
+      "bladeWorkFinish",
       "focusEnhance",
       "restorePeak",
       "recoverEdge",
@@ -335,7 +361,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
       "temper",
     ].includes(action);
     const forgeOutcome = result.ok && forgeAction ? Feedback.forgeOutcome(
-      gearBefore, state[arg === "armor" ? "armor" : "weapon"].level,
+      gearBefore, actionLevel(),
       state.breaks > breaksBefore, result.kind,
     ) : null;
     const retryOutcome = heldEnhance && (forgeOutcome === "hold" || forgeOutcome === "drop");
@@ -347,13 +373,18 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
     }
     const inventoryAction = result.ok && !!sourceInventoryMenu && modal === sourceInventoryMenu;
     if (inventoryAction) modal = "";
+    if (result.ok && action === "bladeMaster") { HuntWatch.selectMaster(); modal = ""; }
+    if (result.ok && action === "bladeSalvage") modal = "bladeCollection";
     if (result.ok && action === "temperStart") modal = "temper";
+    if (result.ok && action === "bladeWorkStart") modal = "bladeWork";
+    if (result.ok && action === "bladeFinalStart") modal = "bladeFinal";
+    if (result.ok && action === "bladeWorkFinish") modal = "";
     if (result.ok && action === "craftStart") modal = "craft";
     if (!repeatGuard && result.ok && ["openChest", "openTowerChests"].includes(action)) modal = "treasure";
     if (result.ok && action === "stopTower") modal = "towerRun";
     if (result.ok && ["craftFinish", "autoMine", "promoteSword", "chooseSwordTrait", "journeyBulk"].includes(action)) modal = "";
     if (result.ok && action === "finalStart") modal = "final";
-    if (result.ok && finalKey && !state.weapon.finalTrial) modal = "";
+    if (result.ok && finalKey && !workWeapon.finalTrial) modal = "";
     if (
       action === "temper" ||
       (["sell", "rebirth", "restart", "guild", "fuse", "raid"].includes(action) && result.ok)
@@ -379,7 +410,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
         Impacts.play(stage, hit.kind, label, !state.hunt);
       } else if (finalKey && (finalKey !== "yield" || result.kind === "win")) {
         Impacts.play(
-          modal === "final" ? document.querySelector("#modalBody .final-scene") : stage,
+          ["final","bladeFinal"].includes(modal) ? document.querySelector("#modalBody .final-scene") : stage,
           result.kind === "loss"
             ? "fracture"
             : finalKey === "edge"
@@ -402,7 +433,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard) {
       const ascension = (["rebirth", "imprint", "fuse", "polish"].includes(action) || (action === "shop" && Number(arg) === 3) || (action === "finalMove" && state.weapon.level === 20)) && result.kind === "win";
       const animate = motionEnabled();
       if (forgeAction || result.promotion) {
-        const level = state[arg === "armor" ? "armor" : "weapon"].level;
+        const level = actionLevel();
         const promotedTo = result.promotion?.to;
         const label = promotedTo ? Game.grades[promotedTo] + " 승급" : action === "temper" ? (state.heat === 5 ? "정밀 타격" : "담금질 완료") :
           state.breaks > breaksBefore ? "장비 파괴" : level > gearBefore ? "+" + fmt(level) + (action === "journeyForge" || action === "journeyBulk" ? " 재련 완료" : " 강화 성공") : level < gearBefore ? "+" + level + " · 하락" :
@@ -504,7 +535,7 @@ function render() {
     (id === "forge"
       ? openBtn("journal", icon("scroll-text") + "강화 기록", "ghost")
       : id === "forest" && phonePage(id) === "hunt"
-        ? (!HuntWatch.active && state.huntBest ? openBtn("huntPlan", icon("compass") + "사냥 구역", "ghost") : "") +
+        ? (!HuntWatch.active && Game.blades.state(state).cleared ? openBtn("huntPlan", icon("compass") + "사냥 구역", "ghost") : "") +
           openBtn("huntRules", icon("swords") + "사냥 규칙", "ghost")
       : zones[id]
         ? go("world/map", icon("compass") + "모험 지도", "ghost")
@@ -638,6 +669,8 @@ function swordJournal(s, record = s.swordRecord) {
 }
 function modalData() {
   const s = state;
+  if (modal.startsWith("blade")) return BladeView.modal(s, modal);
+  if (!archiveBlade && (modal === "lessons" || modal === "help")) return BladeView.modal(s, "bladeGuide");
   if (modal.startsWith("inventory-")) return InventoryView.menu(s, modal.slice("inventory-".length));
   if (modal === "companion") return ["동료 대화", storyChat(s, current())];
   if (modal === "storyScene") return storyPage();
@@ -936,7 +969,7 @@ function modalData() {
         "개인 길드",
         s.guild
           ? desc(s.guild.name + " · 대표 유물 효과가 적용됩니다.") +
-            line("레이드 공격력", fmt(Game.stats(s, false, true).attack)) +
+            line("레이드 공격력", fmt(Game.bladeAttributes(s, false, true).attack)) + line("제한", "10턴") +
             btn("raid", "일일 레이드 도전", "", "primary", s.guild.last === Game.day(Date.now()))
           : desc("길드 징표 10개와 30억 G로 개인 길드를 창설합니다.") +
             line("징표", s.marks + " / 10") +
@@ -955,6 +988,9 @@ function modalData() {
     case "huntPlan":
       return ["사냥 구역", HuntWatch.planView(s)];
     case "huntRules":
+      if (!s.hunt || s.hunt.bladeCombat) return ["숲 사냥", line("주사위", "1~3 타격 · 4~5 방어 · 6 강타") +
+        desc("강공 검술은 기세 2를 써서 일격, 반격 검술은 적 스킬 방어 뒤 반격, 상처 검술은 상처 3겹부터 파열을 발동합니다.") +
+        desc("다섯 단계마다 우두머리를 만납니다. 검신은 검신함에서 비교하고 장착합니다.") + openBtn("bladeStyles","검술과 능력 확인")];
       return ["주사위 사냥", line("1~3 공격 · 4~5 방어 · 6 강공", "양쪽이 매 턴 굴립니다") +
         desc("강공은 공격력의 1.7배, 방어는 받는 피해를 75% 줄입니다. 먼저 쓰러뜨린 적은 반격하지 못합니다. 40턴 안에 쓰러뜨리지 못하면 패배합니다.") +
         desc("공격 주사위에 준비된 스킬이 자동 발동합니다. 강공은 2단계에서 열리고 기세 2가 필요합니다. 적 스킬을 방어하면 반격을 준비합니다.") +
@@ -1160,7 +1196,7 @@ document.addEventListener("pointerdown", (e) => {
   if (prefs.sound) GameSound.unlock();
   GameMusic.unlock();
   beginForgePress(e);
-  const button = e.target.closest("[data-act=finalMove]");
+  const button = e.target.closest("[data-act=finalMove],[data-act=bladeFinalMove]");
   const needle = el("finalNeedle");
   cutPress = button && needle ? { button, time: needle.frameAt || Date.now() } : null;
 });
@@ -1214,7 +1250,10 @@ document.addEventListener("click", (e) => {
     render();
     return;
   }
-  if (d.gear) gear = d.gear;
+  if ("archiveBlade" in d) { archiveBlade = true; gear = "weapon"; return nav("forge"); }
+  if ("bladeTarget" in d) return act("bladeEtch", el("bladeTarget").value);
+  if ("bladeHome" in d) { archiveBlade = false; gear = "weapon"; return nav("forge"); }
+  if (d.gear) { gear = d.gear; if (d.go) archiveBlade = false; }
   if (d.go) return nav(d.go);
   if (d.open) return showModal(d.open, b);
   if ("close" in d) return dismissModal();
@@ -1417,27 +1456,29 @@ setInterval(() => {
   if (supply) supply.disabled = !Game.routeTask(state)?.canSupply;
   if (escort) escort.disabled = !Game.techniqueAvailable(state, "land");
   const delivery = document.querySelector("#modalBody [data-arg$=':deliver']");
-  if (modal === "final" && delivery && state.weapon.finalTrial?.key === "yield")
+  const finishing = modal === "bladeFinal" ? Game.blades.current(state) : state.weapon;
+  if (["final","bladeFinal"].includes(modal) && delivery && finishing.finalTrial?.key === "yield")
     delivery.disabled = !Breakthrough.canDeliver(
       state,
-      Breakthrough.invoice(state.weapon, Game.price),
+      Breakthrough.invoice(finishing, Game.price),
     );
 }, 1000);
 function animate(now) {
   if (!document.hidden && ready && !storageError) {
     const needle = el("finalNeedle");
-    if (modal === "final" && state.weapon.finalTrial?.key === "edge" && needle) {
+    const working = ["bladeFinal","bladeWork"].includes(modal) ? Game.blades.current(state) : state.weapon;
+    if (["final","bladeFinal"].includes(modal) && working.finalTrial?.key === "edge" && needle) {
       needle.frameAt = Date.now();
       needle.style.left =
-        Breakthrough.position(state.weapon.finalTrial, needle.frameAt) * 100 + "%";
+        Breakthrough.position(working.finalTrial, needle.frameAt) * 100 + "%";
     }
     if (
-      modal === "craft" &&
+      ["craft","bladeWork"].includes(modal) &&
       el("bathNeedle") &&
-      state.weapon.work?.index === 2 &&
-      !state.weapon.work.ready
+      working.work?.index === 2 &&
+      !working.work.ready
     )
-      el("bathNeedle").style.left = Swordcraft.needle(state.weapon.work, Date.now()) * 100 + "%";
+      el("bathNeedle").style.left = Swordcraft.needle(working.work, Date.now()) * 100 + "%";
     for (const canvas of document.querySelectorAll("canvas[data-sprite]")) {
       const id = canvas.dataset.sprite,
         im = images[id];
@@ -1454,7 +1495,7 @@ function animate(now) {
           index = 4 + (Math.floor((actor ? delta : now - huntStart) / 90) % 4);
         else if (
           id === "sentinel" &&
-          modal === "craft" &&
+          ["craft","bladeWork"].includes(modal) &&
           delta >= 0 &&
           delta < 360 &&
           canvas.closest(".craft-scene")

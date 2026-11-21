@@ -7,7 +7,7 @@ const InventoryView = (() => {
   function equipment(s, g, type, key, index) {
     const stored = key.startsWith("stored-");
     const deployed = key.startsWith("field-");
-    const status = stored ? "" : deployed ? "배치" : "장착";
+    const status = stored ? "" : deployed ? "배치" : type === "weapon" ? "기록 검" : "장착";
     return {
       key, group: "gear", name: Game.name(g, type), mark: "+" + fmt(g.level),
       art: gearPortrait(g, type), status,
@@ -31,7 +31,7 @@ const InventoryView = (() => {
             actions += btn("deploy", full ? "배치 공간 가득 참" : "사냥터 배치", index, "action", full);
           } else if (!journey) info += line("사냥터 배치", "+13부터");
         } else {
-          actions = forgeButton(type, weapon ? "무기 강화" : "방어구 강화");
+          actions = weapon ? '<button class="action" data-archive-blade>기록 검 대장간</button>' : forgeButton(type, "방어구 강화");
           if (weapon && (Game.canStoreWeapon(g) || journey)) {
             actions += btn("keep", s.bag.length >= 20 ? "보관 무기 20칸 가득 참" : "무기 보관", "", "action", s.bag.length >= 20);
           }
@@ -44,6 +44,8 @@ const InventoryView = (() => {
 
   function entries(s) {
     const items = [
+      ...Game.blades.state(s).items.map(item => ({key: "blade-"+item.id, group: "gear", name: Game.blades.name(item), mark: "+"+item.level,
+        art: BladeView.artwork(item), status: Game.blades.current(s).id === item.id ? "주력" : "", detail: () => BladeView.itemDetail(s,item)})),
       equipment(s, s.weapon, "weapon", "weapon"), equipment(s, s.armor, "armor", "armor"),
       ...s.bag.map((g, i) => equipment(s, g, "weapon", "stored-" + i, i)),
       ...s.field.map((g, i) => equipment(s, g, "weapon", "field-" + i, i)),

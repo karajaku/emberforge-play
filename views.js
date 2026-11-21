@@ -292,6 +292,7 @@ function smithExperienceBar(s) {
 }
 function forgeView(s) {
   const g = s[gear], weapon = gear === "weapon", page = phonePage("forge");
+  if (typeof BladeView !== "undefined" && !archiveBlade && page === "work") return weapon ? BladeView.forge(s) : BladeView.armor(s);
   const plan = Game.journeyForge(s, gear);
   const recovery = weapon && !plan ? Game.midRecovery(g) : null;
   const cost = Game.enhancementCost(s, g);
@@ -570,6 +571,9 @@ function huntChoices(h) {
     }).join("") + "</div>";
 }
 function fieldView(s) {
+  const rack = Game.blades.state(s), held = rack.items.find(i => i.id === rack.deployed);
+  const bladeSlot = line("검신 배치", held ? Game.blades.name(held) + " +" + held.level : "빈자리") +
+    (held ? line("검신 수익", fmt(Game.blades.income(held))+" G / 분") + btn("bladeRecall","검신 회수") : openBtn("bladeCollection","+13 이상 검신 배치"));
   const candidates = s.bag
     .map((g, i) =>
       g.level >= 13 && !Game.isJourneyGear(s, g)
@@ -587,10 +591,10 @@ function fieldView(s) {
   return (
     metrics(
       gaugeMetric("배치 무기", s.field.length, 2 + s.imprints.land, "mint"),
-      metric("10초당 골드", brief(s.field.reduce((n, g) => n + Game.perMinute(g) / 6, 0))),
+      metric("10초당 골드", brief(s.field.reduce((n, g) => n + Game.perMinute(g) / 6, held ? Game.blades.income(held) / 6 : 0))),
       metric("누적 배치 수익", '<span id="yield">' + brief(s.unclaimed) + "</span>"),
     ) +
-    btn("collect", "배치 수익 수령", "", "primary") +
+    btn("collect", "배치 수익 수령", "", "primary") + bladeSlot +
     (!s.field.length && !candidates.length ? line("배치 조건", "+13 이상 보조 검") : "") +
     '<div class="field-slots">' + deployed.join("") + Array.from({length:Math.max(0,2+s.imprints.land-s.field.length)},() => '<div class="field-empty">빈자리</div>').join("") + '</div>' + (candidates.length ? section("배치할 무기") + '<div class="field-slots">' + candidates.join("") + '</div>' : "") +
     (candidates.length ? "" : go("bag/stored", "무기 보관함 " + icon("arrow-right"), "action"))
@@ -651,7 +655,7 @@ function towerView(s) {
   const tr = towerMode === "trial",
     run = s.trial,
     f = tr ? run.floor : s.tower,
-    st = !tr && s.towerRun ? s.towerRun.attributes : Game.stats(s, tr);
+    st = !tr && s.towerRun ? s.towerRun.attributes : Game.bladeAttributes(s, tr);
   return (
     tabs(
       [

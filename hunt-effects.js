@@ -12,7 +12,7 @@ const HuntEffects=(()=>{
   }
   const later=(fn,ms)=>timers.push(setTimeout(fn,ms*timeScale));
   function animate(node,frames,options){if(node&&motionEnabled())animations.push(node.animate(frames,{...options,duration:options.duration*timeScale}));}
-  const names={strike:'공격',block:'방어',heavyStrike:'강공'},icons={strike:'sword',block:'shield',heavyStrike:'hammer'};
+  const names={strike:'공격',block:'방어',heavyStrike:'강타'},icons={strike:'sword',block:'shield',heavyStrike:'hammer'};
   function faceIcon(die,face){const action=DiceCombat.actions[face-1];die.innerHTML=icon(icons[action]);die.dataset.action=action;}
   function burst(actor,kind,damage){
     if(!actor||!motionEnabled())return;
@@ -36,8 +36,8 @@ const HuntEffects=(()=>{
   function play(hit,before,roll){
     cancel();const arena=document.querySelector('.watch-arena');if(!arena)return false;
     // Keep both dice, contact and recovery visible within the two-second journey turn.
-    timeScale=before.journeyBattle===1 ? .5 : 1;
-    const firstCounter=!before.journeyBattle&&(roll?roll.skill==='counter':hit.kind==='counter')&&!(before.ripostes>0);
+    timeScale=before.journeyBattle===1 || before.bladeCombat ? .5 : 1;
+    const firstCounter=!before.journeyBattle&&!before.bladeCombat&&(roll?roll.skill==='counter':hit.kind==='counter')&&!(before.ripostes>0);
     if(!motionEnabled()){if(firstCounter)counterBonus(arena);return false;}
     const bonusStatus=document.querySelector('.watch-counter-status');
     if(firstCounter&&bonusStatus)bonusStatus.style.visibility='hidden';
@@ -58,7 +58,7 @@ const HuntEffects=(()=>{
         sound('dice');
         for(let i=0;i<8;i++)later(()=>faceIcon(die,1+(i*5+(side==='player'?0:3))%6),i*75);
         later(()=>{
-          const face=roll[side+'Face'],action=roll[side];host.classList.remove('rolling');host.classList.add('chosen');faceIcon(die,face);
+          const face=roll[side+'Face'],action=roll[side];host.classList.remove('rolling');host.classList.add('chosen');die.innerHTML=icon(icons[action]);die.dataset.action=action;
           host.querySelector('span').textContent=names[action];die.setAttribute('aria-label',names[action]+' 주사위');
           animate(die,[{transform:'scale(1.25) rotate(-8deg)'},{transform:'scale(.94)'},{transform:'scale(1)'}],{duration:230});
         },600);
@@ -67,7 +67,9 @@ const HuntEffects=(()=>{
     if(roll){diceTurn('player',0);diceTurn('enemy',800);}else arena.dataset.phase='reveal';
     later(()=>{arena.dataset.phase='reveal';},lead);
     function skillFlare(side,key,at){if(!key)return;later(()=>{
-      const def=(side==='player'?DiceCombat.skills:DiceCombat.enemySkills)[key],banner=document.createElement('div');
+      const def=side==='player' && before.bladeCombat && key==='rupture' ? {name:'파열',icon:'sword'} :
+        side==='player' && before.bladeCombat && key==='heavyStrike' ? {name:'일격',icon:'hammer'} : (side==='player'?DiceCombat.skills:DiceCombat.enemySkills)[key];
+      const banner=document.createElement('div');
       banner.className='watch-skill-flare '+key+' '+side;banner.dataset.skillSide=side;banner.innerHTML=icon(def.icon)+'<b>'+def.name+'</b>';
       // Timer callbacks may arrive late on busy devices; never overlap action callouts.
       arena.querySelectorAll('.watch-skill-flare').forEach(node=>node.remove());
@@ -117,6 +119,12 @@ const HuntEffects=(()=>{
       },at+300);
     }
     strike('player',lead+260);
+    if (before.bladeCombat && actions.player === "block" && hit.damage > 0) {
+      later(() => {
+        updateHealthMeter(meters.enemy,end.enemy,start.enemy,motionEnabled());
+        burst(actors.enemy,"slash",hit.damage);
+      },lead+560);
+    }
     // The existing model resolves lethal player hits before an enemy reply.
     if(end.enemy>0 && before.enemyKind!=='goblin')strike('enemy',lead+920);
     if(roll?.enemySkill==='escape')later(()=>animate(actors.enemy,[{opacity:1,transform:'translateX(0)'},{opacity:0,transform:'translateX(75%)'}],{duration:430,fill:'forwards'}),lead+940);

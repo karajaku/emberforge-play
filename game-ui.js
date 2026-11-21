@@ -9,7 +9,7 @@ const GameUI = (() => {
     if (!panel) return html;
     layout.classList.add('forge-control-layout');
     const scene = layout.querySelector('.scene');
-    if (s.swordRecord && s.weapon.recordId === s.swordRecord.id && s.weapon.grade > 0 &&
+    if (!layout.classList.contains("blade-layout") && s.swordRecord && s.weapon.recordId === s.swordRecord.id && s.weapon.grade > 0 &&
         scene.querySelector('canvas[data-sprite^="blade"]')) {
       scene.dataset.swordGrade = s.weapon.grade;
       const emblem = ['map-pin', 'gem', 'sparkles', 'crown'][s.weapon.grade];
@@ -18,7 +18,7 @@ const GameUI = (() => {
     panel.className = 'forge-console';
     const stats = panel.querySelector('.stats');
     stats.className = 'forge-readout';
-    const risk = panel.querySelector('[data-open="risk"]');
+    const risk = panel.querySelector('[data-open="risk"], [data-open="bladeInfo"], [data-open="bladeArmorInfo"]');
     risk.className = 'forge-help';
     stats.querySelector('.line').append(risk);
     const primary = panel.querySelector(':scope > .primary');
@@ -53,8 +53,11 @@ const GameUI = (() => {
     content.querySelector('.title-actions')?.remove();if(titleActions)content.prepend(titleActions);
     if(current()==='forge'&&phonePage('forge')==='work') {
       const rail=document.createElement('nav');rail.className='ui-forge-rail';rail.setAttribute('aria-label','대장간 작업');
-      rail.innerHTML=[['craft','anvil','제작'],['training','hammer','수련'],['orders','scroll-text','의뢰']].map(([page,ic,label])=>'<button data-go="forge/'+page+'">'+icon(ic)+'<span>'+label+'</span></button>').join('');
+      rail.innerHTML = !archiveBlade ? openBtn('bladeCraft',icon('anvil')+'<span>제작</span>') + openBtn('bladeCollection',icon('sword')+'<span>검신함</span>') + go('forge/orders',icon('scroll-text')+'<span>의뢰</span>') : [['craft','anvil','제작'],['training','hammer','수련'],['orders','scroll-text','의뢰']].map(([page,ic,label])=>'<button data-go="forge/'+page+'">'+icon(ic)+'<span>'+label+'</span></button>').join('');
       const stage = document.querySelector('.forge-layout .stage-side');
+      if (archiveBlade) {
+        rail.lastElementChild.outerHTML = '<button data-blade-home>'+icon('sword')+'<span>검신 복귀</span></button>';
+      }
       stage.append(rail);
       if (state.best > 0) {
         const duel = document.createElement('button');

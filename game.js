@@ -1,5 +1,6 @@
 "use strict";
 const Game = (() => {
+  const blades = typeof module !== "undefined" ? require("./blade-rules.js") : BladeRules;
   const journey = typeof module !== "undefined" ? require("./journey-rules.js") : JourneyRules;
   const story = typeof module !== "undefined" ? require("./charcoal-story.js") : CharcoalStory;
   const craft = typeof module !== "undefined" ? require("./swordcraft.js") : Swordcraft;
@@ -287,10 +288,15 @@ const Game = (() => {
       bulk, bulkCost:fee(bulk), bulkSuccess:journey.forgeSuccess(bulk, cap) };
   }
   const journeyOrders = [[3,200],[7,500],[200,10000],[500,25000],[1000,50000],[2000,100000],[5000,250000],[9999,500000]];
+  const bladeOrders = [[3,200],[5,350],[7,500],[9,1000],[11,1800],[13,3000],[16,5000],[20,12000]];
   function currentOrder(s) {
     const order = orders[s.order];
-    return !order || !s.journeyEconomy || order[0] <= s.journeyEconomy.previousBest ? order :
-      [...journeyOrders[s.order], order[2]];
+    if (!order) return null;
+    const prior = !s.journeyEconomy || order[0] <= s.journeyEconomy.previousBest
+      ? order : [...journeyOrders[s.order], order[2]];
+    // Pay an earned historical order before switching to attainable +20 objectives.
+    if (!s.bladeForge || (s.bladeForge.previousBest >= prior[0] && prior[1] >= bladeOrders[s.order][1])) return prior;
+    return [...bladeOrders[s.order], order[2]];
   }
   function dailyGold(s) {
     return s.journeyEconomy ? live.current.balance.journeyDailyGold + 10 * Math.min(s.best, journey.limit) : live.current.balance.dailyGold;
@@ -391,7 +397,7 @@ const Game = (() => {
   }
   function huntBlade(s, encounter) {
     const blade = huntBladeState(s, encounter);
-    return { ...blade, name: live.current.game.swords[blade.stage] };
+    return { ...blade, name: blade.name || live.current.game.swords[blade.stage] };
   }
   function weaponAttack(weapon, level = weapon.level) {
     return Math.round(
@@ -573,7 +579,7 @@ const Game = (() => {
   ];
   function huntEnemy(huntOrRank) {
     const rank = Math.max(1, Math.min(60, Number(typeof huntOrRank === "number" ? huntOrRank : huntOrRank?.rank) || 1));
-    if (huntOrRank?.trailVersion === 1) return trail.enemy(rank, huntOrRank.enemyKind);
+    if (huntOrRank?.trailVersion === 1) return trail.enemy(huntOrRank.territoryRank || rank, huntOrRank.enemyKind);
     // An already-running legacy hunt keeps its original moves until it ends.
     const enemy = typeof huntOrRank === "number" ? forestEnemies[(rank - 1) % 5]
       : forestEnemies.find(e => e.kind === huntOrRank?.enemyKind) || forestEnemies[0];
@@ -615,7 +621,9 @@ const Game = (() => {
     if (t > s.last) {
       // Settle pre-update time at the old rate before switching existing saves.
       const divisor = s.fieldIncomeVersion === 2 ? 1 : 6;
-      s.unclaimed += ((t - s.last) / 60000) * s.field.reduce((n, g) => n + perMinute(g) / divisor, 0);
+      const fieldRate=s.field.reduce((n,g)=>n+perMinute(g)/divisor,0);
+      const stationed=s.bladeForge?.items.find(i=>i.id===s.bladeForge.deployed);
+      s.unclaimed += ((t - s.last) / 60000) * (fieldRate+blades.income(stationed));
       s.last = t;
     }
     s.fieldIncomeVersion = 2;
@@ -684,7 +692,138 @@ const Game = (() => {
     (s.chests ||= []).push(chest);
     return chest;
   }
-  function towerBattle(f, tr, attributes) {
+  function bladePrizeGold(rank, t = Date.now()) {
+    return Math.round(
+      (blades.area(rank).g * live.forestMultiplier(t) * live.current.balance.journeyForestGold) / 1400,
+    );
+  }
+  function bladeWorkshop(s, action, arg, t, rng, pressedAt) {
+    const w = blades.current(s),
+      i = craft.stageIndex(w);
+    const fail = (message) => ({ ok: false, message });
+    const ok = (message, kind = "craft") => ({ ok: true, message, kind });
+    if (action === "bladeFinalStart" || action === "bladeFinalMove") {
+      const view = {
+        weapon: w,
+        gold: s.gold,
+        shards: s.shards,
+        unclaimed: s.unclaimed,
+        finalTrialNumber: s.finalTrialNumber,
+      };
+      const finish = w.finalTrial;
+      let result;
+      if (action === "bladeFinalStart") {
+        if (!finale.start(view, arg, price, t, rng)) return fail("검의 특성·단계·제련비를 확인하세요.");
+        s.finalTrialNumber = view.finalTrialNumber;
+        result = ok(finale.methods[arg].name + " 시작");
+      } else {
+        const progress = finale.move(view, arg, price, t, pressedAt);
+        if (!progress) return fail("돌파 진행과 재료를 확인하세요.");
+        result = ok(progress.note || "돌파 진행");
+        if (progress.outcome !== "continue") {
+          delete w.finalTrial;
+          if (progress.outcome === "win") {
+            w.level = 20;
+            result = ok(blades.name(w) + " +20 완성", "win");
+          }
+          if (progress.outcome === "loss" && finish.key === "edge") {
+            w.level = 18;
+            s.forgeClues++;
+            result = ok("삼격 절단 실패 · +18 · 단서 +1", "loss");
+          }
+        }
+      }
+      payForgeFee(s, s.gold - view.gold);
+      s.shards = view.shards;
+      s.unclaimed = view.unclaimed;
+      return result;
+    }
+    if (i < 0 || w.level >= 20 || w.finalTrial) return fail("지금 진행할 검신 공정이 없습니다.");
+    if (action === "bladeWorkStart") {
+      if (!w.work || w.work.failed) w.work = craft.makeWork(i, rng, t);
+      return ok(craft.stages[i].title);
+    }
+    if (!w.work || w.work.index !== i) return fail("공정을 먼저 시작하세요.");
+    if (action === "bladeWorkMove")
+      return craft.play(w.work, String(arg), pressedAt)
+        ? ok(w.work.note || "공정 진행")
+        : fail("현재 사용할 수 없는 동작입니다.");
+    if (action !== "bladeWorkFinish" || !w.work.ready || !Object.hasOwn(craft.traits, arg))
+      return fail("공정을 마치고 특성을 선택하세요.");
+    const fee = craft.fee(w, price, i);
+    if (s.gold < fee) return fail("마감 골드가 부족합니다.");
+    payForgeFee(s, fee);
+    (w.marks ??= []).push(arg);
+    if (i === 0) w.grind = [...w.work.passes];
+    w.level = Math.max(w.level, craft.stages[i].target);
+    delete w.work;
+    return ok(craft.stages[i].title + " 완료 · " + blades.name(w) + " +" + w.level, "win");
+  }
+  function bindBladeCombat(s, h) {
+    const item = blades.current(s);
+    h.bladeId = item.id;
+    h.blade = { stage: gradeForLevel(item.level), level: item.level, name: blades.name(item) };
+    h.bladeCombat = blades.skills(s);
+    h.attack = h.bladeCombat.attack;
+  }
+  function bladeAttributes(s, trial = false, raid = false) {
+    if (!s.bladeForge) return stats(s, trial, raid);
+    const build = blades.skills(s),
+      original = build.attack;
+    if (trial) {
+      build.attack += Math.round(Math.sqrt(s.trial.buffs.attack));
+      build.hp += Math.round(Math.sqrt(s.trial.buffs.hp) * 2);
+    }
+    const relic = raid ? s.relics[s.equippedRelic] : null;
+    if (relic)
+      build.attack = Math.round((build.attack + Math.sqrt(relic.extraAttack || 0)) * (1 + relic.power / 100));
+    for (const key of ["heavy", "counter", "rupture", "strike"])
+      build[key] = Math.round((build[key] * build.attack) / original);
+    return { attack: build.attack, hp: build.hp, bladeCombat: build };
+  }
+  // Tower floors and the guild target use the forest's actual turn resolver, including affix procs.
+  function bladeDuel(attributes, enemyHp, enemyAttack, turnLimit, random, enemyKey = "charge") {
+    const h = {
+      bladeCombat: attributes.bladeCombat,
+      hp: attributes.hp,
+      maxHp: attributes.hp,
+      attack: attributes.attack,
+      enemyHp,
+      enemyMax: enemyHp,
+      enemyAttack,
+      waveTurn: 1,
+      counter: false,
+      momentum: 1,
+      firstHit: true,
+      wounds: 0,
+      enemySkillState: { key: enemyKey, cooldown: 2, interval: 3, power: 2 },
+      skillCooldowns: { heavyStrike: 0, counter: 0 },
+    };
+    let turns = 0;
+    while (h.hp > 0 && h.enemyHp > 0 && turns < turnLimit) {
+      const m = dice.turn(h, dice.face(random), dice.face(random), random);
+      Object.assign(h, {
+        wounds: m.wounds,
+        firstHit: m.firstHit,
+        fortified: m.fortified,
+        counter: m.counter,
+        skillCooldowns: m.skillCooldowns,
+        enemySkillState: m.enemySkillState,
+        momentum: m.momentum,
+      });
+      h.enemyHp -= m.damage;
+      h.hp = Math.min(h.maxHp, h.hp - m.taken + m.healed);
+      h.waveTurn++;
+      turns++;
+    }
+    return { turns, win: h.enemyHp === 0, timedOut: h.hp > 0 && h.enemyHp > 0, damage: enemyHp - h.enemyHp };
+  }
+  function towerBattle(f, tr, attributes, random=Math.random) {
+    if (attributes.bladeCombat) {
+      const hp=Math.round((tr?65:40)+f*(tr?10:6)), atk=Math.round((tr?11:8)+f*(tr?.7:.45));
+      return {f,hp:attributes.hp,attack:attributes.attack,enemyHp:hp,enemyAtk:atk,tr,
+        ...bladeDuel(attributes,hp,atk,tr?20:60,random,["charge","bind","crush","dust"][(f-1)%4])};
+    }
     const { attack, hp } = attributes;
     const enemyHp = Math.round((tr ? 66 : 36) * Math.pow(1.09, Math.min(f, 120)) + (f - 1) * (tr ? 650 : 55));
     const enemyAtk = Math.round((tr ? 28 : 12) * Math.pow(1.06, Math.min(f, 120)) + f * (tr ? 14 : 3));
@@ -709,6 +848,21 @@ const Game = (() => {
       return { ok: true, message, kind };
     };
     const int = (a, b) => a + Math.floor(random() * (b - a + 1));
+    if (typeof act === "string" && act.startsWith("blade")) {
+      const workshop=act.startsWith("bladeWork") || act.startsWith("bladeFinal");
+      const result=workshop ? bladeWorkshop(s,act,arg,t,random,pressedAt) : blades.act(s,act,arg,random,payForgeFee);
+      if (!result.ok) return result;
+      const h=s.hunt;
+      if (h?.bladeId===blades.current(s).id && ["bladeForge","bladeEtch","bladePolish","bladeWorkFinish","bladeFinalMove"].includes(act)) {
+        const style=h.bladeCombat.style;
+        bindBladeCombat(s,h);
+        h.bladeCombat.style=style;
+      }
+      if (act==="bladeForge" || act==="bladeWorkFinish" || act==="bladeFinalMove") {
+        s.best=Math.max(s.best,blades.current(s).level);
+      }
+      return success(result.message,result.kind);
+    }
     const type = arg === "armor" ? "armor" : "weapon";
     const g = s[type];
     const validIndex = (list, index) =>
@@ -1250,8 +1404,11 @@ const Game = (() => {
           return fail("먼저 이전 지역을 토벌하세요.");
         if (w.free + w.purchased < 1) return fail("사냥권이 부족합니다. 10분 충전·오늘의 출석을 확인하거나 대장간과 배치 수익을 이용하세요.");
         const journeyBattle = arg?.combat === "journey-v1";
-        const trailBattle = journeyBattle || arg?.combat === "trail-v1";
-        const st = trailBattle ? huntStats(s) : stats(s),
+        const bladeBattle=arg?.combat==="blade-v1";
+        if (bladeBattle && blades.state(s).items.length>=120) return fail("검신 보관함이 가득 찼습니다. 검신을 분해하세요.");
+        const trailBattle = bladeBattle || journeyBattle || arg?.combat === "trail-v1";
+        if (bladeBattle && rank>blades.state(s).cleared+1) return fail("검신으로 이전 지역을 먼저 토벌하세요.");
+        const st = bladeBattle ? blades.skills(s) : trailBattle ? huntStats(s) : stats(s),
           enemyHp = 90 + Math.round(36 * (rank - 1) ** 1.65);
         const enemy = huntEnemy(rank);
         const task = routeTask(s);
@@ -1290,6 +1447,11 @@ const Game = (() => {
           s.hunt.enemySkillState={cooldown:enemy.first,interval:enemy.interval,power:enemy.power};
         }
         if (trailBattle) {
+          if (bladeBattle) {
+            bindBladeCombat(s,s.hunt);
+            const b=blades.state(s);
+            if(rank===60 && b.cleared===60) s.hunt.territoryRank=45+5*b.master;
+          }
           if (journeyBattle) {
             s.hunt.journeyBattle = 1;
             s.hunt.opponentVersion = 2;
@@ -1312,7 +1474,7 @@ const Game = (() => {
       case "huntAdvance": {
         const h = s.hunt;
         if (!trail.awaitingNext(h) || arg?.id !== h.id || arg.wave !== h.wave ||
-            h.wave + 1 >= trail.lineup(h.rank, h.bonusEncounter).length) return fail("이어질 조우가 없습니다.");
+            h.wave + 1 >= trail.lineup(h.territoryRank || h.rank, h.bonusEncounter).length) return fail("이어질 조우가 없습니다.");
         trail.enter(h, h.wave + 1);
         return { ok: true, message: h.last, kind: "info" };
       }
@@ -1331,13 +1493,17 @@ const Game = (() => {
           h.skillVersion=h.trailVersion ? 2 : 1;
           if(!h.enemySkillState){const enemy=huntEnemy(h);h.enemySkillState={cooldown:Math.max(0,enemy.first-h.turn+1),interval:enemy.interval,power:enemy.power};}
         }
-        const roll = h.diceVersion === 1 ? dice.turn(h, dice.face(random), dice.face(random)) : null;
+        const roll = h.diceVersion === 1 ? dice.turn(h, dice.face(random), dice.face(random),random) : null;
         const charge = !roll && huntCharge(h),
           block = roll ? roll.player === "block" : act === "block";
         const move = roll ? {...roll, available:true} : huntMove(h, act);
         if (roll) {h.lastDice=roll;h.skillCooldowns=roll.skillCooldowns;h.enemySkillState=roll.enemySkillState;}
         if (!move.available) return fail("2구역부터 기세 2칸으로 강공을 사용할 수 있습니다.");
         const { damage, taken } = move;
+        if (h.bladeCombat) {
+          h.wounds=roll.wounds; h.firstHit=roll.firstHit; h.fortified=roll.fortified;
+          if (!taken) h.hp=Math.min(h.maxHp,h.hp+roll.healed);
+        }
         h.momentum = move.momentum;
         const impact = {
           kind: block ? (charge ? "parry" : "block") : (roll?roll.skill==='counter':h.counter) ? "counter" : "slash",
@@ -1347,15 +1513,16 @@ const Game = (() => {
         if (roll?roll.skill==='counter':!block&&h.counter) h.ripostes = (h.ripostes || 0) + 1;
         h.enemyHp = Math.max(0, h.enemyHp - damage);
         const trailResult = h.trailVersion ? {trailVersion:1, wave:h.wave, bonusEncounter:h.bonusEncounter} : {};
+        if (h.bladeCombat) Object.assign(trailResult,{bladeCombat:h.bladeCombat,wounds:h.wounds,territoryRank:h.territoryRank});
         if (!h.enemyHp) {
-          if (h.trailVersion && h.wave + 1 < trail.lineup(h.rank, h.bonusEncounter).length) {
+          if (h.trailVersion && h.wave + 1 < trail.lineup(h.territoryRank || h.rank, h.bonusEncounter).length) {
             if (h.enemyKind === "goblin") h.goblinCaught = true;
             h.counter = roll.counter;
             h.turn++;
             return { ok:true, message:"", kind:"info", impact };
           }
-          const base = h.journeyBattle ? journey.area(h.rank, t).prize : live.forestGold(h.rank, t);
-          const bonus = !h.journeyBattle && h.ripostes ? base / 4 : 0;
+          const base = h.bladeCombat ? bladePrizeGold(h.rank,t) : h.journeyBattle ? journey.area(h.rank, t).prize : live.forestGold(h.rank, t);
+          const bonus = !h.bladeCombat && !h.journeyBattle && h.ripostes ? base / 4 : 0;
           const chest = awardChest(s, "forest", h.rank, base, bonus, int, !!h.journeyBattle);
           if (h.materialRule === 1) {
             Object.assign(chest, { materialRule: 1, entryId: h.id, fiber: forestYield(h.rank) });
@@ -1379,6 +1546,7 @@ const Game = (() => {
             reward: chest.gold,
             bonus,
           };
+          if (h.bladeCombat) s.lastHunt.bladePrize=blades.reward(s,h,random);
           s.huntBest = Math.max(s.huntBest, h.rank);
           const route = s.weapon.route;
           const trained =
@@ -1395,7 +1563,7 @@ const Game = (() => {
           };
         }
         impact.taken = Math.min(taken, h.hp);
-        h.hp = Math.max(0, h.hp - taken);
+        h.hp = Math.max(0, h.hp - taken + (taken && h.bladeCombat ? roll.healed : 0));
         if (roll && (h.waveTurn ?? h.turn) >= 40) h.hp = 0;
         h.counter = roll?roll.counter:block && charge;
         if (!h.hp) {
@@ -1551,13 +1719,13 @@ const Game = (() => {
         if (!s.tickets) return fail("입장권이 필요합니다.");
         s.tickets--;
         s.towerRun = { startFloor: s.tower, cleared: 0, chests: [],
-          attributes: stats(s), nextAt: t + 1000, started: t, battle: null };
+          attributes: bladeAttributes(s), nextAt: t + 1000, started: t, battle: null };
         return success("고속 등반 시작 · 입장권 1장 사용");
       }
       case "fastTowerStep": {
         const run = s.towerRun;
         if (!run || t < run.nextAt) return fail("");
-        const fight = towerBattle(s.tower, false, run.attributes);
+        const fight = towerBattle(s.tower, false, run.attributes,random);
         run.battle = fight;
         run.nextAt = t + 1000;
         if (fight.win) {
@@ -1599,7 +1767,7 @@ const Game = (() => {
         if (!tr && !s.tickets) return fail("입장권이 필요합니다. 오늘의 출석 보상을 확인하세요.");
         if (!tr) s.tickets--;
         const f = tr ? trial.floor : s.tower;
-        const fight = towerBattle(f, tr, stats(s, tr));
+        const fight = towerBattle(f, tr, bladeAttributes(s, tr),random);
         const { win, turns, timedOut } = fight;
         let message = f + "층 · " + turns + "턴 " + (win ? "승리" : timedOut ? "제한 초과 · 패배" : "패배");
         let chest;
@@ -1703,7 +1871,8 @@ const Game = (() => {
         if (!s.guild || s.guild.last === day(t))
           return fail("하루 한 번 길드 레이드에 도전할 수 있습니다.");
         s.guild.last = day(t);
-        const damage = stats(s, false, true).attack * 10;
+        const attributes=bladeAttributes(s,false,true);
+        const damage=attributes.bladeCombat ? bladeDuel(attributes,1000000,Math.round(12+blades.state(s).cleared*.35),10,random,"crush").damage : attributes.attack*10;
         s.guild.raids++;
         s.gold += damage * 100;
         s.points += 200;
@@ -1756,7 +1925,7 @@ const Game = (() => {
     return 1 - Math.abs((elapsed % 1800) / 900 - 1);
   }
   return {
-    forestYield, liningCosts, huntStats, huntBlade, restoreHuntWeapon, migrateJourneyOpponent, hunting, settleHunting, huntingStatus, resetProgress,
+    blades, bladeAttributes, bladePrizeGold, forestYield, liningCosts, huntStats, huntBlade, restoreHuntWeapon, migrateJourneyOpponent, hunting, settleHunting, huntingStatus, resetProgress,
     startSwordRecord, freshJourney, enableJourney, isJourneyGear, canAdoptSword, journeyForge, journeySmith, saleValue, currentOrder, dailyGold,
     journeyProcessOptions: i => journey.processOptions[i],
     huntArea: journey.area, journeyTraits: journey.bladeTraits,
