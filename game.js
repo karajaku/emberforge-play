@@ -10,6 +10,8 @@ const Game = (() => {
   const dice = typeof module !== "undefined" ? require("./dice-combat.js") : DiceCombat;
   const trail = typeof module !== "undefined" ? require("./hunt-trail.js") : HuntTrail;
   const shop = typeof module !== "undefined" ? require("./relic-shop.js") : RelicShop;
+  const compare = typeof module !== "undefined" ? require("./gear-comparison.js") : createGearComparison;
+  const compareGear = compare({blades, outfit, endgame, craft, dice, stats});
   const grades = ["일반", "레어", "에픽", "전설"];
   const live = typeof module !== "undefined" ? require("./live-data.js") : LiveData;
   function baseSwordChances(level) {
@@ -1969,7 +1971,7 @@ const Game = (() => {
     return 1 - Math.abs((elapsed % 1800) / 900 - 1);
   }
   return {
-    blades, outfit, endgame, bladeAttributes, bladePrizeGold, forestYield, liningCosts, huntStats, huntBlade, restoreHuntWeapon, migrateJourneyOpponent, hunting, settleHunting, huntingStatus, hasBossRetry, resetProgress,
+    compareGear, blades, outfit, endgame, bladeAttributes, bladePrizeGold, forestYield, liningCosts, huntStats, huntBlade, restoreHuntWeapon, migrateJourneyOpponent, hunting, settleHunting, huntingStatus, hasBossRetry, resetProgress,
     startSwordRecord, freshJourney, enableJourney, isJourneyGear, canAdoptSword, journeyForge, journeySmith, saleValue, currentOrder, dailyGold,
     journeyProcessOptions: i => journey.processOptions[i],
     huntArea: journey.area, journeyTraits: journey.bladeTraits,

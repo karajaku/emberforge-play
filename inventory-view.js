@@ -1,5 +1,49 @@
 "use strict";
 
+const GearCompareView = (() => {
+  const number = value => value.toLocaleString("ko-KR", {maximumFractionDigits: 2});
+  const signed = value => (value < 0 ? "−" : "+") + number(Math.abs(value));
+  const tone = delta => delta > 0 ? "up" : delta < 0 ? "down" : "same";
+
+  function score(comparison, compact = false) {
+    const {score, delta} = comparison;
+    const arrow = delta > 0 ? "▲" : delta < 0 ? "▼" : "";
+    const text = compact && score >= 100000 ? score.toLocaleString("ko-KR", {notation:"compact", maximumFractionDigits:1}) : number(score);
+    return '<span class="gear-score" data-tone="' + tone(delta) + '"><small>전투력</small> <b>' +
+      text + (arrow ? ' <i aria-hidden="true">' + arrow + '</i>' : "") + '</b></span>';
+  }
+
+  function accessible(comparison) {
+    const {score, delta} = comparison;
+    const difference = delta ? ", 현재보다 " + number(Math.abs(delta)) + (delta > 0 ? " 높음" : " 낮음") : "";
+    return "전투력 " + number(score) + difference;
+  }
+
+  function detail(comparison, type) {
+    const {current, equipped, score, delta, rows} = comparison;
+    let name;
+    if (current) {
+      if (type === "outfit") name = Game.outfit.name(current);
+      else if (type === "legacyWeapon" || type === "legacyArmor") name = Game.name(current, type === "legacyWeapon" ? "weapon" : "armor");
+      else name = Game.blades.name(current);
+      name += " +" + number(current.level);
+    }
+    const slot = Game.outfit.slots.find(it => it.key === comparison.slot);
+    const heading = equipped ? "착용 중" : (type === "outfit" && slot ? slot.name + " 기준" : "비교 기준");
+    const difference = (value, unit) => value ? '<b data-tone="' + tone(value) + '">' + signed(value) + unit + '</b>' :
+      '<span class="gear-equal" aria-label="변화 없음">—</span>';
+    const tr = (label, value, change) => '<tr><th scope="row">' + escapeHtml(label) + '</th><td>' + value + '</td>' +
+      (equipped ? "" : '<td>' + change + '</td>') + '</tr>';
+    return '<section class="gear-comparison"><div class="gear-baseline"><span>' + heading + '</span> <strong>' +
+      escapeHtml(name || "빈칸") + '</strong></div><table><thead><tr><th scope="col">능력치</th><th scope="col">' +
+      (equipped ? "현재" : "장착 시") + '</th>' + (equipped ? "" : '<th scope="col">증감</th>') + '</tr></thead><tbody>' +
+      tr("전투력", number(score), difference(delta, "")) + rows.map(stat =>
+        tr(stat.label, number(stat.value) + stat.unit, difference(stat.delta, stat.deltaUnit))).join("") +
+      '</tbody></table></section>';
+  }
+  return {score, accessible, detail};
+})();
+
 const InventoryView = (() => {
   const forgeButton = (type, label) =>
     '<button class="action" data-go="forge" data-gear="' + type + '">' + label + '</button>';
@@ -7,15 +51,15 @@ const InventoryView = (() => {
   function equipment(s, g, type, key, index) {
     const stored = key.startsWith("stored-");
     const deployed = key.startsWith("field-");
+    const comparison = Game.compareGear(s, g, type === "weapon" ? "legacyWeapon" : "legacyArmor");
     const status = stored ? "" : deployed ? "배치" : type === "weapon" ? "기록 검" : "기록";
     return {
-      key, group: "gear", name: Game.name(g, type), mark: "+" + fmt(g.level),
+      key, comparison, group: "gear", name: Game.name(g, type), mark: "+" + fmt(g.level),
       art: gearPortrait(g, type), status,
       detail() {
         const weapon = type === "weapon", journey = Game.isJourneyGear(s, g);
-        const stats = stored || deployed ? Game.stats({ ...s, weapon: g }) : Game.stats(s);
-        let info = line("장비", escapeHtml([tier(g, type), status || "보관 중"].join(" · "))) +
-          line(weapon ? (stored || deployed ? "장착 시 공격력" : "공격력") : "체력", fmt(weapon ? stats.attack : stats.hp));
+        let info = GearCompareView.detail(comparison, weapon ? "legacyWeapon" : "legacyArmor") +
+          line("장비", escapeHtml([tier(g, type), status || "보관 중"].join(" · ")));
         const craft = craftSummary(g);
         if (craft) info += line("제작", escapeHtml(craft));
         if (journey && weapon) info += line("이력", "기록 중인 검");
@@ -45,10 +89,10 @@ const InventoryView = (() => {
   function entries(s) {
     const bladeId = Game.blades.current(s).id, armorId = Game.blades.currentArmor(s).id;
     const items = [
-      ...Game.blades.state(s).items.map(item => ({gearItem:item, key: "blade-"+item.id, group: "gear", name: Game.blades.rarityNames[item.grade]+" "+Game.blades.name(item), grade:item.grade, mark: "+"+item.level,
+      ...Game.blades.state(s).items.map(item => ({gearItem:item, comparison:Game.compareGear(s,item,"blade"), key: "blade-"+item.id, group: "gear", name: Game.blades.rarityNames[item.grade]+" "+Game.blades.name(item), grade:item.grade, mark: "+"+item.level,
         shortName:Game.blades.name(item), wornSlot:item.id === bladeId ? "weapon" : "", id:item.id,
         art: BladeView.artwork(item), status: Game.endgame.info(s).deployed.includes(item.id) ? "배치" : item.ascended ? "초월" : item.id === bladeId ? "주력" : "", detail: () => BladeView.itemDetail(s,item)})),
-      ...Game.blades.armors(s).map(item => ({gearItem:item, key:"huntarmor-"+item.id, group:"gear", name:Game.blades.rarityNames[item.grade]+" "+Game.blades.name(item), grade:item.grade, mark:"+"+item.level,
+      ...Game.blades.armors(s).map(item => ({gearItem:item, comparison:Game.compareGear(s,item,"chest"), key:"huntarmor-"+item.id, group:"gear", name:Game.blades.rarityNames[item.grade]+" "+Game.blades.name(item), grade:item.grade, mark:"+"+item.level,
         wornSlot:item.id === armorId ? "chest" : "", id:item.id,
         art:BladeView.artwork(item), status:item.id===armorId?"장착":"", detail:()=>BladeView.armorDetail(s,item)})),
       ...OutfitView.entries(s),
@@ -98,13 +142,14 @@ const InventoryView = (() => {
   }
 
   function tile(item) {
-    const label = [item.name, item.mark, item.status, item.affix].filter(Boolean).join(" ");
+    const label = [item.name, item.mark, item.status, item.affix, item.comparison && GearCompareView.accessible(item.comparison)].filter(Boolean).join(" ");
     return '<button class="bag-slot" data-rarity="'+(item.grade ?? "")+'" data-group="' + item.group + '" data-open="' + escapeHtml(item.open || "inventory-" + item.key) +
       '" aria-label="' + escapeHtml(label) + '" aria-haspopup="dialog">' +
       '<span class="bag-slot-art" aria-hidden="true">' + item.art + '</span>' +
       (item.status ? '<small class="bag-slot-status">' + item.status + '</small>' : '') +
       '<b class="bag-slot-name">' + escapeHtml(item.shortName || item.name) + '</b>' +
       (item.affix ? '<small class="bag-slot-affix">'+escapeHtml(item.affix)+'</small>' : '')+
+      (item.comparison ? GearCompareView.score(item.comparison,true) : '') +
       (item.mark ? '<span class="bag-slot-mark">' + escapeHtml(item.mark) + '</span>' : '') + '</button>';
   }
 
@@ -128,16 +173,18 @@ const InventoryView = (() => {
     const slots = [{key:"weapon",name:"무기"}, ...Game.outfit.slots];
     const cells = slots.map(slot => {
       const item = items.find(entry => entry.wornSlot === slot.key);
+      const part = {shoulder:"어깨", legs:"다리"}[slot.key] || slot.name;
       const name = item?.gearItem ? Game.blades.name(item.gearItem) : item?.name;
       const open = item ? item.open || "inventory-" + item.key : "outfit:slot:" + slot.key;
-      const label = [slot.name, item ? item.name + " " + item.mark : "빈칸", item?.affix].filter(Boolean).join(" · ");
+      const label = [slot.name, item ? item.name + " " + item.mark : "빈칸", item?.affix, item?.comparison && GearCompareView.accessible(item.comparison)].filter(Boolean).join(" · ");
       return '<button class="bag-slot bag-worn-slot" data-slot="' + slot.key + '" data-empty="' + !item +
         '" data-open="' + escapeHtml(open) + '" data-rarity="' + (item?.grade ?? "") + '"' +
         (item ? ' data-item-id="' + escapeHtml(item.id) + '"' : '') + ' aria-haspopup="dialog" aria-label="' + escapeHtml(label) + '">' +
-        '<span class="bag-worn-part">' + slot.name + '</span><span class="bag-slot-art" aria-hidden="true">' +
+        '<span class="bag-worn-part">' + part + '</span><span class="bag-slot-art" aria-hidden="true">' +
         (item ? item.art : OutfitView.art(slot.kind)) + '</span>' +
         '<b class="bag-slot-name">' + escapeHtml(name || "빈칸") + '</b>' +
         (item?.affix ? '<small class="bag-slot-affix">' + escapeHtml(item.affix) + '</small>' : '') +
+        (item ? GearCompareView.score(item.comparison,true) : '') +
         (item ? '<small class="bag-worn-level">' + item.mark + '</small>' : '') + '</button>';
     });
     return '<section class="bag-loadout" aria-labelledby="bag-worn-title"><h2 id="bag-worn-title">착용 장비 <small>방어력 ' + fmt(Game.blades.armorStats(s).armorRating) + '</small></h2>' +

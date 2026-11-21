@@ -369,7 +369,7 @@ body.ui-game {
 #shade[data-modal^="blade"] :is(#modalBody > button,select) { width:100%;min-height:44px;margin:4px 0; }
 #shade[data-modal^="blade"] .listrow { gap:8px; }
 #shade[data-modal^="blade"] label { display:block;margin-top:10px;color:#5f472d; }
-body:has(#shade[data-modal^="blade"]:not([hidden])) #toast { visibility:hidden; }
+body:has(#shade:is([data-modal^="blade"],[data-modal^="outfit:"],[data-modal^="inventory-"]):not([hidden])) #toast { visibility:hidden; }
 #bladeActionStatus { color:#205238;border-inline-start:3px solid #629475;padding:4px 8px;margin:0 0 6px; }
 @media(max-height:640px) {
   .ui-game .blade-layout .ui-forge-rail { top:58px;gap:3px; }
@@ -379,3 +379,27 @@ body:has(#shade[data-modal^="blade"]:not([hidden])) #toast { visibility:hidden; 
 
 .bag-loadout h2 small { margin-left:6px; color:#a9d4bb; font-size:12px; }
 .watch-loot .loot-gear .gear-portrait { width:16px; height:20px; }
+
+/* Equipment power shares a baseline with the selected part's detail sheet. */
+.gear-score { display:inline-flex; justify-content:center; align-items:baseline; gap:3px; font-variant-numeric:tabular-nums; line-height:1.25; }
+.gear-score small { color:inherit; font-size:.85em; font-weight:500; }
+.gear-score b { font-weight:750; }
+.gear-score i { font-size:.77em; font-style:normal; }
+.bag-slot .gear-score { flex-wrap:wrap; gap:0 3px; max-width:100%; margin-top:2px; font-size:11px; color:#efdfbc; }
+.bag-slot .gear-score[data-tone="up"] { color:#a1ffc2; }
+.bag-slot .gear-score[data-tone="down"] { color:#ffb7b1; }
+.dialog .gear-score { color:#514631; }
+.dialog .gear-score small { display:inline; color:inherit; }
+.dialog [data-tone="up"] { color:#13633f; }
+.dialog [data-tone="down"] { color:#a42c29; }
+.gear-comparison { margin:4px 0 10px; color:#46392b; }
+.gear-baseline { display:flex; justify-content:space-between; gap:8px; align-items:baseline; padding:0 1px 5px; font-size:13px; }
+.gear-baseline strong { text-align:right; overflow-wrap:anywhere; }
+.gear-comparison table { width:100%; border-collapse:collapse; font-size:13px; line-height:1.3; font-variant-numeric:tabular-nums; }
+.gear-comparison :is(th,td) { padding:4px 3px; text-align:right; }
+.gear-comparison th:first-child { text-align:left; font-weight:500; }
+.gear-comparison thead { font-size:11px; color:#6b5a46; border-bottom:1px solid #b9a382; }
+.gear-comparison tbody tr:first-child { background:#eee0c7; }
+.gear-comparison tbody tr:first-child :is(th,td) { font-weight:750; }
+.gear-comparison td { white-space:nowrap; }
+.gear-equal { color:#786d5f; }

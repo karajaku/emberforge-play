@@ -74,14 +74,10 @@ const BladeView = (() => {
         filled + (caps[index] > list.length ? '<small class="blade-empty">빈자리 ' + (caps[index] - list.length) + "</small>" : "") + "</div>";
     }).join("");
   }
-  function info(s, item) {
-    const b = rules(), current = b.current(s);
-    const stats = b.weaponStats(item), worn = b.weaponStats(current), profile = b.weaponProfile(item);
-    const compare = (value, before) => current.id === item.id || value === before ? value : before + " → " + value;
-    return (item.id === current.id ? "" : line("비교 기준", "장착 중 → 선택 무기")) + line("무기 종류", gradeName(item) + " · " + profile.name) +
-      line("공격력", compare(fmt(stats.attack), fmt(worn.attack))) +
-      line("기본 물리 피해", compare(damageRange(stats), damageRange(worn))) +
-      line("치명타 확률", compare(pct(stats.critChance), pct(worn.critChance))) +
+  function info(s, item, equip = "") {
+    const b = rules(), profile = b.weaponProfile(item);
+    return GearCompareView.detail(Game.compareGear(s,item,"blade"), "blade") + equip +
+      line("무기 종류", gradeName(item) + " · " + profile.name) +
       (item.weaponKind === "dagger" ? line("치명타 피해", "150%") : line("무기 특성", escapeHtml(profile.trait))) +
       (item.base ? line("재질 특성", escapeHtml(b.bases[item.base].trait)) : "") +
       line("획득", item.base ? "숲 " + item.rank + "단계" : "대장간 지급") +
@@ -92,8 +88,8 @@ const BladeView = (() => {
     const g=Game.endgame.info(s), deployed=g.deployed.includes(item.id);
     const field = item.level >= 13 ? line("배치 수익",fmt(b.income(item)) + " G / 분") +
       (deployed ? btn("bladeRecall","배치 회수",item.id) : !on ? btn("bladeDeploy","사냥터 배치",item.id,"action",g.deployed.length >= (g.unlocked.land?2:1) || item.id===s.hunt?.bladeId || !!item.soulChoice) : "") : "";
-    return info(s,item) + field + soulActions(s,item) + (on ? openBtn("bladeCraft","각인·연마","primary") :
-      btn("bladeEquip","이 무기 장착",item.id,"primary",deployed) +
+    const equip = on ? "" : btn("bladeEquip","이 무기 장착",item.id,"primary",deployed);
+    return info(s,item,equip) + field + soulActions(s,item) + (on ? openBtn("bladeCraft","각인·연마","primary") :
       openBtn("bladeSalvage-" + item.id, "분해 · 각인석 회수","action",deployed || item.id===s.hunt?.bladeId || !!item.soulChoice)) + (s.hunt && !on ? desc("새 장착 무기는 다음 사냥에 적용됩니다.") : "");
   }
   function soulActions(s,item) {
@@ -107,7 +103,7 @@ const BladeView = (() => {
   function collection(s) {
     const b = rules(), rack = b.state(s);
     return line("무기",rack.items.length+" / 120자루") + (Game.endgame.info(s).gift ? SoulView.open("lessons","첫 +20 선물 선택","primary") : "") + rack.items.slice().reverse().map(item => row(label(item),
-      "물리 " + damageRange(b.weaponStats(item)) + " · 치명타 " + pct(b.weaponStats(item).critChance) + (item.id === rack.equipped ? " · 장착 중" : [rack.deployed,rack.extraDeployed].includes(item.id) ? " · 배치 중" : ""),
+      GearCompareView.score(Game.compareGear(s,item,"blade")) + " · 물리 " + damageRange(b.weaponStats(item)) + " · 치명타 " + pct(b.weaponStats(item).critChance) + (item.id === rack.equipped ? " · 장착 중" : [rack.deployed,rack.extraDeployed].includes(item.id) ? " · 배치 중" : ""),
       openBtn("bladeItem-"+item.id,"살펴보기","mini"),"",artwork(item))).join("") +
       '<button class="action" data-archive-blade>기록 검 대장간</button>';
   }
@@ -139,15 +135,12 @@ const BladeView = (() => {
   }
   function armorDetail(s, item) {
     const b=rules(), current=b.currentArmor(s), equipped=item.id===current.id;
-    const stats=b.armorStats(s,item), wearing=b.armorStats(s,current);
-    const delta=n=>n>0 ? "+"+fmt(n) : fmt(n);
-    return line("장비 등급",gradeName(item)) + line("획득", item.base ? "숲 "+item.rank+"단계" : "대장간 지급") +
-      line("흉갑 방어력", fmt(b.armorRating(item)) + (equipped ? "" : " (" + delta(stats.armorRating-wearing.armorRating) + ")")) +
-      line("착용 방어력 합계", fmt(stats.armorRating)) +
-      line("장착 시 체력", fmt(stats.hp) + (equipped?"":" ("+delta(stats.hp-wearing.hp)+")")) +
-      line("상시 피해 감소", pct(stats.defense) + (equipped?"":" ("+delta(stats.defense-wearing.defense)+"%p)")) +
+    return GearCompareView.detail(Game.compareGear(s,item,"chest"), "chest") +
+      (equipped ? "" : btn("bladeArmorEquip","이 방어구 장착",item.id,"primary")) +
+      line("장비 등급",gradeName(item)) + line("획득", item.base ? "숲 "+item.rank+"단계" : "대장간 지급") +
+      line("착용 방어력 합계", fmt(b.armorStats(s,item).armorRating)) +
       desc("방어력은 약한 타격일수록 받는 피해를 더 높은 비율로 줄입니다.") + slots(item) + soulActions(s,item) + (equipped ? openBtn("bladeArmorCraft","각인·연마","primary") :
-        btn("bladeArmorEquip","이 방어구 장착",item.id,"primary") + openBtn("bladeArmorSalvage-"+item.id,"분해 · 각인석 회수","action",item.id===s.hunt?.armorId || !!item.soulChoice)) +
+        openBtn("bladeArmorSalvage-"+item.id,"분해 · 각인석 회수","action",item.id===s.hunt?.armorId || !!item.soulChoice)) +
       (s.hunt && !equipped ? desc("새 방어구는 다음 사냥에 적용됩니다.") : "");
   }
   function armorModal(s, key) {
@@ -166,7 +159,7 @@ const BladeView = (() => {
       return [label(target),armorDetail(s,target)];
     }
     return ["방어구 보관함",OutfitView.loadout() + line("흉갑",list.length+" / 120벌") + (Game.endgame.info(s).gift ? SoulView.open("lessons","첫 +20 선물 선택","primary") : "") + list.slice().reverse().map(it=>
-      row(label(it),"방어력 "+fmt(b.armorRating(it))+" · 체력 "+fmt(b.armorStats(s,it).hp)+(it.id===item.id?" · 장착 중":""),
+      row(label(it),GearCompareView.score(Game.compareGear(s,it,"chest"))+" · 방어력 "+fmt(b.armorRating(it))+" · 체력 "+fmt(b.armorStats(s,it).hp)+(it.id===item.id?" · 장착 중":""),
         openBtn("bladeArmorItem-"+it.id,"살펴보기","mini"),"",artwork(it))).join("")+
       '<button class="action" data-archive-blade="armor">기록 방어구 대장간</button>'];
   }

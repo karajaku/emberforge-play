@@ -154,6 +154,15 @@ const DiceCombat=(()=>{
       momentum,
     };
   }
+  function journeyFactors(gear) {
+    const work = gear.journeyWork, trait = gear.journeyTrait;
+    return {
+      counter:trait === 0 ? 1 / .97 : 1, finish:trait === 1 ? 1.1 : 1,
+      lastGuard:trait === 2 ? .87 : 1, heavyTrait:trait === 3 ? 1.08 : 1,
+      edge:work?.[0] === 1 ? .97 : 1, guard:work?.[0] === 1 ? .95 : 1,
+      heavyWork:work?.[1] === 1 ? 1.07 : 1, finishWork:work?.[2] === 1 ? 1.03 : 1,
+    };
+  }
   function turn(h,playerFace,enemyFace,rng=Math.random) {
     if(![playerFace,enemyFace].every(n=>Number.isInteger(n)&&n>=1&&n<=6)) throw Error('Invalid D6');
     if (h.bladeCombat) return bladeTurn(h,playerFace,enemyFace,rng);
@@ -167,15 +176,14 @@ const DiceCombat=(()=>{
     const power=action=>action==='block'?0:action==='heavyStrike'?1.7:1;
     const mitigation=action=>action==='block'?.25:1;
     const armor=h.enemyKind==='stone'&&player==='strike'&&skill!=='heavyStrike'?.8:1;
-    const trait = h.journeyTrait;
-    let bladePower = 1;
-    if (trait === 0 && skill === "counter") bladePower = 1 / .97;
-    if (trait === 1 && h.enemyHp < h.enemyMax * .3) bladePower = 1.1;
-    if (trait === 3 && (skill === "heavyStrike" || player === "heavyStrike")) bladePower = 1.08;
-    const work = h.journeyWork;
-    if (work?.[0] === 1) bladePower *= .97;
-    if (work?.[1] === 1 && (skill === "heavyStrike" || player === "heavyStrike")) bladePower *= 1.07;
-    if (work?.[2] === 1 && player !== "block") bladePower *= 1.03;
+    const factors = journeyFactors(h);
+    const heavy = skill === "heavyStrike" || player === "heavyStrike";
+    let bladePower = skill === "counter" ? factors.counter : 1;
+    if (h.enemyHp < h.enemyMax * .3) bladePower *= factors.finish;
+    if (heavy) bladePower *= factors.heavyTrait;
+    bladePower *= factors.edge;
+    if (heavy) bladePower *= factors.heavyWork;
+    if (player !== "block") bladePower *= factors.finishWork;
     const damage=Math.min(h.enemyHp,Math.round(h.attack*(skill?skills[skill].power:power(player))*mitigation(enemy)*armor*bladePower));
     // Retain the game's player-first lethal priority; two defensive faces do no damage.
     const key = enemySkillState?.key || 'charge';
@@ -183,10 +191,10 @@ const DiceCombat=(()=>{
     const enemySkill = fires && damage < h.enemyHp ? key : null;
     const amplified = (enemySkill === 'fang' && h.hp <= h.maxHp / 2) || (enemySkill === 'breath' && player === 'heavyStrike');
     const guard = enemySkill === 'crush' && player === 'block' ? .5 : mitigation(player);
-    const tough = trait === 2 && h.hp < h.maxHp * .35 ? .87 : 1;
+    const tough = h.hp < h.maxHp * .35 ? factors.lastGuard : 1;
     const opening = h.journeyBattle && h.rank % 5 === 0 && h.waveTurn === 1 ? 1.25 : 1;
     const incoming = h.enemyAttack * opening * (h.armorDamageMultiplier ?? 1);
-    const taken=damage>=h.enemyHp?0:Math.min(h.hp,Math.round(incoming*tough*(work?.[0] === 1 ? .95 : 1)*(enemySkill?enemySkillState.power:power(enemy))*guard*(amplified?1.5:1)*(player==='block'?1-(h.guardReduction||0)/100:1)*(skill==='heavyStrike'?1.5:1)));
+    const taken=damage>=h.enemyHp?0:Math.min(h.hp,Math.round(incoming*tough*factors.guard*(enemySkill?enemySkillState.power:power(enemy))*guard*(amplified?1.5:1)*(player==='block'?1-(h.guardReduction||0)/100:1)*(skill==='heavyStrike'?1.5:1)));
     if(skill)cooldowns[skill]=skills[skill].cooldown;
     if(enemySkill)enemySkillState.cooldown=enemySkillState.interval;
     const guarded = player === 'block' && !!enemySkill && enemySkill !== 'escape';
@@ -196,6 +204,6 @@ const DiceCombat=(()=>{
     if (player !== 'block' && enemySkill === 'bind') cooldowns.heavyStrike = Math.max(2, cooldowns.heavyStrike + 1);
     return {playerFace,enemyFace,player,enemy,damage,taken,...(enabled?{skill,enemySkill,enemySkillState,skillCooldowns:cooldowns,counter:skill==='counter'?false:!!h.counter||guarded,momentum}: {})};
   }
-  return {actions,skills,enemySkills,skillStatus,face,turn};
+  return {actions,skills,enemySkills,skillStatus,face,turn,journeyFactors};
 })();
 if(typeof module!=='undefined') module.exports=DiceCombat;

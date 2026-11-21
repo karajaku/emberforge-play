@@ -24,7 +24,7 @@ const OutfitView = (() => {
     return api().state(s).items.map(item => {
       const worn = slotFor(s,item.id);
       return {
-        key:"outfit-" + item.id, id:item.id, wornSlot:worn?.key, group:"gear", name:api().name(item), grade:item.grade, mark:"+" + item.level,
+        key:"outfit-" + item.id, comparison:Game.compareGear(s,item,"outfit"), id:item.id, wornSlot:worn?.key, group:"gear", name:api().name(item), grade:item.grade, mark:"+" + item.level,
         art:art(item.kind), status:worn ? "착용" : "", open:"outfit:item:" + item.id,
       };
     });
@@ -113,20 +113,31 @@ const OutfitView = (() => {
     return [slot.name, list.length ? list.map(item => {
       const worn = slotFor(s,item.id);
       return row(escapeHtml(api().name(item)) + " +" + item.level,
-        (worn ? worn.name + " 착용 · " : "") + statsLabel(item),
+        GearCompareView.score(Game.compareGear(s,item,"outfit",slot.key)) + " · " + (worn ? worn.name + " 착용 · " : "") + statsLabel(item),
         openBtn("outfit:item:"+item.id+":"+slot.key,"살펴보기","mini"),"",art(item.kind));
     }).join("") : '<div class="bag-detail-art">' + art(slot.kind) + '</div>' +
       desc("숲 사냥에서 얻은 " + (slot.kind === "ring" ? "반지" : slot.name) + "를 여기에 착용할 수 있습니다.")];
   }
   function itemView(s, item, preferred) {
-    const current = slotFor(s,item.id), data = api().state(s);
+    const current = slotFor(s,item.id);
     const kinds = api().slots.filter(slot => slot.kind === item.kind);
     const targets = preferred ? kinds.filter(slot => slot.key === preferred) : kinds;
     const q = api().quote(item);
-    let body = '<div class="bag-detail-art">' + art(item.kind) + '</div>' +
-      line("장비",grade(item) + " · " + (current ? current.name + " 착용" : "미착용")) +
-      (Game.blades.armorRating(item) ? line("장비 방어력", fmt(Game.blades.armorRating(item))) : "") +
-      line("획득", "숲 " + item.rank + "단계") + line("속성 효과",effectLabel(item));
+    const comparison = Game.compareGear(s,item,"outfit",preferred);
+    let body = '<div class="bag-detail-art">' + art(item.kind) + '</div>';
+    if (current) body += GearCompareView.detail(comparison, "outfit");
+    else {
+      const ordered = [...targets].sort((a,b) => Number(b.key === comparison.slot) - Number(a.key === comparison.slot));
+      for (const slot of ordered) {
+        const match = slot.key === comparison.slot ? comparison : Game.compareGear(s,item,"outfit",slot.key);
+        body += GearCompareView.detail(match,"outfit");
+        const armor = match.rows.find(stat => stat.key === "armorRating");
+        if (armor) body += line("착용 방어력 합계",fmt(Game.blades.armorStats(s).armorRating + armor.delta));
+        body += btn("outfitEquip", slot.name + (match.current ? " 교체" : " 착용"), slot.key + ":" + item.id, "primary");
+      }
+    }
+    body += line("장비",grade(item) + " · " + (current ? current.name + " 착용" : "미착용")) +
+      line("획득", "숲 " + item.rank + "단계");
     const region = [1,6,11,16].find(rank => api().preferredElement(rank) === item.element);
     if (region) {
       const area = Game.trail.region(region);
@@ -137,16 +148,6 @@ const OutfitView = (() => {
       body += item.level < 20 ? btn("outfitForge","재련 +" + (item.level + 1) + " · " + fmt(q.cost) + " G · 성공 " + pct(q.success),
         item.id,"primary",s.gold < q.cost) : line("재련","최고 단계 +20");
       body += btn("outfitUnequip", current.name + " 해제", current.key + ":" + item.id);
-    }
-    for (const slot of current ? [] : targets) {
-      const other = data.items.find(it => it.id === data.equipped[slot.key]);
-      if (other) body += line(slot.name + "에 착용 중", escapeHtml(api().name(other)) + " +" + other.level);
-      const rating = Game.blades.armorRating(item);
-      if (rating) {
-        const total = Game.blades.armorStats(s).armorRating;
-        body += line("착용 방어력 합계", fmt(total) + " → " + fmt(total + rating - (other ? Game.blades.armorRating(other) : 0)));
-      }
-      body += btn("outfitEquip", slot.name + (other ? " 교체" : " 착용"), slot.key + ":" + item.id, "primary");
     }
     if (s.hunt) body += desc("착용과 재련으로 바뀐 능력치는 다음 사냥부터 적용됩니다.");
     if (!current) body += openBtn("outfit:salvage:" + item.id, "분해");
@@ -210,7 +211,7 @@ const OutfitView = (() => {
       const choices = kit.items.filter(it => it.kind === slot.kind && !slotFor(s,it.id));
       const current = worn ? line("현재 착용",api().name(worn) + " +" + worn.level) + line("능력치",statsLabel(worn)) : "";
       return [slot.name + " 착용", current + (choices.length ? choices.map(it =>
-        row(grade(it) + " " + api().name(it) + " +" + it.level, statsLabel(it),
+        row(grade(it) + " " + api().name(it) + " +" + it.level, GearCompareView.score(Game.compareGear(s,it,"outfit",arg)) + " · " + statsLabel(it),
           btn("outfitEquip",worn ? "교체" : "착용",arg + ":" + it.id,"mini"),"",art(it.kind))).join("") :
         desc("숲 사냥에서 얻은 장비를 여기에 착용할 수 있습니다."))];
     }
