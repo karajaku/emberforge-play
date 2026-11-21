@@ -44,9 +44,9 @@ const InventoryView = (() => {
 
   function entries(s) {
     const items = [
-      ...Game.blades.state(s).items.map(item => ({key: "blade-"+item.id, group: "gear", name: Game.blades.rarityNames[item.grade]+" "+Game.blades.name(item), grade:item.grade, mark: "+"+item.level,
+      ...Game.blades.state(s).items.map(item => ({gearItem:item, key: "blade-"+item.id, group: "gear", name: Game.blades.rarityNames[item.grade]+" "+Game.blades.name(item), grade:item.grade, mark: "+"+item.level,
         art: BladeView.artwork(item), status: Game.endgame.info(s).deployed.includes(item.id) ? "배치" : item.ascended ? "초월" : Game.blades.current(s).id === item.id ? "주력" : "", detail: () => BladeView.itemDetail(s,item)})),
-      ...Game.blades.armors(s).map(item => ({key:"huntarmor-"+item.id, group:"gear", name:Game.blades.rarityNames[item.grade]+" "+Game.blades.name(item), grade:item.grade, mark:"+"+item.level,
+      ...Game.blades.armors(s).map(item => ({gearItem:item, key:"huntarmor-"+item.id, group:"gear", name:Game.blades.rarityNames[item.grade]+" "+Game.blades.name(item), grade:item.grade, mark:"+"+item.level,
         art:BladeView.artwork(item), status:Game.blades.currentArmor(s).id===item.id?"장착":"", detail:()=>BladeView.armorDetail(s,item)})),
       ...OutfitView.entries(s),
       equipment(s, s.weapon, "weapon", "weapon"), equipment(s, s.armor, "armor", "armor"),
@@ -95,16 +95,28 @@ const InventoryView = (() => {
   }
 
   function tile(item) {
-    const label = [item.name, item.mark, item.status].filter(Boolean).join(" ");
+    const label = [item.name, item.mark, item.status, item.affix].filter(Boolean).join(" ");
     return '<button class="bag-slot" data-rarity="'+(item.grade ?? "")+'" data-group="' + item.group + '" data-open="' + escapeHtml(item.open || "inventory-" + item.key) +
       '" aria-label="' + escapeHtml(label) + '" aria-haspopup="dialog">' +
       '<span class="bag-slot-art" aria-hidden="true">' + item.art + '</span>' +
       (item.status ? '<small class="bag-slot-status">' + item.status + '</small>' : '') +
       '<b class="bag-slot-name">' + escapeHtml(item.shortName || item.name) + '</b>' +
+      (item.affix ? '<small class="bag-slot-affix">'+escapeHtml(item.affix)+'</small>' : '')+
       (item.mark ? '<span class="bag-slot-mark">' + escapeHtml(item.mark) + '</span>' : '') + '</button>';
   }
 
   function grid(items) {
+    const counts = new Map();
+    for (const entry of items.filter(it=>it.gearItem)) {
+      const key = entry.name+entry.mark;
+      counts.set(key,(counts.get(key)||0)+1);
+    }
+    for (const entry of items) {
+      if (!entry.gearItem || counts.get(entry.name+entry.mark)<2) continue;
+      const mod = entry.gearItem.mods[0];
+      entry.affix = mod?.ascended ? SoulView.recipes(entry.gearItem)[mod.ascended].name :
+        mod ? Game.blades.modDefs[mod.key].name+" +"+mod.value+(mod.key==="plating"?"%p":"%") : "옵션 없음";
+    }
     return '<div class="bag-grid">' + items.map(tile).join("") + '</div>';
   }
 

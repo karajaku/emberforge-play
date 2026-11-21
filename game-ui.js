@@ -60,6 +60,16 @@ const GameUI = (() => {
       const armor = gear === "armor";
       rail.innerHTML = !archiveBlade ? openBtn(armor ? 'bladeArmorCraft' : 'bladeCraft',icon('anvil')+'<span>제작</span>') + openBtn(armor ? 'bladeArmorCollection' : 'bladeCollection',icon(armor ? 'shield' : 'sword')+'<span>'+(armor?'방어구함':'검신함')+'</span>') + go('forge/orders',icon('scroll-text')+'<span>의뢰</span>') : [['craft','anvil','제작'],['training','hammer','수련'],['orders','scroll-text','의뢰']].map(([page,ic,label])=>'<button data-go="forge/'+page+'">'+icon(ic)+'<span>'+label+'</span></button>').join('');
       const stage = document.querySelector('.forge-layout .stage-side');
+      if (!archiveBlade) {
+        const item = armor ? Game.blades.currentArmor(state) : Game.blades.current(state);
+        if (item.level === 7 && Swordcraft.stageIndex(item) === 0) {
+          const craft = rail.firstElementChild;
+          const title = armor ? Game.blades.armorStageNames[0] : Swordcraft.stages[0].title;
+          craft.classList.add('forge-first-process');
+          craft.querySelector('span').textContent = title;
+          craft.insertAdjacentHTML('beforeend','<small>+'+Swordcraft.stages[0].target+' 제작</small>');
+        }
+      }
       if (archiveBlade) {
         rail.lastElementChild.outerHTML = '<button data-blade-home="'+gear+'">'+icon(armor?'shield':'sword')+'<span>'+(armor?'방어구':'검신')+' 복귀</span></button>';
       }

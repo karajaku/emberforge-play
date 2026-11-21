@@ -65,7 +65,10 @@ const SoulView = (() => {
     const m = normMods(item).find(mod=>mod.key===key);
     if (!m) return ["전승할 옵션 선택", line("환생할 "+kind(item),identity(item)) + line("장비 상태",where(s,item)) + desc("장비 하나에서 한 줄의 종류와 등급을 전승할 수 있습니다.") +
       normMods(item).map(mod=>open("offer:"+item.id+":"+mod.key,prop(mod),"action",!canOffer(s,item))).join("")];
+    const targets = Game.endgame.transferTargets(s,{id:item.id,key});
     return ["환생 미리보기",line("소모할 "+kind(item), identity(item)) + line("전승 재료",grade(m.tier)+" "+Game.blades.modDefs[m.key].name) +
+      line("지금 전승 가능한 장비",targets.length+"개") + (targets.length === 1 ? line("전승 가능",identity(targets[0])) :
+        targets.length ? "" : desc("재료는 보관됩니다. 같은 부위에 맞는 빈 옵션이 생기면 전승할 수 있습니다.")) +
       line("추가 보상","영혼 5 P") + (item.ascended ? line("함께 소멸",recipes(item)[item.ascended.style].name) : "") + desc("환생하면 이 장비와 남은 옵션을 잃습니다. 같은 부위에 전승할 때 수치를 다시 뽑습니다.") +
       open("offer:"+item.id,"다시 선택") + soulAction("soulRebirth",{id:item.id,key}, kind(item)+" 바치고 환생",!canOffer(s,item),"primary")];
   }

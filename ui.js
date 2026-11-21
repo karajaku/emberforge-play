@@ -254,7 +254,8 @@ function syncMusic() {
 function soulQuote(s, arg) {
   const b = Game.blades.state(s), g = Game.endgame.info(s);
   return JSON.stringify([(arg.id?.startsWith("a") ? Game.blades.armors(s) : b.items).find(item => item.id === arg.id), b.equipped, b.armorEquipped, s.hunt?.bladeId, s.hunt?.armorId,
-    b.ore, b.cleared, g.deployed, g.souls, g.gift, g.unlocked, g.tokens, g.bossSeals]);
+    b.ore, b.cleared, g.deployed, g.souls, g.gift, g.unlocked, g.tokens, g.bossSeals,
+    arg.id && arg.key ? Game.endgame.transferTargets(s,arg).map(item=>item.id) : null]);
 }
 function outfitQuote(s, action, arg) {
   const [first, second] = arg.split(":");
@@ -401,7 +402,10 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     if (result.ok && action === "bladeMaster") { HuntWatch.selectMaster(); modal = ""; }
     if (result.ok && action === "outfitSalvage") modal = "outfit:slots";
     if (result.ok && equivalent === "bladeSalvage") modal = armorAction ? "bladeArmorCollection" : "bladeCollection";
-    if (result.ok && action === "soulRebirth") modal = "soul:transfer:" + (arg.id.startsWith("a") ? Game.blades.currentArmor(state) : Game.blades.current(state)).id;
+    if (result.ok && action === "soulRebirth") {
+      const targets = Game.endgame.transferTargets(state,arg);
+      modal = targets.length === 1 ? "soul:transfer:"+targets[0].id : "soul:targets:transfer";
+    }
     if (result.ok && ["soulLuck","soulPolish"].includes(action)) modal = "soul:craft:" + arg.id;
     if (result.ok && ["soulChoose","soulTransfer","soulAscend"].includes(action)) modal = (arg.id.startsWith("a") ? "bladeArmorItem-" : "bladeItem-") + arg.id;
     if (result.ok && action === "temperStart") modal = "temper";
@@ -700,6 +704,7 @@ function modalData() {
   const s = state;
   if (modal.startsWith("outfit:")) return OutfitView.modal(s, modal);
   if (modal.startsWith("soul:")) return SoulView.modal(s, modal);
+  if (modal === "firstGearCompare") return HuntWatch.compareLoot(s);
   if (modal.startsWith("blade")) return BladeView.modal(s, modal);
   if (!archiveBlade && (modal === "lessons" || modal === "help")) return BladeView.modal(s, "bladeGuide");
   if (modal.startsWith("inventory-")) return InventoryView.menu(s, modal.slice("inventory-".length));

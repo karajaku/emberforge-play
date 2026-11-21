@@ -90,6 +90,12 @@ const BladeEndgame = (() => {
       souls: s.souls,
     };
   }
+  function transferTargets(s, token) {
+    const b = blades.state(s);
+    const rack = token.id.startsWith("a") ? blades.armors(s) : b.items;
+    return rack.filter(item => item.id !== token.id && item.id !== b.deployed && item.id !== b.extraDeployed &&
+      !item.inherited && !item.soulChoice && blades.available(item).includes(token.key));
+  }
   function victory(s, h) {
     if (h.rank !== 60) return "";
     const b = blades.state(s),
@@ -150,7 +156,7 @@ const BladeEndgame = (() => {
       case "soulTransfer": {
         const index = r.tokens.findIndex((t) => t.id === arg.token),
           token = r.tokens[index];
-        if (!token || token.id.startsWith("a") !== armor || item.inherited || !blades.available(item).includes(token.key))
+        if (!token || !transferTargets(s,token).includes(item))
           return fail("같은 부위의 전승 이력이 없는 장비와 빈 옵션 자리가 필요합니다.");
         const tier = Math.min(token.tier, blades.maxTier(item.rank));
         item.mods.push(blades.rollValue(token.key, tier, rng));
@@ -332,6 +338,6 @@ const BladeEndgame = (() => {
     }
     return true;
   }
-  return { info, record, victory, transform, armorTransform, act, valid };
+  return { info, record, victory, transform, armorTransform, transferTargets, act, valid };
 })();
 if (typeof module !== "undefined") module.exports = BladeEndgame;

@@ -114,7 +114,10 @@ const BladeView = (() => {
     const b = rules(), item = armor ? b.currentArmor(s) : b.current(s), rack = b.state(s);
     const available = b.available(item).map(key => [key, b.modDefs[key]]);
     if (item.soulChoice) return SoulView.modal(s,"soul:craft:"+item.id)[1];
-    return line(armor ? "장착 방어구" : "장착 검신", label(item)) + line("각인석 / 우두머리 인장",fmt(rack.ore)+"개 / "+fmt(rack.seals || 0)+"개") + processes(s,item) +
+    const firstProcess = item.level===7 && Swordcraft.stageIndex(item)===0;
+    const choice = firstProcess ? line("일반 강화 → +8",fmt(armor ? b.armorCost(s) : b.cost(item))+" G · 성공 "+pct(b.rate(item))) +
+      line((armor ? armorStageNames[0] : Swordcraft.stages[0].title)+" → +"+Swordcraft.stages[0].target,"연마 3회 후 마감") : "";
+    return line(armor ? "장착 방어구" : "장착 검신", label(item)) + line("각인석 / 우두머리 인장",fmt(rack.ore)+"개 / "+fmt(rack.seals || 0)+"개") + choice + processes(s,item) +
       slots(item,true,rack.ore) + (available.length ? btn(prefix(item)+"Etch",icon("sparkles")+"무작위 각인 · 2석","","primary",rack.ore<2) +
         '<label for="bladeTarget">지정 각인</label><select id="bladeTarget">' + available.map(([key,def]) =>
           '<option value="'+key+'">'+sideLabel[def.side]+" · "+escapeHtml(def.name)+'</option>').join("") +

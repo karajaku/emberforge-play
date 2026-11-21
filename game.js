@@ -845,6 +845,9 @@ const Game = (() => {
     s.lastTowerRun = { ...s.towerRun, reason, finished: t };
     s.towerRun = null;
   }
+  function hasBossRetry(s, rank) {
+    return rank === 5 && s.bladeForge?.firstBossRetry === "ready";
+  }
   function perform(s, act, arg, t = Date.now(), random = Math.random, pressedAt = t) {
     settle(s, t);
     const fail = (message) => ({ ok: false, message });
@@ -1424,9 +1427,10 @@ const Game = (() => {
         const rank = Number(typeof arg === "object" && arg !== null ? arg.rank : arg);
         if (!Number.isInteger(rank) || rank < 1 || rank > Math.min(60, s.huntBest + 1))
           return fail("먼저 이전 지역을 토벌하세요.");
-        if (w.free + w.purchased < 1) return fail("사냥권이 부족합니다. 10분 충전·오늘의 출석을 확인하거나 대장간과 배치 수익을 이용하세요.");
         const journeyBattle = arg?.combat === "journey-v1";
         const bladeBattle=arg?.combat==="blade-v1";
+        const retry = bladeBattle && hasBossRetry(s, rank);
+        if (!retry && w.free + w.purchased < 1) return fail("사냥권이 부족합니다. 10분 충전·오늘의 출석을 확인하거나 대장간과 배치 수익을 이용하세요.");
         if (bladeBattle && (blades.state(s).items.length>=120 || blades.armors(s).length>=120))
           return fail("장비 보관함이 가득 찼습니다. 가득 찬 부위의 여분 장비를 분해하세요.");
         const trailBattle = bladeBattle || journeyBattle || arg?.combat === "trail-v1";
@@ -1435,8 +1439,10 @@ const Game = (() => {
           enemyHp = 90 + Math.round(36 * (rank - 1) ** 1.65);
         const enemy = huntEnemy(rank);
         const task = routeTask(s);
-        const source = w.free > 0 ? "free" : "purchased";
-        w[source]--;
+        const source = retry ? "retry" : w.free > 0 ? "free" : "purchased";
+        if (retry) s.bladeForge.firstBossRetry = "used";
+        else w[source]--;
+        if (s.lastHunt?.firstGearChoice) delete s.lastHunt.firstGearChoice;
         if (w.free < hunting.cap && w.rechargeAt === null) w.rechargeAt = w.observedAt;
         w.serial = request;
         w.lastStart = { request, id: w.id + "-" + request, rank, source };
@@ -1494,7 +1500,7 @@ const Game = (() => {
             s.hunt.armorDamageMultiplier = bossDamageMultiplier(s.armor.level, rank);
           trail.enter(s.hunt, 0);
         }
-        return { ...success(huntEnemy(s.hunt).habitat + " " + rank + "구역 사냥 시작 · 사냥권 1개 사용"), receipt: { ...w.lastStart } };
+        return { ...success(huntEnemy(s.hunt).habitat + " " + rank + "구역 사냥 시작 · " + (retry ? "무료 재도전" : "사냥권 1개 사용")), receipt: { ...w.lastStart } };
       }
       case "huntAdvance": {
         const h = s.hunt;
@@ -1572,6 +1578,7 @@ const Game = (() => {
             bonus,
           };
           if (h.bladeCombat) {
+            if (h.rank === 1 && blades.state(s).cleared === 0) s.lastHunt.firstGearChoice = true;
             const receipt=blades.rollReward(s,h,random);
             receipt.materialPrize+=endgame.victory(s,h);
             Object.assign(s.lastHunt,receipt,{bladePrize:blades.rewardText(receipt)});
@@ -1593,12 +1600,17 @@ const Game = (() => {
           };
         }
         impact.taken = Math.min(taken, h.hp);
+        if (h.bladeCombat && h.rank === 5 && impact.taken > (h.strongestHit?.taken || 0))
+          h.strongestHit = { kind: h.enemyKind, skill: roll.enemySkill, taken: impact.taken };
         h.hp = Math.max(0, h.hp - taken + (taken && h.bladeCombat ? roll.healed : 0));
         if (roll && (h.waveTurn ?? h.turn) >= 40) h.hp = 0;
         h.counter = roll?roll.counter:block && charge;
         if (!h.hp) {
+          if (h.bladeCombat && h.rank === 5 && s.bladeForge.cleared < 5 && !s.bladeForge.firstBossRetry)
+            s.bladeForge.firstBossRetry = "ready";
           s.lastHunt = {
             ...trailResult,
+            ...(h.strongestHit ? { strongestHit: h.strongestHit } : {}),
             id: h.id, ticketSource: h.ticketSource,
             ...(roll ? {diceVersion:1, lastDice:roll} : {}),
             health: huntHealth(h),
@@ -1955,7 +1967,7 @@ const Game = (() => {
     return 1 - Math.abs((elapsed % 1800) / 900 - 1);
   }
   return {
-    blades, outfit, endgame, bladeAttributes, bladePrizeGold, forestYield, liningCosts, huntStats, huntBlade, restoreHuntWeapon, migrateJourneyOpponent, hunting, settleHunting, huntingStatus, resetProgress,
+    blades, outfit, endgame, bladeAttributes, bladePrizeGold, forestYield, liningCosts, huntStats, huntBlade, restoreHuntWeapon, migrateJourneyOpponent, hunting, settleHunting, huntingStatus, hasBossRetry, resetProgress,
     startSwordRecord, freshJourney, enableJourney, isJourneyGear, canAdoptSword, journeyForge, journeySmith, saleValue, currentOrder, dailyGold,
     journeyProcessOptions: i => journey.processOptions[i],
     huntArea: journey.area, journeyTraits: journey.bladeTraits,

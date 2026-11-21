@@ -534,7 +534,7 @@ function huntResult(last, chests) {
     last.ripostes +
     "회" +
     bonus +
-    (last.ticketSource ? " · 사냥권 1개 사용" : " · 이전 전투 추가 차감 없음") +
+    (last.ticketSource === "retry" ? " · 무료 재도전" : last.ticketSource ? " · 사냥권 1개 사용" : " · 이전 전투 추가 차감 없음") +
     "</small>" +
     (chest ? desc("보물상자를 발견했습니다. 아래에서 보물을 획득하세요.") : recovery) +
     "</div>"

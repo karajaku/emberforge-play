@@ -271,6 +271,7 @@ body.ui-game {
 .bag-slot-art img, .bag-slot-art .chest-art { width: 36px; height: 36px; image-rendering: pixelated; object-fit: contain; }
 .bag-slot-art svg { width: 29px; height: 29px; }
 .bag-slot-name { max-width: 100%; font-size: 12px; line-height: 1.15; word-break: keep-all; overflow-wrap: anywhere; }
+.bag-slot-affix { font-size:10px; line-height:1.2; color:#d6e6c9; overflow-wrap:anywhere; }
 .bag-slot-mark, .bag-slot-status { position: absolute; top: 4px; line-height: 1; }
 .bag-slot-mark { right: 5px; font-size: 11px; font-weight: 700; color: #fff4d2; }
 .bag-slot-status { left: 4px; font-size: 10px; font-weight: 700; color: #ffda8d; }
@@ -328,6 +329,9 @@ body.ui-game {
 .loot-rules summary { cursor:pointer; padding:8px 0; font-weight:700; }
 .ui-forge-rail :is(.action,.mini) { padding:3px; }
 .blade-layout .ui-forge-rail span { white-space:nowrap; }
+.ui-game .ui-forge-rail .forge-first-process { border-color:#efc272; color:#ffe4a6; gap:0; }
+.forge-first-process small { font-size:10px; line-height:1.1; }
+.ui-forge-rail .forge-first-process svg { height:18px; }
 /* The sheet uses the light parchment palette. Keep notifications clear of its close button. */
 .dialog .blade-slots h4, .dialog .blade-mastery h4 { color:#62421c; }
 .dialog .blade-affix small, .dialog .blade-empty, .dialog .blade-range { color:#665947; }

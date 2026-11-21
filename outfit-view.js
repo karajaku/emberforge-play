@@ -159,5 +159,5 @@ const OutfitView = (() => {
       openBtn("outfit:item:"+item.id,content,"loot-gear loot-grade-"+item.grade) :
       '<span class="loot-gear loot-grade-'+item.grade+'">'+content+'</span>';
   }
-  return {loadout,entries,modal,encounterChip,receipt};
+  return {art,loadout,entries,modal,encounterChip,receipt};
 })();

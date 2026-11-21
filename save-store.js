@@ -16,6 +16,7 @@ const SaveStore = (() => {
   const object = value => value !== null && typeof value === "object" && !Array.isArray(value);
   const validWork = w => Array.isArray(w) && w.length === 3 && w.every(v => v === null || v === 0 || v === 1);
   function saveFormat(forge) {
+    if (forge?.firstBossRetry !== undefined) return 7;
     if (forge?.outfit!==undefined) return 6;
     if (forge?.soul?.version===2) return 5;
     if (forge?.armors!==undefined) return 4;
@@ -35,6 +36,8 @@ const SaveStore = (() => {
     if (data?.bladeForge!==undefined && (!game.blades.valid(data.bladeForge) || !game.endgame.valid(data.bladeForge))) throw fault("corrupt");
     if (data?.bladeForge?.extraDeployed && !data.bladeForge.soul?.learned?.land && !(data.imprints?.land > 0)) throw fault("corrupt");
     const drops=data?.lastHunt?.gearDrops;
+    const retry = data?.bladeForge?.firstBossRetry;
+    if (retry !== undefined && !["ready", "used"].includes(retry)) throw fault("corrupt");
     if (drops!==undefined && (!Array.isArray(drops) || drops.length>2 || typeof data.lastHunt.materialPrize!=="string" ||
         !drops.every(d=>d && ["weapon","armor"].includes(d.type) && typeof d.id==="string" &&
           (d.type==="armor"?/^a[1-9]\d*$/:/^b[1-9]\d*$/).test(d.id) && Number.isInteger(d.base) && d.base>0 &&
@@ -42,6 +45,15 @@ const SaveStore = (() => {
           d.lines>=game.blades.rarityRules[d.grade].min && d.lines<=game.blades.rarityRules[d.grade].max) ||
         new Set(drops.map(d=>d.type)).size!==drops.length)) throw fault("corrupt");
     for (const h of [data?.hunt, data?.lastHunt]) {
+      if (h?.strongestHit !== undefined) {
+        const hit = h.strongestHit;
+        if (!object(hit) || !h.bladeCombat || h.rank !== 5 ||
+            !game.trail.lineup(5, !!h.bonusEncounter).includes(hit.kind) ||
+            !(hit.skill === null || hit.skill === game.trail.enemy(5, hit.kind).skill) ||
+            !Number.isSafeInteger(hit.taken) || hit.taken <= 0) throw fault("corrupt");
+      }
+      if (h?.firstGearChoice !== undefined && (h.firstGearChoice !== true || h !== data.lastHunt ||
+          h.rank !== 1 || !h.bladeCombat || !h.chestId)) throw fault("corrupt");
       if (h?.fieldKit!==undefined && (!h.bladeCombat || !outfit || !game.outfit.validBuild(h.fieldKit))) throw fault("corrupt");
       if (h?.blade !== undefined && (!object(h.blade) ||
           !Number.isInteger(h.blade.stage) || h.blade.stage < 0 || h.blade.stage >= 4 ||
@@ -164,7 +176,8 @@ const SaveStore = (() => {
           !object(w.lastStart) || w.lastStart.request !== w.serial ||
           w.lastStart.id !== w.id + "-" + w.serial ||
           !Number.isInteger(w.lastStart.rank) || w.lastStart.rank < 1 || w.lastStart.rank > 60 ||
-          !["free", "purchased"].includes(w.lastStart.source)) throw fault("corrupt");
+          !(["free", "purchased"].includes(w.lastStart.source) ||
+            (w.lastStart.source === "retry" && w.lastStart.rank === 5 && retry === "used"))) throw fault("corrupt");
     }
     function validEntry(id) {
       const wallet = data.hunting;
