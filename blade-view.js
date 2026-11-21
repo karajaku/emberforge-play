@@ -147,7 +147,7 @@ const BladeView = (() => {
         btn("bladeArmorSalvage","각인석으로 분해",target.id,"action",target.id===item.id || target.id===s.hunt?.armorId || !!target.soulChoice)];
       return [label(target),armorDetail(s,target)];
     }
-    return ["방어구 보관함",line("방어구",list.length+" / 120벌") + (Game.endgame.info(s).gift ? SoulView.open("lessons","첫 +20 선물 선택","primary") : "") + list.slice().reverse().map(it=>
+    return ["방어구 보관함",OutfitView.loadout() + line("흉갑",list.length+" / 120벌") + (Game.endgame.info(s).gift ? SoulView.open("lessons","첫 +20 선물 선택","primary") : "") + list.slice().reverse().map(it=>
       row(label(it),"체력 "+fmt(b.armorStats(s,it).hp)+" · 옵션 "+it.mods.length+"줄"+(it.id===item.id?" · 장착 중":""),
         openBtn("bladeArmorItem-"+it.id,"살펴보기","mini"),"",artwork(it))).join("")+
       '<button class="action" data-archive-blade="armor">기록 방어구 대장간</button>'];
@@ -167,8 +167,10 @@ const BladeView = (() => {
       b.rarityRules.map((r,i)=>'<tr><th scope="row">'+b.rarityNames[i]+'</th><td>'+r.min+'~'+r.max+'줄</td><td>'+r.caps.join(' / ')+'</td></tr>').join("")+'</tbody></table>'+
       desc("접두와 접미는 각기 다른 후보에서 뽑습니다. 높은 단계에서는 한 줄의 수치 등급도 높아질 수 있습니다.")+'</details>';
     return ["장비 획득 확률",'<label for="lootRank">사냥 단계</label><select id="lootRank">'+opts+'</select>'+
-      line(stageText,"검신 · 방어구 각각 "+percent(odds.itemPercent)) + table +
-      desc("승리하면 두 부위를 따로 추첨합니다. 한 번에 둘 다 얻을 수 있습니다.")+
+      line(stageText,"검신 · 흉갑 각각 "+percent(odds.itemPercent)) + table +
+      line("속성 장비",pct(Game.outfit.dropChance(s,rank))) +
+      desc("검신·흉갑과 별도로 속성 장비 한 개를 추첨합니다. 속성 장비의 첫 획득과 우두머리 승리는 확정입니다.") +
+      openBtn("outfit:enemy:" + rank + ":" + Game.trail.lineup(rank,false)[0],"이 단계의 적 저항") +
       (first ? desc("이 단계의 반복 사냥에서는 각 부위 등장률이 "+percent(b.dropOdds(rank,false).itemPercent)+"입니다.") : "")+affixes];
   }
   function styles(s) {
@@ -191,7 +193,7 @@ const BladeView = (() => {
     if (key === "bladeStyles") return ["검술 선택",styles(s)];
     if (key === "bladeCraft") return ["검신 제작",workshop(s)];
     if (key === "bladeCollection") return ["검신 보관함",collection(s)];
-    if (key === "bladeGuide") return ["검신 제작 수업", desc("숲에서 검신과 방어구를 얻어 각각 +20까지 강화하세요. 검신함과 방어구함에서 주력 장비와 비교할 수 있습니다.") +
+    if (key === "bladeGuide") return ["검신 제작 수업", desc("숲에서 얻은 검신과 흉갑은 대장간에서 강화합니다. 투구·반지 같은 속성 장비는 보관함의 착용 장비에서 고르세요.") + OutfitView.loadout() +
       line("강화", "공격력 증가 · 최고 +20") + line("각인", "접두·접미에 새 옵션") +
       desc("+7·+9·+11 제작 공정에서 특성을 고르면 +19에 마무리 공법이 열립니다. 각인석은 숲 승리와 여분 검신 분해로 모읍니다. 사냥 전에 검술을 고르면 주사위 전투에서 자동으로 발동합니다.") +
       openBtn("bladeLoot-1","단계별 장비 획득 확률") + openBtn("bladeStyles","검술 고르기") + go("forest","숲 사냥","primary")];

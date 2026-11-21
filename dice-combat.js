@@ -1,5 +1,6 @@
 /* Pure D6 rules shared by the production combat resolver and tests. */
 const DiceCombat=(()=>{
+  const outfit = typeof module !== "undefined" ? require("./regional-gear.js") : RegionalGear;
   const actions=['strike','strike','strike','block','block','heavyStrike'];
   const skills={heavyStrike:{name:'강공',icon:'hammer',cooldown:3,power:2},counter:{name:'반격',icon:'sword',cooldown:2,power:2.5}};
   const enemySkills = {
@@ -82,7 +83,8 @@ const DiceCombat=(()=>{
     // A rupture ignores a defensive face. Bleeding continues even during a block.
     const bleed = st.style === "wound" ? Math.round((h.wounds || 0) * st.rupture * 0.14) : 0;
     const pierces = skill==="rupture" || (ascended && skill==="heavyStrike");
-    const damage = Math.min(h.enemyHp, Math.round(raw * (enemyBlocks && !pierces ? .25 : 1)) + bleed);
+    const elemental = h.fieldKit ? outfit.multiplier(outfit.profile(h.territoryRank || h.rank,h.enemyKind),h.fieldKit) : 1;
+    const damage = Math.min(h.enemyHp, Math.round(raw * elemental * (enemyBlocks && !pierces ? .25 : 1)) + bleed);
     const enemySkillState = { ...h.enemySkillState, cooldown: Math.max(0, h.enemySkillState.cooldown - 1) };
     const key = enemySkillState.key;
     const fires = key === "escape" ? h.waveTurn >= 2 : !enemyBlocks && !enemySkillState.cooldown;

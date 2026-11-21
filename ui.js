@@ -256,7 +256,14 @@ function soulQuote(s, arg) {
   return JSON.stringify([(arg.id?.startsWith("a") ? Game.blades.armors(s) : b.items).find(item => item.id === arg.id), b.equipped, b.armorEquipped, s.hunt?.bladeId, s.hunt?.armorId,
     b.ore, b.cleared, g.deployed, g.souls, g.gift, g.unlocked, g.tokens, g.bossSeals]);
 }
-function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedSoul) {
+function outfitQuote(s, action, arg) {
+  const [first, second] = arg.split(":");
+  const data = Game.outfit.state(s), id = second || first;
+  const item = data.items.find(it => it.id === id);
+  const wearing = Object.entries(data.equipped).find(([, value]) => value === id);
+  return JSON.stringify([action, item, wearing?.[0], second && data.equipped[first]]);
+}
+function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedSoul, expectedOutfit) {
   const sourceInventoryMenu = modal.startsWith("inventory-") && !automaticGuard && !repeatGuard ? modal : "";
   const bulkQuote = action === "journeyBulk" && typeof arg === "object" ? arg : null;
   if (bulkQuote) arg = bulkQuote.type;
@@ -298,6 +305,11 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
       autoCombat.stop();
     }
     sync();
+    if (expectedOutfit && expectedOutfit !== outfitQuote(state, action, arg)) {
+      render(); if (modal) displayModal();
+      notify("착용 장비가 바뀌었습니다. 현재 장비와 비용을 다시 확인하세요.");
+      return;
+    }
     if (expectedSoul && expectedSoul !== soulQuote(state, arg)) {
       render(); if (modal) displayModal();
       notify("검신이나 재료가 바뀌었습니다. 새 조건을 확인하세요.");
@@ -387,6 +399,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     const inventoryAction = result.ok && !!sourceInventoryMenu && modal === sourceInventoryMenu;
     if (inventoryAction) modal = "";
     if (result.ok && action === "bladeMaster") { HuntWatch.selectMaster(); modal = ""; }
+    if (result.ok && action === "outfitSalvage") modal = "outfit:slots";
     if (result.ok && equivalent === "bladeSalvage") modal = armorAction ? "bladeArmorCollection" : "bladeCollection";
     if (result.ok && action === "soulRebirth") modal = "soul:transfer:" + (arg.id.startsWith("a") ? Game.blades.currentArmor(state) : Game.blades.current(state)).id;
     if (result.ok && ["soulLuck","soulPolish"].includes(action)) modal = "soul:craft:" + arg.id;
@@ -685,6 +698,7 @@ function swordJournal(s, record = s.swordRecord) {
 }
 function modalData() {
   const s = state;
+  if (modal.startsWith("outfit:")) return OutfitView.modal(s, modal);
   if (modal.startsWith("soul:")) return SoulView.modal(s, modal);
   if (modal.startsWith("blade")) return BladeView.modal(s, modal);
   if (!archiveBlade && (modal === "lessons" || modal === "help")) return BladeView.modal(s, "bladeGuide");
@@ -1051,6 +1065,8 @@ function displayModal() {
   el("modalBody").innerHTML = html;
   for (const button of el("modalBody").querySelectorAll("[data-soul-act]"))
     button.soulQuote = soulQuote(state, JSON.parse(button.dataset.soulArg));
+  for (const button of el("modalBody").querySelectorAll('[data-act^="outfit"]'))
+    button.outfitQuote = outfitQuote(state, button.dataset.act, button.dataset.arg);
   if (el("saleItem")) {
     el("saleItem").value = selectedSale || "";
     if (el("saleItem").selectedIndex < 0) el("saleItem").value = "";
@@ -1281,6 +1297,10 @@ document.addEventListener("click", (e) => {
     return act(d.soulAct, JSON.parse(d.soulArg), undefined, undefined, undefined, b.soulQuote);
   }
   if (d.act) {
+    if (d.act.startsWith("outfit")) {
+      b.disabled = true;
+      return act(d.act, d.arg, undefined, undefined, undefined, undefined, b.outfitQuote);
+    }
     if (modal.startsWith("inventory-")) {
       // A stored slot can change index as soon as one action commits.
       if (el("modalBody").getAttribute("aria-busy") === "true") return;

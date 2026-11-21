@@ -277,6 +277,22 @@ body.ui-game {
 .bag-detail-art { margin: 0 auto 8px; width: 70px; height: 70px; color: #8a6833; }
 .bag-detail-art .gear-portrait { width: 70px; height: 70px; }
 .bag-detail-art img, .bag-detail-art svg { width: 45px; height: 45px; object-fit: contain; image-rendering: pixelated; }
+.bag-section-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.bag-section-head .outfit-open { min-height:40px; }
+.outfit-art { display:inline-block; flex:none; width:46px; height:46px; background-image:url("assets/outfit-atlas.webp"); background-size:400% 200%; background-repeat:no-repeat; image-rendering:pixelated; }
+.outfit-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+.outfit-slot { grid-template-rows:auto minmax(42px,1fr) auto; gap:2px; padding:7px 2px; }
+.outfit-slot-title { font-size:13px; font-weight:750; }
+.outfit-slot .bag-slot-art { height:47px; }
+.outfit-slot small { font-size:11px; color:#f4daa2; }
+.outfit-slot[data-empty="true"] .outfit-art { filter:grayscale(.8); opacity:.58; }
+.bag-detail-art .outfit-art { width:70px; height:70px; }
+#shade[data-modal^="outfit:"] #modalBody > button { width:100%; min-height:44px; margin-top:5px; }
+.watch-loot .outfit-art { width:20px; height:20px; }
+.outfit-enemy-line { flex-basis:100%; display:flex; justify-content:center; }
+.ui-game .outfit-enemy-chip { display:inline-flex; align-items:center; gap:8px; min-height:30px; padding:1px 8px; border:1px solid #b8a072; border-radius:9px; background:#202c26e8; color:#ffebc7; font-size:12px; line-height:1.2; }
+.outfit-enemy-chip span { display:inline-flex; align-items:center; gap:3px; }
+.outfit-enemy-chip svg { width:13px; height:13px; }
 #shade[data-modal^="inventory-"] #modalBody > button { width: 100%; min-height: 44px; margin-top: 6px; }
 @media (max-width: 420px) {
   .bag-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }

@@ -2,6 +2,7 @@
 const Game = (() => {
   const endgame = typeof module !== "undefined" ? require("./blade-endgame.js") : BladeEndgame;
   const blades = typeof module !== "undefined" ? require("./blade-rules.js") : BladeRules;
+  const outfit = typeof module !== "undefined" ? require("./regional-gear.js") : RegionalGear;
   const journey = typeof module !== "undefined" ? require("./journey-rules.js") : JourneyRules;
   const story = typeof module !== "undefined" ? require("./charcoal-story.js") : CharcoalStory;
   const craft = typeof module !== "undefined" ? require("./swordcraft.js") : Swordcraft;
@@ -853,6 +854,10 @@ const Game = (() => {
       return { ok: true, message, kind };
     };
     const int = (a, b) => a + Math.floor(random() * (b - a + 1));
+    if (typeof act==="string" && act.startsWith("outfit")) {
+      const result=outfit.act(s,act,arg,random,payForgeFee);
+      return result.ok ? success(result.message,result.kind) : result;
+    }
     const soulAction=typeof act==="string" && act.startsWith("soul");
     if (soulAction || (typeof act === "string" && act.startsWith("blade"))) {
       const armorAction=act.startsWith("bladeArmor");
@@ -1467,6 +1472,8 @@ const Game = (() => {
         if (trailBattle) {
           if (bladeBattle) {
             bindBladeCombat(s,s.hunt);
+            outfit.state(s);
+            s.hunt.fieldKit=outfit.build(s);
             const b=blades.state(s);
             if(rank===60 && b.cleared===60) s.hunt.territoryRank=45+5*b.master;
           }
@@ -1531,7 +1538,7 @@ const Game = (() => {
         if (roll?roll.skill==='counter':!block&&h.counter) h.ripostes = (h.ripostes || 0) + 1;
         h.enemyHp = Math.max(0, h.enemyHp - damage);
         const trailResult = h.trailVersion ? {trailVersion:1, wave:h.wave, bonusEncounter:h.bonusEncounter} : {};
-        if (h.bladeCombat) Object.assign(trailResult,{bladeCombat:h.bladeCombat,armorId:h.armorId,wounds:h.wounds,territoryRank:h.territoryRank});
+        if (h.bladeCombat) Object.assign(trailResult,{bladeCombat:h.bladeCombat,armorId:h.armorId,wounds:h.wounds,territoryRank:h.territoryRank,fieldKit:h.fieldKit});
         if (!h.enemyHp) {
           if (h.trailVersion && h.wave + 1 < trail.lineup(h.territoryRank || h.rank, h.bonusEncounter).length) {
             if (h.enemyKind === "goblin") h.goblinCaught = true;
@@ -1568,6 +1575,7 @@ const Game = (() => {
             const receipt=blades.rollReward(s,h,random);
             receipt.materialPrize+=endgame.victory(s,h);
             Object.assign(s.lastHunt,receipt,{bladePrize:blades.rewardText(receipt)});
+            if (h.fieldKit) Object.assign(s.lastHunt,outfit.reward(s,h,random));
           }
           s.huntBest = Math.max(s.huntBest, h.rank);
           const route = s.weapon.route;
@@ -1947,7 +1955,7 @@ const Game = (() => {
     return 1 - Math.abs((elapsed % 1800) / 900 - 1);
   }
   return {
-    blades, endgame, bladeAttributes, bladePrizeGold, forestYield, liningCosts, huntStats, huntBlade, restoreHuntWeapon, migrateJourneyOpponent, hunting, settleHunting, huntingStatus, resetProgress,
+    blades, outfit, endgame, bladeAttributes, bladePrizeGold, forestYield, liningCosts, huntStats, huntBlade, restoreHuntWeapon, migrateJourneyOpponent, hunting, settleHunting, huntingStatus, resetProgress,
     startSwordRecord, freshJourney, enableJourney, isJourneyGear, canAdoptSword, journeyForge, journeySmith, saleValue, currentOrder, dailyGold,
     journeyProcessOptions: i => journey.processOptions[i],
     huntArea: journey.area, journeyTraits: journey.bladeTraits,

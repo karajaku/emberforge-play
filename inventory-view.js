@@ -48,6 +48,7 @@ const InventoryView = (() => {
         art: BladeView.artwork(item), status: Game.endgame.info(s).deployed.includes(item.id) ? "배치" : item.ascended ? "초월" : Game.blades.current(s).id === item.id ? "주력" : "", detail: () => BladeView.itemDetail(s,item)})),
       ...Game.blades.armors(s).map(item => ({key:"huntarmor-"+item.id, group:"gear", name:Game.blades.rarityNames[item.grade]+" "+Game.blades.name(item), grade:item.grade, mark:"+"+item.level,
         art:BladeView.artwork(item), status:Game.blades.currentArmor(s).id===item.id?"장착":"", detail:()=>BladeView.armorDetail(s,item)})),
+      ...OutfitView.entries(s),
       equipment(s, s.weapon, "weapon", "weapon"), equipment(s, s.armor, "armor", "armor"),
       ...s.bag.map((g, i) => equipment(s, g, "weapon", "stored-" + i, i)),
       ...s.field.map((g, i) => equipment(s, g, "weapon", "field-" + i, i)),
@@ -95,7 +96,7 @@ const InventoryView = (() => {
 
   function tile(item) {
     const label = [item.name, item.mark, item.status].filter(Boolean).join(" ");
-    return '<button class="bag-slot" data-rarity="'+(item.grade ?? "")+'" data-group="' + item.group + '" data-open="inventory-' + escapeHtml(item.key) +
+    return '<button class="bag-slot" data-rarity="'+(item.grade ?? "")+'" data-group="' + item.group + '" data-open="' + escapeHtml(item.open || "inventory-" + item.key) +
       '" aria-label="' + escapeHtml(label) + '" aria-haspopup="dialog">' +
       '<span class="bag-slot-art" aria-hidden="true">' + item.art + '</span>' +
       (item.status ? '<small class="bag-slot-status">' + item.status + '</small>' : '') +
@@ -115,7 +116,8 @@ const InventoryView = (() => {
         const section = items.filter(item => item.group === group);
         if (!section.length) return "";
         return '<section class="bag-section" aria-labelledby="bag-title-' + group + '">' +
-          '<h2 id="bag-title-' + group + '">' + title + '</h2>' + grid(section) + '</section>';
+          '<div class="bag-section-head"><h2 id="bag-title-' + group + '">' + title + '</h2>' +
+          (group === "gear" ? OutfitView.loadout() : "") + '</div>' + grid(section) + '</section>';
       }).join("");
     }
     const list = items.filter(item => page === item.group ||
@@ -124,7 +126,7 @@ const InventoryView = (() => {
       desc(({stored: "보관 중인 무기가 없습니다.", items: "보유한 소지품이 없습니다.", relics: "보유한 유물이 없습니다."})[page]);
     if (page === "stored") html += line("보관 무기", s.bag.length + " / 20") + go("bag", "전체 보기", "action");
     if (page === "relics") html += line("보관 유물", s.relics.length + " / 20") + openBtn("shop", "포인트 상점");
-    return html;
+    return (page === "gear" ? OutfitView.loadout() : "") + html;
   }
 
   function menu(s, key) {

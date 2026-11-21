@@ -54,7 +54,7 @@ const HuntWatch=(()=>{
       const content=icon(armor?'shield':'sword')+'<b>'+escapeHtml(b.rarityNames[drop.grade]+' '+b.name(drop))+'</b><small>'+drop.lines+'줄</small>';
       return owned ? openBtn((armor?'bladeArmorItem-':'bladeItem-')+drop.id,content,'loot-gear loot-grade-'+drop.grade) :
         '<span class="loot-gear loot-grade-'+drop.grade+'">'+content+'</span>';
-    }).join("");
+    }).join("") + OutfitView.receipt(s,result);
     return (rows?'<div class="loot-gear-list">'+rows+'</div>':'')+
       (result.materialPrize?'<span class="blade-drop">'+icon('gem')+escapeHtml(result.materialPrize)+'</span>':'');
   }
@@ -182,6 +182,7 @@ const HuntWatch=(()=>{
       held ? (mode === 'repeat' ? '반복 재개' : cleared(s) >= 60 ? '재도전 재개' : '진행 재개') :
       empty ? '충전 보기' : mode === 'repeat' ? '반복 시작' : cleared(s) >= 60 ? '1회 재도전' : '사냥';
     const detail = encounterHint(h,result,enemy,rank,pack);
+    const kit = h ? h.fieldKit : !result && targetRank ? Game.outfit.build(s) : null;
     const home = !active && (!encounter || location.hash === '#world');
     const control = finished ? 'data-open="huntPlan"' : empty && !active ? 'data-open="huntWallet"' : 'data-watch="toggle"';
     const start = '<button class="primary watch-start" ' + control + '><span class="watch-start-label">' +
@@ -190,11 +191,12 @@ const HuntWatch=(()=>{
       go('forest/field', icon('hand-coins') + '<span>배치 수익</span>', 'action') + start +
       go('world/map', icon('compass') + '<span>모험 지도</span>', 'action') + '</div>';
     return '<section class="watch-view watch-ground' + (home ? ' watch-home' : '') + '"' + (territory ? ' data-boss-territory="'+territory+'"' : '') + '><div class="watch-stage">' +
-      '<span class="watch-stage-name">'+(territory ? icon('crown')+'우두머리 영역' : icon('trees')+'사냥터')+'</span> · <b>'+rank+'단계'+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+'<small class="watch-version">v'+UpdateNotice.version()+'</small>'+(h?.ripostes>0 && !h.journeyBattle && !h.bladeCombat?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+'</div>'+
+      '<span class="watch-stage-name">'+(territory ? icon('crown')+'우두머리 영역' : icon('trees')+'사냥터')+'</span> · <b>'+rank+'단계'+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+'<small class="watch-version">v'+UpdateNotice.version()+'</small>'+(h?.ripostes>0 && !h.journeyBattle && !h.bladeCombat?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+
+      (kit ? '<div class="outfit-enemy-line">' + OutfitView.encounterChip(terrain,enemy.kind,kit,!!h) + '</div>' : '') + '</div>' +
       '<div class="scene watch-arena combat-hud" data-region="'+area.id+'">'+fighter('player',blade.name,'+'+fmt(blade.level),sprite,128,hp,max)+fighter('enemy',enemy.name,'Lv.'+rank,enemy.sprite||'boar',144,enemyHp,total)+
       '<div class="watch-report">'+
       '<div class="watch-reward" role="status">'+(detail?'<div class="trail-detail">'+detail+'</div>':'')+(reward?'<div class="watch-receipt"><div class="watch-receipt-head"><b>'+reward.rank+'단계 클리어</b><strong>'+icon('coins')+' +'+fmt(reward.gold)+' G</strong></div><div class="watch-loot">'+
-        gearReceipt(s,result)+
+        gearReceipt(s,result) +
         (reward.fiber ? '<span>'+icon('trees')+'숲결 섬유 +'+reward.fiber+'</span>' : '')+
         (reward.goblinGold?'<span>'+icon('coins')+'고블린 +'+fmt(reward.goblinGold)+' G 포함</span>':'')+
         (reward.counter>0?'<span class="watch-counter-reward">반격 +'+fmt(reward.counter)+' G 포함</span>':'')+

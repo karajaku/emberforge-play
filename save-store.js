@@ -16,6 +16,7 @@ const SaveStore = (() => {
   const object = value => value !== null && typeof value === "object" && !Array.isArray(value);
   const validWork = w => Array.isArray(w) && w.length === 3 && w.every(v => v === null || v === 0 || v === 1);
   function saveFormat(forge) {
+    if (forge?.outfit!==undefined) return 6;
     if (forge?.soul?.version===2) return 5;
     if (forge?.armors!==undefined) return 4;
     if (forge?.soul?.version===1) return 3;
@@ -27,7 +28,10 @@ const SaveStore = (() => {
     if (data?.heirloom !== undefined) throw fault("future");
     const maxFormat=saveFormat(data?.bladeForge);
     if (data?.bladeForge?.soul?.version>2) throw fault("future");
+    const outfit=data?.bladeForge?.outfit;
+    if (outfit?.version>1) throw fault("future");
     if (data?.version > 2 || data?._save?.format > maxFormat || data?.hunting?.version > 1 || data?.bladeForge?.version>1) throw fault("future");
+    if (outfit!==undefined && !game.outfit.valid(outfit)) throw fault("corrupt");
     if (data?.bladeForge!==undefined && (!game.blades.valid(data.bladeForge) || !game.endgame.valid(data.bladeForge))) throw fault("corrupt");
     if (data?.bladeForge?.extraDeployed && !data.bladeForge.soul?.learned?.land && !(data.imprints?.land > 0)) throw fault("corrupt");
     const drops=data?.lastHunt?.gearDrops;
@@ -38,6 +42,7 @@ const SaveStore = (() => {
           d.lines>=game.blades.rarityRules[d.grade].min && d.lines<=game.blades.rarityRules[d.grade].max) ||
         new Set(drops.map(d=>d.type)).size!==drops.length)) throw fault("corrupt");
     for (const h of [data?.hunt, data?.lastHunt]) {
+      if (h?.fieldKit!==undefined && (!h.bladeCombat || !outfit || !game.outfit.validBuild(h.fieldKit))) throw fault("corrupt");
       if (h?.blade !== undefined && (!object(h.blade) ||
           !Number.isInteger(h.blade.stage) || h.blade.stage < 0 || h.blade.stage >= 4 ||
           !Number.isSafeInteger(h.blade.level) || h.blade.level < 0)) throw fault("corrupt");
@@ -81,6 +86,10 @@ const SaveStore = (() => {
       if (h?.lastDice && (!object(h.lastDice) ||
           ![h.lastDice.playerFace, h.lastDice.enemyFace].every(n => Number.isInteger(n) && n >= 1 && n <= 6))) throw fault("corrupt");
     }
+    const result=data?.lastHunt;
+    if (result?.outfitDrop!==undefined && (!outfit || !result.fieldKit || !result.chestId ||
+        !game.outfit.validItem(result.outfitDrop,outfit.serial) || result.outfitDrop.level!==0)) throw fault("corrupt");
+    if (result?.outfitSalvaged!==undefined && (result.outfitSalvaged!==true || !result.fieldKit || !result.chestId || result.outfitDrop)) throw fault("corrupt");
     if (!object(data) || ![1, 2].includes(data.version) || !object(data.weapon) || !Array.isArray(data.field))
       throw fault("corrupt");
     if (data.created !== undefined && (!Number.isFinite(data.created) || Math.abs(data.created) > 8.64e15))
