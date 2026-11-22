@@ -456,7 +456,7 @@ function huntingWalletContent(s) {
   const claimed = !dailyAvailable(s);
   return '<div data-hunting-status="' + huntingWalletKey(s, w) + '">' + line("보유 식량", fmt(w.free + w.purchased) + "개") +
     '<p class="desc" data-hunting-recharge>' + huntingRechargeText(w) + '</p>' +
-    (!w.free && !w.purchased ? desc("비축 식량이 부족해 사냥을 떠날 수 없습니다.") : "") +
+    (!w.free && !w.purchased ? desc("식량을 보급해야 출발할 수 있습니다.") : "") +
     '<div class="actions">' + openBtn("daily", claimed ? "오늘의 출석 내역" : "출석 보급품 확인", "primary") +
     (!w.free && !w.purchased ? go("forge", "대장간으로", "mini") : "") + '</div>' +
     '<details class="hunt-wallet-help"><summary>사냥과 보급 안내</summary>' +
