@@ -400,16 +400,33 @@ body.ui-game:has(.watch-ground[data-boss-territory])::before {
   }
 }
 
-/* Keep the attack eye and verdict in the central HUD, damage at the recipient. */
+/* Keep the two attack results above the fighters, with damage at the recipient. */
 .ui-game .watch-ground .watch-arena:has([data-d20]) { --action-width:62px; }
 .watch-ground .watch-arena:has([data-d20]) .hp-loss { display:none; }
-.watch-ground .watch-readout .watch-roll[data-d20] {
-  grid-template:25px 15px / minmax(0,1fr);
-  gap:1px;
+.watch-ground .watch-upper-dice {
+  position:absolute; grid-area:1 / 1 / 2 / -1; z-index:6; pointer-events:none;
+  left:50%; top:max(8px,calc(47% - 24px)); translate:-50% 0;
+  display:grid; grid-template-columns:repeat(2,52px); gap:12px;
+  text-shadow:var(--readout-shadow);
+}
+@media (max-width:350px) {
+  .watch-ground .watch-upper-dice { grid-template-columns:repeat(2,44px); gap:4px; }
+  .watch-arena:has(.watch-motion-hint) .watch-upper-dice { top:max(8px,calc(47% - 42px)); }
+}
+.watch-ground .watch-upper-dice .watch-roll {
+  display:grid; grid-template:14px 25px 15px / minmax(0,1fr); gap:1px;
+  justify-items:center; align-content:start;
+  --fighter-ink:#cdffda;
   font-variant-numeric:tabular-nums;
 }
-.watch-ground .watch-roll[data-d20] .watch-verdict {
-  grid-row:2;
+.watch-ground .watch-upper-dice [data-die="enemy"] { --fighter-ink:#ffccad; }
+.watch-ground .watch-d20-owner {
+  color:var(--fighter-ink); font-size:11px; line-height:14px;
+  white-space:nowrap;
+}
+.watch-ground .watch-upper-dice .watch-roll .watch-verdict {
+  grid-row:3;
+  padding:0;
   font-size:13px;
   line-height:15px;
 }
@@ -450,7 +467,7 @@ body[data-motion="on"] .watch-ground .watch-roll[data-d20].rolling .watch-die {
 .watch-ground .watch-roll[data-outcome="blocked"] :is(.watch-die,span) { color:#c7eafa; }
 /* The spotlight occupies the clearing above the fixed combat and touch controls. */
 .watch-arena[data-duel-animating] .watch-report .trail-detail { visibility:hidden; }
-.watch-arena:has(.watch-spotlight) [data-d20][data-die="enemy"] { visibility:hidden; }
+.watch-arena:has(.watch-spotlight,.watch-receipt,.watch-defeat) .watch-upper-dice { visibility:hidden; }
 .watch-spotlight {
   --attack-die:clamp(80px,22vw,92px);
   --defense-die:clamp(42px,12vw,50px);

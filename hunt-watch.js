@@ -171,7 +171,8 @@ const HuntWatch=(()=>{
     const description = check ? actor + ' d20 ' + face : actor + ' 주사위 대기';
     return '<div class="watch-roll" data-die="' + side + '" data-d20="true"' +
       (check ? ' data-outcome="' + check.outcome + '"' : '') +
-      '><div class="watch-die" data-action="' + (check ? 'strike' : '') +
+      '><b class="watch-d20-owner" aria-hidden="true">' + actor +
+      '</b><div class="watch-die" data-action="' + (check ? 'strike' : '') +
       '" role="img" aria-label="' + description + '">' + (check ? face : '') +
       '</div><span class="watch-verdict">' + label + '</span></div>';
   }
@@ -277,8 +278,7 @@ const HuntWatch=(()=>{
       const actor = elite ? '<img class="trail-creature boss-creature" src="assets/hunt/boss-'+bossKind+'.webp" alt="">' : ['wolf','moth','tree','goblin'].includes(asset)
         ? '<img class="trail-creature" src="assets/hunt/'+asset+'.webp" alt="">'
         : '<canvas width="'+width+'" height="144" data-sprite="'+asset+'" aria-hidden="true"></canvas>';
-      const action = useD20 ? d20(side,roll?.[side+'Face'],side==='player'?roll?.attackCheck:roll?.replyCheck) :
-        useDice ? die(roll?.[side+'Face'],roll?.[side],side) : '';
+      const action = useDice ? die(roll?.[side+'Face'],roll?.[side],side) : '';
       return '<div class="watch-fighter '+side+'"'+(elite?' data-elite="true" data-boss="'+bossKind+'"':'')+' data-action="'+(roll?.[side]||'')+'">'+
         '<div class="watch-readout">'+healthMeter(side,label,current,maxHp,level,side==='player' ? fightingItem : null)+
         '<div class="watch-action">'+action+'</div>'+(side==='player'?skills(skillState):enemySkill(skillState))+'</div>'+
@@ -311,7 +311,8 @@ const HuntWatch=(()=>{
       '<span class="watch-stage-name">'+(territory ? icon('crown')+'우두머리 영역' : icon('trees')+'사냥터')+'</span> · <b>'+rank+'단계'+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+'<small class="watch-version">v'+UpdateNotice.version()+'</small>'+(h?.ripostes>0 && !h.journeyBattle && !h.bladeCombat?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+
       (kit ? '<div class="outfit-enemy-line">' + OutfitView.encounterChip(terrain,enemy.kind,kit,!!h) + '</div>' : '') + '</div>' +
       '<div class="scene watch-arena combat-hud" data-region="'+area.id+'">'+fighter('player',blade.name,'+'+fmt(blade.level),sprite,128,hp,max)+fighter('enemy',enemy.name,'Lv.'+rank,enemy.sprite||'boar',144,enemyHp,total)+
-      (useD20 ? impactNumber('player',roll) + impactNumber('enemy',roll) : '')+
+      (useD20 ? '<div class="watch-upper-dice">' + d20('player',roll?.playerFace,roll?.attackCheck) +
+        d20('enemy',roll?.enemyFace,roll?.replyCheck) + '</div>' + impactNumber('player',roll) + impactNumber('enemy',roll) : '')+
       (!active && (s.hunt || s.lastHunt)?.lastDice?.attackCheck ? openBtn('huntPlan',icon('compass')+'사냥 구역','watch-recent-loot watch-plan-link') : '')+
       (settled && !received ? openBtn('huntLoot',icon('backpack')+'최근 전리품','watch-recent-loot') : '')+
       '<div class="watch-report">'+
