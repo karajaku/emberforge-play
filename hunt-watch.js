@@ -165,7 +165,7 @@ const HuntWatch=(()=>{
     // Keep the final round's skill readouts while the saved result supplies HP and dice.
     else if(before&&state.lastHunt?.id===before.id)lastRound=before;
   }
-  function d20(side, face, check, damage) {
+  function d20(side, face, check) {
     const label = check ? HuntEffects.checkLabel(check.outcome, side) : '';
     const actor = side === 'player' ? '내 공격' : '적 공격';
     const description = check ? actor + ' d20 ' + face : actor + ' 주사위 대기';
@@ -173,10 +173,17 @@ const HuntWatch=(()=>{
       (check ? ' data-outcome="' + check.outcome + '"' : '') +
       '><div class="watch-die" data-action="' + (check ? 'strike' : '') +
       '" role="img" aria-label="' + description + '">' + (check ? face : '') +
-      '</div><span class="watch-verdict">' + label +
-      '</span><span class="watch-damage"' + (damage ? (check.outcome === 'miss' ? ' data-bleed title="출혈 피해 ' : ' title="피해 ') +
-      fmt(damage) + '"' : '') + '>' +
-      (damage ? HuntEffects.damageLabel(damage, check.outcome) : '') + '</span></div>';
+      '</div><span class="watch-verdict">' + label + '</span></div>';
+  }
+  function impactNumber(side, roll) {
+    const check = side === 'enemy' ? roll?.attackCheck : roll?.replyCheck;
+    const damage = check ? (side === 'enemy' ? roll.damage : roll.taken) : 0;
+    const bleed = damage && check.outcome === 'miss';
+    const critical = damage && check.outcome === 'critical';
+    return '<b class="watch-impact-number" data-impact-target="' + side + '"' +
+      (bleed ? ' data-bleed' : '') + (critical ? ' data-critical' : '') +
+      (damage ? ' title="' + (bleed ? '출혈 피해 ' : '피해 ') + fmt(damage) + '"' : '') + '>' +
+      (damage ? HuntEffects.damageLabel(damage, check.outcome) : '') + '</b>';
   }
   function die(face,action,side) {
     return '<div class="watch-roll" data-die="'+side+'"><div class="watch-die" data-action="'+(action||'')+'" role="img" aria-label="'+(face?names[action]+' 주사위':'주사위 대기')+'">'+icon(icons[action]||'sword')+'</div><span>'+(face?names[action]:'')+'</span></div>';
@@ -270,8 +277,7 @@ const HuntWatch=(()=>{
       const actor = elite ? '<img class="trail-creature boss-creature" src="assets/hunt/boss-'+bossKind+'.webp" alt="">' : ['wolf','moth','tree','goblin'].includes(asset)
         ? '<img class="trail-creature" src="assets/hunt/'+asset+'.webp" alt="">'
         : '<canvas width="'+width+'" height="144" data-sprite="'+asset+'" aria-hidden="true"></canvas>';
-      const action = useD20 ? d20(side,roll?.[side+'Face'],side==='player'?roll?.attackCheck:roll?.replyCheck,
-        side==='player'?roll?.damage:roll?.taken) :
+      const action = useD20 ? d20(side,roll?.[side+'Face'],side==='player'?roll?.attackCheck:roll?.replyCheck) :
         useDice ? die(roll?.[side+'Face'],roll?.[side],side) : '';
       return '<div class="watch-fighter '+side+'"'+(elite?' data-elite="true" data-boss="'+bossKind+'"':'')+' data-action="'+(roll?.[side]||'')+'">'+
         '<div class="watch-readout">'+healthMeter(side,label,current,maxHp,level,side==='player' ? fightingItem : null)+
@@ -305,6 +311,7 @@ const HuntWatch=(()=>{
       '<span class="watch-stage-name">'+(territory ? icon('crown')+'우두머리 영역' : icon('trees')+'사냥터')+'</span> · <b>'+rank+'단계'+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+'<small class="watch-version">v'+UpdateNotice.version()+'</small>'+(h?.ripostes>0 && !h.journeyBattle && !h.bladeCombat?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+
       (kit ? '<div class="outfit-enemy-line">' + OutfitView.encounterChip(terrain,enemy.kind,kit,!!h) + '</div>' : '') + '</div>' +
       '<div class="scene watch-arena combat-hud" data-region="'+area.id+'">'+fighter('player',blade.name,'+'+fmt(blade.level),sprite,128,hp,max)+fighter('enemy',enemy.name,'Lv.'+rank,enemy.sprite||'boar',144,enemyHp,total)+
+      (useD20 ? impactNumber('player',roll) + impactNumber('enemy',roll) : '')+
       (!active && (s.hunt || s.lastHunt)?.lastDice?.attackCheck ? openBtn('huntPlan',icon('compass')+'사냥 구역','watch-recent-loot watch-plan-link') : '')+
       (settled && !received ? openBtn('huntLoot',icon('backpack')+'최근 전리품','watch-recent-loot') : '')+
       '<div class="watch-report">'+

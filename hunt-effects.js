@@ -15,7 +15,8 @@ const HuntEffects=(()=>{
   const later=(fn,ms)=>timers.push(setTimeout(fn,ms*timeScale));
   function animate(node,frames,options){if(node&&motionEnabled())animations.push(node.animate(frames,{...options,duration:options.duration*timeScale}));}
   // Times are authored at full duration and share the journey's half-duration scale.
-  const d20Timing={player:240,enemy:1400,contact:300,bossDelay:300,bossHold:1000,bossFade:156};
+  const d20Timing={player:0,enemy:1300,roll:660,prepare:220,contact:300,bossDelay:300,bossHold:1000,bossFade:156};
+  const d20PreviewFrames=[0,104,218,362,506];
   const names={strike:'공격',block:'방어',heavyStrike:'강타'},icons={strike:'sword',block:'shield',heavyStrike:'hammer'};
   function checkLabel(outcome,side){
     return {miss:'빗나감',blocked:side==='player'?'막힘':'방어',hit:'명중',critical:'치명타'}[outcome];
@@ -50,14 +51,58 @@ const HuntEffects=(()=>{
     die.textContent=check?record[side+'Face']:'';
     die.setAttribute('aria-label',check?actor+' d20 '+record[side+'Face']:actor+' 주사위 대기');
     host.querySelector('.watch-verdict').textContent=check?checkLabel(check.outcome,side):'';
-    const damage=host.querySelector('.watch-damage');
-    const amount=check?(side==='player'?record.damage:record.taken):0;
-    const bleed=!!amount&&check.outcome==='miss';
-    damage.textContent=amount?damageLabel(amount,check.outcome):'';
-    damage.toggleAttribute('data-bleed',bleed);
-    if(amount) damage.title=(bleed?'출혈 피해 ':'피해 ')+fmt(amount);
-    else damage.removeAttribute('title');
     return host;
+  }
+  function paintImpact(arena,side,record,position){
+    const popup=arena.querySelector('[data-impact-target="'+side+'"]');
+    const check=side==='enemy'?record?.attackCheck:record?.replyCheck;
+    const amount=check?(side==='enemy'?record.damage:record.taken):0;
+    const bleed=!!amount&&check.outcome==='miss';
+    popup.textContent=amount?damageLabel(amount,check.outcome):'';
+    popup.toggleAttribute('data-bleed',bleed);
+    popup.toggleAttribute('data-critical',!!amount&&check.outcome==='critical');
+    if(amount) popup.title=(bleed?'출혈 피해 ':'피해 ')+fmt(amount);
+    else popup.removeAttribute('title');
+    if(position&&amount){
+      const half=popup.offsetWidth/2;
+      const x=Math.max(half+6,Math.min(position.width-half-6,position.x));
+      const y=Math.max(6,Math.min(position.height-popup.offsetHeight-5,position.y-popup.offsetHeight*.7));
+      popup.style.setProperty('--impact-x',x+'px');
+      popup.style.setProperty('--impact-y',y+'px');
+    }
+    return popup;
+  }
+  function previewD20(arena,side,face,at){
+    const host=arena.querySelector('[data-die="'+side+'"]'),die=host.querySelector('.watch-die');
+    const actor=side==='player'?'내 공격':'적 공격';
+    const random=crypto.getRandomValues(new Uint8Array(d20PreviewFrames.length));
+    let previous=0;
+    const eyes=Array.from(random,value=>{
+      const excluded=previous?[previous,face].sort((a,b)=>a-b):[face];
+      let eye=1+value%(20-excluded.length);
+      for(const skipped of excluded)if(eye>=skipped)eye++;
+      previous=eye;
+      return eye;
+    });
+    later(()=>{
+      arena.dataset.phase=side+'-roll';
+      host.classList.remove('chosen');
+      host.classList.add('rolling');
+      host.removeAttribute('data-outcome');
+      die.dataset.action='strike';
+      die.textContent=eyes[0];
+      die.setAttribute('aria-label',actor+' 주사위 굴리는 중');
+      host.querySelector('.watch-verdict').textContent='';
+    },at);
+    for(const [index,time] of d20PreviewFrames.entries()){
+      if(index)later(()=>{die.textContent=eyes[index];},at+time);
+    }
+    later(()=>{
+      arena.dataset.phase=side+'-reveal';
+      host.classList.remove('rolling');
+      die.textContent=face;
+      die.setAttribute('aria-label',actor+' d20 '+face);
+    },at+d20Timing.roll);
   }
   function faceIcon(die,face){const action=DiceCombat.actions[face-1];die.innerHTML=icon(icons[action]);die.dataset.action=action;}
   function burst(actor,kind,damage,critical = false,showAmount = true){
@@ -100,11 +145,21 @@ const HuntEffects=(()=>{
     const escapes=roll?.enemySkill==='escape';
     const bossGuard=d20 && !!roll.enemySkill && !escapes && roll.replyCheck?.outcome==='blocked' &&
       roll.taken===0 && Game.huntEnemy(before).elite;
-    const lastContact=(roll?.replyCheck?d20Timing.enemy:d20Timing.player)+d20Timing.contact;
+    const rollTime=d20Timing.roll+d20Timing.prepare;
+    const lastContact=(roll?.replyCheck?d20Timing.enemy:d20Timing.player)+rollTime+d20Timing.contact;
     const escapeAt=lastContact+400;
+    const impactPositions={};
     if(d20){
       arena.setAttribute('data-duel-animating','');
-      for(const side of ['player','enemy'])paintD20(arena,side,before.lastDice);
+      const clearing=arena.querySelector('.watch-report').getBoundingClientRect();
+      for(const side of ['player','enemy']){
+        const actor=actors[side].getBoundingClientRect();
+        impactPositions[side]={x:actor.left+actor.width/2-clearing.left,y:actor.top-clearing.top,width:clearing.width,height:clearing.height};
+        paintD20(arena,side,before.lastDice);
+        paintImpact(arena,side,before.lastDice,impactPositions[side]);
+      }
+      previewD20(arena,'player',roll.playerFace,d20Timing.player);
+      if(roll.replyCheck)previewD20(arena,'enemy',roll.enemyFace,d20Timing.enemy);
     }
     function diceTurn(side,at){
       const host=arena.querySelector('[data-die="'+side+'"]'),die=host.querySelector('.watch-die');
@@ -139,8 +194,8 @@ const HuntEffects=(()=>{
       if(slot){slot.append(banner);nodes.push(banner);later(()=>banner.remove(),650);}
       animate(actors[side],[{filter:'brightness(1)'},{filter:'brightness(1.8) drop-shadow(0 0 14px '+(key==='counter'?'#73eac7':side==='enemy'?'#ff986d':'#ffd67a')+')',offset:.4},{filter:'brightness(1)'}],{duration:700});
     },at);}
-    skillFlare('player',roll?.skill,d20?d20Timing.player:lead+100);
-    if(end.enemy>0)skillFlare('enemy',roll?.enemySkill,d20?(escapes?escapeAt:d20Timing.enemy):lead+760);
+    skillFlare('player',roll?.skill,d20?d20Timing.player+rollTime:lead+100);
+    if(end.enemy>0)skillFlare('enemy',roll?.enemySkill,d20?(escapes?escapeAt:d20Timing.enemy+rollTime):lead+760);
     function guard(side){
       const ward=actors[side].querySelector('.watch-ward');
       animate(ward,[{opacity:0,transform:'scale(.5)'},{opacity:1,transform:'scale(1.1)',offset:.2},{opacity:.8,transform:'scale(1)',offset:.85},{opacity:0}],{duration:1200,fill:'forwards'});
@@ -168,7 +223,12 @@ const HuntEffects=(()=>{
         const guarded=d20?check.outcome==='blocked':actions[target]==='block',held=guarded&&end[target]>0;
         if(d20){
           paintD20(arena,side,roll).classList.add('chosen');
-          if(side==='player'&&!roll.replyCheck)paintD20(arena,'enemy',null);
+          const popup=paintImpact(arena,target,roll,impactPositions[target]);
+          if(damage)animate(popup,[{transform:'translateY(6px) scale(.92)'},{transform:'none'}],{duration:350,easing:'ease-out'});
+          if(side==='player'&&!roll.replyCheck){
+            paintD20(arena,'enemy',null);
+            paintImpact(arena,'player',null);
+          }
           if(side==='enemy'&&bossGuard)later(()=>showBossGuard(arena,roll),d20Timing.bossDelay);
         }
         if(check?.outcome==='miss'){
@@ -199,7 +259,7 @@ const HuntEffects=(()=>{
         sound(held&&charge?'parry':guarded?'block':heavy?'counter':'slash');
       },at+(d20?d20Timing.contact:300));
     }
-    strike('player',d20?d20Timing.player:lead+260);
+    strike('player',d20?d20Timing.player+rollTime:lead+260);
     if (before.bladeCombat && actions.player === "block" && hit.damage > 0) {
       later(() => {
         updateHealthMeter(meters.enemy,end.enemy,start.enemy,motionEnabled());
@@ -207,7 +267,7 @@ const HuntEffects=(()=>{
       },lead+560);
     }
     // The existing model resolves lethal player hits before an enemy reply.
-    if(end.enemy>0 && before.enemyKind!=='goblin')strike('enemy',d20?d20Timing.enemy:lead+920);
+    if(end.enemy>0 && before.enemyKind!=='goblin')strike('enemy',d20?d20Timing.enemy+rollTime:lead+920);
     if(escapes)later(()=>{
       if(d20)arena.dataset.phase='enemy-escape';
       animate(actors.enemy,[{opacity:1,transform:'translateX(0)'},{opacity:0,transform:'translateX(75%)'}],{duration:430,fill:'forwards'});

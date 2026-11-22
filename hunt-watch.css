@@ -400,11 +400,11 @@ body.ui-game:has(.watch-ground[data-boss-territory])::before {
   }
 }
 
-/* Reserve three lines for each d20 result in the existing central HUD. */
+/* Keep the attack eye and verdict in the central HUD, damage at the recipient. */
 .ui-game .watch-ground .watch-arena:has([data-d20]) { --action-width:62px; }
 .watch-ground .watch-arena:has([data-d20]) .hp-loss { display:none; }
 .watch-ground .watch-readout .watch-roll[data-d20] {
-  grid-template:25px 15px 17px / minmax(0,1fr);
+  grid-template:25px 15px / minmax(0,1fr);
   gap:1px;
   font-variant-numeric:tabular-nums;
 }
@@ -413,18 +413,28 @@ body.ui-game:has(.watch-ground[data-boss-territory])::before {
   font-size:13px;
   line-height:15px;
 }
-.watch-ground .watch-roll[data-d20] .watch-damage {
-  grid-row:3;
-  font-size:15px;
-  line-height:17px;
-}
-.watch-ground .watch-roll[data-d20] > :is(.watch-verdict,.watch-damage):empty {
+.watch-ground .watch-roll[data-d20] > .watch-verdict:empty {
   display:block;
   visibility:hidden;
   min-width:1px;
 }
-.watch-ground .watch-damage[data-bleed]::before { content:"출혈 "; font-size:11px; }
-.watch-ground .watch-roll[data-outcome="critical"] .watch-damage { color:#ffdc82; }
+.watch-ground .watch-impact-number {
+  position:absolute; grid-area:1 / 1 / 2 / -1; z-index:7; pointer-events:none;
+  left:var(--impact-x,25%); top:var(--impact-y,max(6px,calc(100% - clamp(72px,34cqh,198px))));
+  translate:-50% 0;
+  width:max-content; max-width:90%; white-space:nowrap;
+  color:#fff1d0; font-size:clamp(20px,6vw,28px); line-height:1.1; font-weight:900;
+  text-shadow:0 2px 2px #152118,1px 1px #132119,-1px -1px #132119;
+  font-variant-numeric:tabular-nums;
+}
+.watch-ground .watch-impact-number[data-impact-target="enemy"] { left:var(--impact-x,75%); }
+.watch-ground .watch-impact-number:empty { display:none; }
+.watch-ground .watch-impact-number[data-bleed]::before { content:"출혈 "; font-size:.65em; }
+.watch-ground .watch-impact-number[data-critical] { color:#ffdc82; }
+body[data-motion="on"] .watch-ground .watch-roll[data-d20].rolling .watch-die {
+  animation:none;
+  color:#fff1d0;
+}
 .watch-ground .watch-roll[data-d20] .watch-die {
   width:25px;
   height:25px;
