@@ -15,7 +15,7 @@ const HuntEffects=(()=>{
   const later=(fn,ms)=>timers.push(setTimeout(fn,ms*timeScale));
   function animate(node,frames,options){if(node&&motionEnabled())animations.push(node.animate(frames,{...options,duration:options.duration*timeScale}));}
   // Times are authored at full duration and share the journey's half-duration scale.
-  const d20Timing={roll:760,reply:1840,defense:140,verdict:260,windup:660,contact:300,recover:3850,finish:3930};
+  const d20Timing={roll:1040,reply:3680,defense:480,verdict:960,fade:1740,clear:1900,windup:1940,contact:300};
   const names={strike:'공격',block:'방어',heavyStrike:'강타'},icons={strike:'sword',block:'shield',heavyStrike:'hammer'};
   function checkLabel(outcome,side){
     return {miss:'빗나감',blocked:side==='player'?'막힘':'방어',hit:'명중',critical:'치명타'}[outcome];
@@ -81,6 +81,9 @@ const HuntEffects=(()=>{
     for(const side of ['player','enemy'])updateHealthMeter(meters[side],start[side],start[side],false);
     const lead=roll&&!d20?1600:0;
     function d20RevealAt(side){return (side==='enemy'?d20Timing.reply:0)+d20Timing.roll;}
+    const escapes=roll?.enemySkill==='escape';
+    const lastContact=d20RevealAt(roll?.replyCheck?'enemy':'player')+d20Timing.windup+d20Timing.contact;
+    const escapeAt=lastContact+400;
     const damageSlots={};
     if(d20){
       arena.setAttribute('data-duel-animating','');
@@ -130,8 +133,8 @@ const HuntEffects=(()=>{
           spotlight.dataset.outcome=check.outcome;
           spotlight.querySelector('.watch-spotlight-verdict').textContent=label;
         },revealAt+d20Timing.verdict);
-        later(()=>spotlight.classList.add('leaving'),revealAt+d20Timing.windup-132);
-        later(()=>spotlight.remove(),revealAt+d20Timing.windup-36);
+        later(()=>spotlight.classList.add('leaving'),revealAt+d20Timing.fade);
+        later(()=>spotlight.remove(),revealAt+d20Timing.clear);
       }
     }
     function diceTurn(side,at){
@@ -167,8 +170,8 @@ const HuntEffects=(()=>{
       if(slot){slot.append(banner);nodes.push(banner);later(()=>banner.remove(),650);}
       animate(actors[side],[{filter:'brightness(1)'},{filter:'brightness(1.8) drop-shadow(0 0 14px '+(key==='counter'?'#73eac7':side==='enemy'?'#ff986d':'#ffd67a')+')',offset:.4},{filter:'brightness(1)'}],{duration:700});
     },at);}
-    skillFlare('player',roll?.skill,d20?d20RevealAt('player')+d20Timing.verdict:lead+100);
-    if(end.enemy>0)skillFlare('enemy',roll?.enemySkill,d20?d20RevealAt('enemy')+d20Timing.verdict:lead+760);
+    skillFlare('player',roll?.skill,d20?d20RevealAt('player')+d20Timing.fade:lead+100);
+    if(end.enemy>0)skillFlare('enemy',roll?.enemySkill,d20?(escapes?escapeAt:d20RevealAt('enemy')+d20Timing.fade):lead+760);
     function guard(side){
       const ward=actors[side].querySelector('.watch-ward');
       animate(ward,[{opacity:0,transform:'scale(.5)'},{opacity:1,transform:'scale(1.1)',offset:.2},{opacity:.8,transform:'scale(1)',offset:.85},{opacity:0}],{duration:1200,fill:'forwards'});
@@ -236,19 +239,24 @@ const HuntEffects=(()=>{
     }
     // The existing model resolves lethal player hits before an enemy reply.
     if(end.enemy>0 && before.enemyKind!=='goblin')strike('enemy',d20?d20RevealAt('enemy')+d20Timing.windup:lead+920);
-    if(roll?.enemySkill==='escape')later(()=>animate(actors.enemy,[{opacity:1,transform:'translateX(0)'},{opacity:0,transform:'translateX(75%)'}],{duration:430,fill:'forwards'}),d20?d20RevealAt('enemy')+d20Timing.windup:lead+940);
+    if(escapes)later(()=>{
+      if(d20)arena.dataset.phase='enemy-escape';
+      animate(actors.enemy,[{opacity:1,transform:'translateX(0)'},{opacity:0,transform:'translateX(75%)'}],{duration:430,fill:'forwards'});
+    },d20?escapeAt:lead+940);
+    const d20Recovery=escapes?escapeAt+430:lastContact+260;
+    const d20Finish=escapes?escapeAt+460:lastContact+(end.enemy<=0||end.player<=0?720:370);
     later(()=>{
       arena.dataset.phase=end.enemy<=0?'victory':end.player<=0?'defeat':'recover';
       const dead=end.enemy<=0?'enemy':end.player<=0?'player':null;
       if(dead)animate(actors[dead],[{opacity:1,transform:'translateY(0)'},{opacity:.65,transform:'translateY(12px) rotate(14deg)',offset:.45},{opacity:0,transform:'translateY(36px) rotate(30deg) scale(.8)'}],{duration:430,fill:'forwards'});
-    },d20?(end.enemy<=0?1980:d20Timing.recover):lead+(end.enemy<=0?850:1460));
+    },d20?d20Recovery:lead+(end.enemy<=0?850:1460));
     later(()=>{
       for(const side of ['player','enemy'])updateHealthMeter(meters[side],end[side],end[side],false);
       for(const side of ['player','enemy'])if(end[side]<=0)actors[side].dataset.defeated='true';
       arena.dataset.phase=end.enemy<=0?'victory':end.player<=0?'defeat':'rest';
       arena.removeAttribute('data-duel-animating');
       if(resolve){const done=resolve;resolve=null;done();}
-    },d20?(end.enemy<=0?2440:d20Timing.finish):lead+(end.enemy<=0?1350:1900));
+    },d20?d20Finish:lead+(end.enemy<=0?1350:1900));
     return true;
   }
   return {play,cancel,checkLabel,damageLabel,finished:()=>completion};

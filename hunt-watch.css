@@ -464,7 +464,7 @@ body[data-motion="on"] .watch-ground .watch-roll[data-d20].chosen .watch-defense
   color:#fff2d2;
   background:radial-gradient(ellipse at center,#14251ae8 4%,#101e15c7 44%,#1523194f 75%,transparent 100%);
   text-shadow:0 2px 2px #111d15;
-  transition:opacity 46ms ease-out;
+  transition:opacity 78ms ease-out;
 }
 .watch-spotlight.leaving { opacity:0; }
 .watch-spotlight-content {
@@ -519,7 +519,16 @@ body[data-motion="on"] .watch-ground .watch-roll[data-d20].chosen .watch-defense
   box-shadow:0 3px #142830;
   color:#edf7f1; font-size:calc(var(--defense-die) * .55); line-height:1; font-weight:900;
 }
-.watch-spotlight[data-step="defense"] .watch-spotlight-d6 { animation:watch-d20-settle 68ms ease-out both; }
+.watch-spotlight[data-step="attack"] .watch-spotlight-d20,
+.watch-spotlight[data-step="defense"] .watch-spotlight-d6,
+.watch-spotlight[data-step="verdict"] .watch-spotlight-verdict {
+  animation:watch-duel-snap 112ms ease-out both;
+}
+@keyframes watch-duel-snap {
+  0% { transform:scale(.91); }
+  55% { transform:scale(1.07); }
+  100% { transform:none; }
+}
 .watch-spotlight-verdict { color:#fff2d2; font-size:25px; line-height:29px; }
 .watch-spotlight[data-outcome="critical"] .watch-spotlight-verdict { color:#ffe197; }
 .watch-spotlight[data-outcome="blocked"] .watch-spotlight-verdict { color:#c7eafa; }
