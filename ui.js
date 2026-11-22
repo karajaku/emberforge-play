@@ -549,6 +549,7 @@ function nav(id) {
 }
 function render() {
   if (!state) return;
+  ForgeItemView.cancelSwipe();
   HuntEffects.cancel();
   HuntWatch.beforeRender();
   const id = current(),
@@ -1149,6 +1150,7 @@ function updateSaleQuote(reset) {
 }
 function showModal(key, trigger = document.activeElement) {
   if (!ready || storageError) return;
+  ForgeItemView.cancelSwipe();
   HuntLootView.open(state,key,modal);
   if (HuntWatch.active && !HuntLootView.isReader(key)) HuntWatch.stop('일시 중단');
   if (!modal) {
@@ -1291,23 +1293,7 @@ document.addEventListener("pointerdown", (e) => {
   const needle = el("finalNeedle");
   cutPress = button && needle ? { button, time: needle.frameAt || Date.now() } : null;
 });
-let forgeSwipe = null;
-document.addEventListener("pointerdown", event => {
-  const surface = event.target.closest(".forge-item-browser .scene");
-  if (!surface || event.target.closest("button") || !event.isPrimary || event.button !== 0 || modal) return;
-  forgeSwipe = {surface, pointer:event.pointerId, x:event.clientX, y:event.clientY};
-  surface.setPointerCapture(event.pointerId);
-});
-document.addEventListener("pointerup", event => {
-  const swipe = forgeSwipe;
-  if (!swipe || event.pointerId !== swipe.pointer) return;
-  forgeSwipe = null;
-  const dx = event.clientX - swipe.x, dy = event.clientY - swipe.y;
-  if (swipe.surface.isConnected && !modal && Math.abs(dx) >= 40 && Math.abs(dx) > Math.abs(dy) * 1.4)
-    ForgeItemView.step(dx < 0 ? 1 : -1);
-});
 document.addEventListener("pointercancel", () => {
-  forgeSwipe = null;
   cutPress = null;
 });
 document.addEventListener("click", (e) => {
@@ -1529,6 +1515,7 @@ document.addEventListener("visibilitychange", () => {
   document.body.dataset.visibility = document.hidden ? "hidden" : "visible";
   syncMusic();
   if (document.hidden) {
+    ForgeItemView.cancelSwipe();
     cancelForgePress();
     repeatHunting.stop("화면 숨김");
     autoCombat.stop();

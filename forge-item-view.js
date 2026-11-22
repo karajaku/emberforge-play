@@ -58,10 +58,14 @@ const ForgeItemView = (() => {
     if (forgeOutfitSlot) return OutfitView.forge(s,slot,shown);
     return gear === "weapon" ? BladeView.forge(s,shown) : BladeView.armor(s,shown);
   }
-  function step(direction) {
-    if (!visible.length || !emptySlot && visible.length < 2) return;
+  const canStep = () => visible.length > (emptySlot ? 0 : 1);
+  function neighborIndex(direction) {
     const index = emptySlot ? (direction > 0 ? -1 : 0) : position;
-    position = (index + direction + visible.length) % visible.length;
+    return (index + direction + visible.length) % visible.length;
+  }
+  function step(direction) {
+    if (!canStep()) return;
+    position = neighborIndex(direction);
     selected = visible[position].id;
     emptySlot = "";
     selectionVersion++;
@@ -88,10 +92,9 @@ const ForgeItemView = (() => {
     const stage = layout.querySelector(".stage-side");
     const scene = stage.querySelector(".scene");
     const q = shown;
-    const canStep = visible.length > (emptySlot ? 0 : 1);
     function arrow(direction,label) {
       return '<button type="button" data-forge-step="' + direction + '" aria-label="' + label + '"' +
-        (canStep ? "" : " disabled") + '>' + icon("arrow-left") + '</button>';
+        (canStep() ? "" : " disabled") + '>' + icon("arrow-left") + '</button>';
     }
     const number = emptySlot ? "빈 부위" : fmt(position + 1) + " / " + fmt(visible.length);
     scene.insertAdjacentHTML("afterbegin",'<span class="forge-item-pager">' + number + '</span>');
@@ -103,19 +106,158 @@ const ForgeItemView = (() => {
     stat.append(center);
     stat.insertAdjacentHTML("afterbegin",arrow(-1,"이전 장비"));
     stat.insertAdjacentHTML("beforeend",arrow(1,"다음 장비"));
-    if (!q) return;
+    const track = document.createElement("div");
+    track.className = "forge-slide-track";
+    track.append(makeSlide(s,scene,q));
+    scene.append(track);
+  }
+  function makeSlide(s,surface,q) {
+    const slide = document.createElement("div");
+    slide.className = "forge-slide";
+    slide.toggleAttribute("data-empty", !q);
+    slide.append(...surface.querySelectorAll(":scope > canvas, :scope > .outfit-art, :scope > .caption"));
+    if (q) {
+      surface.querySelector(".location")?.remove();
+      slide.querySelector(".caption").insertAdjacentHTML("beforeend",summary(s,q));
+    }
+    return slide;
+  }
+  function previewSlide(direction) {
+    const q = Game.forgeItems.quote(state,visible[neighborIndex(direction)].id);
+    const template = document.createElement("template");
+    const artwork = q.type === "outfit" ? OutfitView.art(q.kind) : "";
+    const sprite = artwork ? "" : BladeView.sprite(q.item);
+    template.innerHTML = scene("forge",itemName(q),"","",sprite,0,null,artwork,q.item);
+    const slide = makeSlide(state,template.content.firstElementChild,q);
+    placePreview(slide,direction);
+    return slide;
+  }
+  function placePreview(slide,direction) {
+    slide.setAttribute("aria-hidden","true");
+    slide.style.transform = "translateX(" + direction * 100 + "%)";
+  }
+  function summary(s,q) {
     const c = Game.compareGear(s,q.item,q.type);
     const delta = c.delta === 0 ? "0" : (c.delta < 0 ? "−" : "+") + fmt(Math.abs(c.delta));
     const baseline = q.kind === "ring" ? slotName(c.slot) + " 대비" : "착용 대비";
     const grade = Game.blades.itemRarity(q.item).name + " · " + Game.blades.baseGradeNames[q.item.grade];
     const status = q.wornSlot ? (q.kind === "ring" ? slotName(q.wornSlot) + " 착용" : "착용 중") : (q.disposeBlocked ? "미착용 · " + q.disposeBlocked : "미착용");
-    const data = '<div class="forge-item-summary"><span>' + grade + ' · ' + status + '</span><span>전투력 <b>' +
+    return '<div class="forge-item-summary"><span>' + grade + ' · ' + status + '</span><span>전투력 <b>' +
       fmt(c.score) + '</b> <i data-tone="' + (c.delta > 0 ? "up" : c.delta < 0 ? "down" : "same") + '">' +
       baseline + ' ' + delta + '</i></span><span class="forge-item-value">' + icon("coins") + '가치 <b>' + fmt(q.value) +
       ' G</b></span></div>';
-    scene.querySelector(".location")?.remove();
-    scene.querySelector(".caption").insertAdjacentHTML("beforeend",data);
   }
+  let swipe = null;
+  let settling = null;
+  const translate = x => "translate3d(" + x + "px,0,0)";
+
+  function clearSettle() {
+    if (!settling) return;
+    const {animation,preview} = settling;
+    settling = null;
+    animation.cancel();
+    preview?.remove();
+  }
+  function cancelSwipe() {
+    const active = swipe;
+    swipe = null;
+    if (active) {
+      if (active.surface.hasPointerCapture(active.pointer)) active.surface.releasePointerCapture(active.pointer);
+      active.track.style.removeProperty("transform");
+      active.preview?.remove();
+    }
+    clearSettle();
+  }
+  function settle(track,offset,preview,duration) {
+    track.style.removeProperty("transform");
+    const animation = track.animate([{transform:translate(offset)},{transform:translate(0)}],{
+      duration, easing:"cubic-bezier(.2,.75,.22,1)"
+    });
+    const transition = {animation,preview,track};
+    settling = transition;
+    animation.finished.then(() => {
+      if (settling === transition) clearSettle();
+    }, () => {});
+  }
+  function moveTrack(active,offset) {
+    active.offset = Math.max(-active.width,Math.min(active.width,offset));
+    const direction = active.offset < 0 ? 1 : -1;
+    if (active.direction !== direction) {
+      active.preview?.remove();
+      active.direction = direction;
+      active.preview = previewSlide(direction);
+      active.track.append(active.preview);
+    }
+    active.track.style.transform = translate(active.offset);
+  }
+  document.addEventListener("pointerdown", event => {
+    const surface = event.target.closest(".forge-item-browser .scene");
+    if (!surface || event.target.closest("button") || !event.isPrimary || event.button !== 0 || modal || !canStep() || swipe) return;
+    const track = surface.querySelector(".forge-slide-track");
+    const from = settling?.track === track ? track.getBoundingClientRect().left - surface.getBoundingClientRect().left : 0;
+    swipe = {
+      surface, track, pointer:event.pointerId, width:track.clientWidth,
+      x:event.clientX, y:event.clientY, movedX:event.clientX, movedAt:event.timeStamp,
+      speed:0, from, offset:0, horizontal:false, motion:motionEnabled()
+    };
+    // Re-grab an in-flight slide at its current position.
+    clearSettle();
+    if (from) moveTrack(swipe,from);
+  });
+  document.addEventListener("pointermove", event => {
+    const active = swipe;
+    if (!active || event.pointerId !== active.pointer) return;
+    const dx = event.clientX - active.x;
+    const dy = event.clientY - active.y;
+    if (!active.horizontal) {
+      if (Math.max(Math.abs(dx),Math.abs(dy)) < 8) return;
+      if (Math.abs(dy) >= Math.abs(dx)) return cancelSwipe();
+      if (Math.abs(dx) < Math.abs(dy) * 1.25) return;
+      active.horizontal = true;
+      active.surface.setPointerCapture(active.pointer);
+    }
+    if (event.clientX !== active.movedX) {
+      active.speed = (event.clientX - active.movedX) / Math.max(1,event.timeStamp - active.movedAt);
+      active.movedX = event.clientX;
+      active.movedAt = event.timeStamp;
+    }
+    if (active.motion) moveTrack(active,active.from + dx);
+  });
+  function releaseSwipe(event) {
+    const active = swipe;
+    if (!active || event.pointerId !== active.pointer ||
+        event.type === "lostpointercapture" && event.target !== active.surface) return;
+    swipe = null;
+    const dx = event.clientX - active.x;
+    const released = event.type === "pointerup" && active.horizontal && !modal;
+    const flick = Math.abs(dx) >= 20 && event.timeStamp - active.movedAt < 80 &&
+      Math.sign(dx) * active.speed >= .45;
+    const advance = released && (Math.abs(dx) >= Math.min(72,active.width * .22) || flick);
+    if (!advance) {
+      if (active.offset && active.motion) settle(active.track,active.offset,active.preview,190);
+      else {
+        active.track.style.removeProperty("transform");
+        active.preview?.remove();
+      }
+      return;
+    }
+    const direction = dx < 0 ? 1 : -1;
+    const outgoing = active.track.firstElementChild;
+    const motion = active.motion && motionEnabled();
+    step(direction);
+    if (motion) {
+      const track = document.querySelector(".forge-item-browser .forge-slide-track");
+      placePreview(outgoing,-direction);
+      track.append(outgoing);
+      const travel = Math.max(0,-direction * active.offset / active.width);
+      const offset = direction * (1 - travel) * track.clientWidth;
+      settle(track,offset,outgoing,240);
+    }
+  }
+  for (const type of ["pointerup","pointercancel","lostpointercapture"])
+    document.addEventListener(type,releaseSwipe);
+  addEventListener("blur",cancelSwipe);
+
   function equipButton(q) {
     const ring = q.kind === "ring";
     const attr = ring ? 'data-forge-preview="equip" aria-haspopup="dialog"' :
@@ -206,6 +348,6 @@ const ForgeItemView = (() => {
     return version === selectionVersion && current() === "forge" && phonePage("forge") === "work" && !archiveBlade &&
       modal === source && selected === id;
   }
-  return {view,selectSlot,selectItem,step,detailKey,strike,decorate,equipButton,disposalButtons,modalContent,filterChange,preview,request,guard,filtering,
+  return {view,selectSlot,selectItem,step,detailKey,strike,decorate,equipButton,disposalButtons,modalContent,filterChange,preview,request,guard,filtering,cancelSwipe,
     get shown(){return shown;},get version(){return selectionVersion;},invalidate(){selectionVersion++;}};
 })();

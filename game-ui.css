@@ -2,6 +2,9 @@
 .ui-game #screen .forge-slot-switch { width:min(100%,370px); }
 .ui-game #screen .forge-slot-switch button { gap:3px; padding-inline:4px; }
 .forge-item-browser .scene { touch-action:pan-y pinch-zoom; user-select:none; }
+.forge-item-browser .forge-slide-track { position:absolute; inset:0; }
+.forge-item-browser .forge-slide { position:absolute; inset:0; pointer-events:none; }
+.forge-item-browser .scene:has(.forge-slide) { overflow:hidden; }
 .forge-item-pager { position:absolute; z-index:2; top:8px; left:50%; transform:translateX(-50%); color:#fff1cd; font-size:13px; font-variant-numeric:tabular-nums; pointer-events:none; }
 .forge-item-browser.forge-control-layout .forge-readout > .forge-step-row {
   display:grid; grid-template-columns:44px minmax(0,1fr) 44px; gap:4px; align-items:center; padding:0;
@@ -207,12 +210,12 @@ body.ui-game { grid-template-rows:auto minmax(0,1fr) auto auto; }
   content:"✓"; position:absolute; left:3px; top:21px; color:white; background:#354a3c;
   border-radius:50%; width:15px; height:15px; font:700 11px/15px sans-serif;
 }
-.outfit-layout .scene > .outfit-art {
+.forge-slide > .outfit-art {
   position:absolute; top:49%; left:50%; transform:translate(-50%,-50%);
   width:auto; height:clamp(95px,60%,230px); aspect-ratio:1;
   filter:drop-shadow(0 8px 5px #130d0aad);
 }
-.outfit-layout[data-empty="true"] .scene > .outfit-art { opacity:.65; filter:grayscale(1) drop-shadow(0 5px 3px #130d0a); }
+.forge-slide[data-empty] > .outfit-art { opacity:.65; filter:grayscale(1) drop-shadow(0 5px 3px #130d0a); }
 @media (max-width:380px) {
   .outfit-layout .forge-readout > .line { gap:6px; font-size:12px; white-space:nowrap; }
   .outfit-layout .forge-readout > .line strong { font-size:17px; }
