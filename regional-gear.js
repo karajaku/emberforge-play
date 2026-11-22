@@ -44,6 +44,7 @@ const RegionalGear = (() => {
   function quote(i) {
     return {cost:Math.ceil(blades.cost(i)/16),success:blades.rate(i)};
   }
+  const salvageOre = item => 1 + item.grade;
   function build(s, override) {
     const kit = s.bladeForge?.outfit;
     const conversion = blank(), exposure = blank();
@@ -143,17 +144,11 @@ const RegionalGear = (() => {
     const item=kit.items[index], worn=Object.values(kit.equipped).includes(arg);
     if (action === "outfitSalvage" && !worn) {
       kit.items.splice(index,1);
-      s.bladeForge.ore += 1+item.grade;
-      return ok(name(item)+" 분해 · 각인석 +"+(1+item.grade));
+      s.bladeForge.ore += salvageOre(item);
+      return ok(name(item)+" 분해 · 각인석 +"+salvageOre(item));
     }
     if (action!=="outfitForge" || !worn) return fail("장비의 착용 상태를 확인하세요.");
-    if (item.level>=20) return fail("+20 완성 장비입니다.");
-    const {cost,success}=quote(item);
-    if (s.gold<cost) return fail("강화 골드가 부족합니다.");
-    pay(s,cost);
-    if (rng()*100>=success) return ok(name(item)+" +"+item.level+" 유지");
-    item.level++;
-    return ok(name(item)+" +"+item.level+" 강화 성공","win");
+    return blades.enhance(s,item,quote(item),name(item),rng,pay);
   }
   const between=(v,low,high)=>Number.isSafeInteger(v)&&v>=low&&v<=high;
   const record=v=>v!==null&&typeof v==="object"&&!Array.isArray(v);
@@ -178,6 +173,6 @@ const RegionalGear = (() => {
     const vector=(o,max)=>record(o)&&Object.keys(o).length===3&&elementKeys.every(k=>between(o[k],0,max));
     return record(v)&&vector(v.conversion,80)&&vector(v.exposure,45)&&Object.values(v.conversion).reduce((a,b)=>a+b,0)<=80;
   }
-  return {slots,elements,capacity,state,name,effect,quote,profile,preferredElement,build,preview,effective,multiplier,dropChance,reward,act,valid,validItem,validBuild};
+  return {slots,elements,capacity,state,name,effect,quote,salvageOre,profile,preferredElement,build,preview,effective,multiplier,dropChance,reward,act,valid,validItem,validBuild};
 })();
 if (typeof module !== "undefined") module.exports = RegionalGear;

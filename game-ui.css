@@ -1,4 +1,47 @@
 /* One layout owner for the forge controls, independent of generic .panel/.primary. */
+.ui-game #screen .forge-slot-switch { width:min(100%,370px); }
+.ui-game #screen .forge-slot-switch button { gap:3px; padding-inline:4px; }
+.forge-item-browser .scene { touch-action:pan-y pinch-zoom; user-select:none; }
+.forge-item-pager { position:absolute; z-index:2; top:2px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:7px; }
+.forge-item-pager button { width:44px; height:44px; padding:9px; display:grid; place-items:center; background:#23312de0; border:1px solid #aa956e; color:#ffe8ba; border-radius:50%; }
+.forge-item-pager [data-forge-step="1"] svg { transform:rotate(180deg); }
+.forge-item-pager svg { width:20px; height:20px; }
+.forge-dispose-rail button:disabled { opacity:.7; }
+.forge-item-pager span { min-width:40px; text-align:center; color:#fff1cd; font-size:13px; font-variant-numeric:tabular-nums; }
+.forge-item-browser .scene .caption { left:0; right:0; bottom:0; padding:9px 4px 2px; background:linear-gradient(transparent,#1c1712bf 35%,#181512e0); pointer-events:none; }
+.forge-item-summary { display:flex; flex-wrap:wrap; justify-content:center; align-items:baseline; gap:1px 12px; color:#f5e7ce; font-size:13px; line-height:1.35; }
+.forge-item-summary > span:first-child { flex-basis:100%; }
+.forge-item-browser .forge-item-summary span { white-space:normal; }
+.forge-item-browser .scene .caption > b { display:block; }
+.forge-item-browser .scene .forge-item-summary b { display:inline; font:700 1em/1.35 var(--sans); color:inherit; }
+.forge-item-summary i { font-style:normal; font-size:.92em; }
+.forge-item-summary [data-tone="up"] { color:#a4ecc4; }
+.forge-item-summary [data-tone="down"] { color:#ffb5ac; }
+.forge-item-value { color:#ffda8b; }
+.forge-item-value svg { width:13px; height:13px; vertical-align:-2px; margin-right:3px; }
+.ui-game .forge-item-browser .forge-dispose-rail { left:auto; right:0; }
+.ui-game .forge-item-browser:has(.ui-daily-duel) .forge-dispose-rail { margin-top:66px; }
+.forge-empty-message { margin:auto; display:grid; justify-items:center; gap:12px; }
+.forge-empty-message b { color:#fff1d5; }
+body.ui-game[data-place="forge"] #noticeSlot:has(.forge-item-notice) { top:37%; pointer-events:none; }
+#toast.forge-item-notice.on { width:max-content; max-width:calc(100vw - 125px); min-height:0; padding:7px 11px; pointer-events:none; text-align:center; }
+#toast.forge-item-notice #noticeTitle, #toast.forge-item-notice::after { display:none; }
+body:has(#shade:not([hidden])) #toast.forge-item-notice { visibility:hidden; }
+.forge-item-filter { display:grid; grid-template-columns:auto 1fr; align-items:center; gap:10px 16px; margin:4px 0 16px; }
+.forge-item-filter select { width:100%; min-height:44px; padding:6px 10px; border:1px solid #987a55; border-radius:6px; background:#fff8eb; color:#443021; font:inherit; }
+.forge-dialog-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+.forge-dialog-actions button { min-height:44px; }
+@media(max-height:660px) {
+  .ui-game .forge-item-browser :is(.ui-forge-rail,.ui-daily-duel) { top:56px; gap:3px; }
+  .ui-game .forge-item-browser .ui-forge-rail button,.ui-game .forge-item-browser .ui-daily-duel { min-height:44px; height:44px; }
+  .ui-game .forge-item-browser:has(.ui-daily-duel) .forge-dispose-rail { margin-top:47px; }
+  .forge-item-browser .ui-daily-duel svg,.forge-item-browser .ui-forge-rail svg { height:16px; }
+  .forge-item-pager { gap:3px; }
+  .forge-item-pager span { min-width:32px; }
+  .forge-item-summary { font-size:12px; gap:0 7px; }
+  .forge-item-browser .scene .caption { padding-top:5px; }
+  .forge-item-browser .forge-console .forge-strike { min-height:94px; }
+}
 .forge-blessings { display:flex; flex-wrap:wrap; justify-content:center; gap:4px 12px; padding:4px 8px; background:#211b17ed; border-radius:8px; color:#f2e1c4; font-size:12px; }
 .forge-blessings b { color:#a4f5c4; }
 #updateNotice { position:fixed;left:50%;top:62px;transform:translateX(-50%);z-index:70;display:flex;align-items:center;justify-content:space-between;gap:12px;width:min(430px,calc(100% - 28px));padding:8px 12px;border:1px solid #e4be79;border-radius:10px;background:#20362ff5;color:#fff0c8;box-shadow:0 4px 16px #0008;font-size:13px; }

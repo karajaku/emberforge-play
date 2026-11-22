@@ -23,39 +23,36 @@ const BladeView = (() => {
       '<button data-gear="' + id + '" aria-pressed="' + (type === id) + '">' + icon(ic) + label + "</button>");
     return '<div class="segment gear-switch forge-slot-switch">' + quick.join("") +
       '<button data-open="outfit:forge" aria-haspopup="dialog" class="' + (type === "outfit" ? "sel" : "") + '">' +
-      icon("layers") + '부위 선택</button></div>';
+      icon("layers") + '부위 선택</button>' + openBtn("forgeItem:filter",icon("layers") + "필터", ForgeItemView.filtering() ? "sel" : "") + '</div>';
   }
-  function forge(s) {
-    const b = rules(), item = b.current(s), style = b.state(s).style;
-    const finished = item.level === 20, cost = b.cost(item), rate = b.rate(item);
+  function forge(s, quote) {
+    const b = rules(), item = quote.item, style = b.state(s).style;
+    const finished = item.level === 20, rate = quote.success;
     const next = finished ? "" : ' <span class="mint">→ ' + fmt(b.attack(item, item.level + 1)) + "</span>";
     const odds = finished ? "<b>무기 완성</b><span>최고 강화 +20</span>" :
       "<b>강화 +" + item.level + " → +" + (item.level + 1) + '</b><div class="odds-bar" aria-hidden="true"><i class="odds-success" style="width:' +
       pct(rate) + '"></i><i class="odds-hold" style="width:' + pct(100-rate) + '"></i></div><span>성공 ' + pct(rate) + " · 유지 " + pct(100-rate) + "</span>";
-    const main = item.finalTrial ? openBtn("bladeFinal",icon("sword")+"돌파 계속<small>+20 마감</small>","primary") :
-      finished ? openBtn("bladeCollection", icon("sword")+"무기 선택<small>+20 완성</small>", "primary") :
-      btn("bladeForge", icon("hammer")+"강화<small>"+fmt(cost)+" G</small>", item.id, "primary", s.gold < cost);
+    const main = ForgeItemView.strike(s,quote);
     return '<div class="columns forge-layout blade-layout"><div class="stage-side">' + switches("weapon") +
       scene("forge", label(item), "", b.baseGradeNames[item.grade] + " · " + b.styles[style] + " 검술", sprite(item), 0, null, "", item) + '</div><section class="panel"><div class="stats">' +
       line("공격력", fmt(b.attack(item)) + next) + '<div class="forge-odds journey-odds">' + odds + "</div></div>" + main +
       '<div class="actions forge-support">' + openBtn("bladeStyles", icon("swords")+"검술") + go("forest", icon("trees")+"숲 사냥", "action") +
-      '<button class="round" data-open="bladeInfo" aria-label="무기 능력과 강화 조건">' + icon("circle-help") + "</button></div></section></div>";
+      '<button class="round" data-open="' + ForgeItemView.detailKey(quote) + '" aria-label="무기 능력과 강화 조건">' + icon("circle-help") + "</button></div></section></div>";
   }
-  function armor(s) {
-    const b=rules(), item=b.currentArmor(s), stats=b.armorStats(s,item), done=item.level>=20;
+  function armor(s,quote) {
+    const b=rules(), item=quote.item, stats=b.armorStats(s,item), done=item.level>=20;
 
-    const rate=b.armorRate(s), fee=b.armorCost(s);
+    const rate=quote.success;
     const readout=line("흉갑 방어력",fmt(b.armorRating(item))+(done?"":' <span class="mint">→ '+fmt(b.armorRating(item,item.level+1))+'</span>'));
     const meter=done ? "<b>방어구 완성</b><span>숲 적용 +20</span>" :
       "<b>강화 +"+item.level+" → +"+(item.level+1)+'</b><div class="odds-bar" aria-hidden="true"><i class="odds-success" style="width:'+pct(rate)+
       '"></i><i class="odds-hold" style="width:'+pct(100-rate)+'"></i></div><span>성공 '+pct(rate)+' · 유지 '+pct(100-rate)+'</span>';
-    const button=item.finalTrial ? openBtn("bladeArmorFinal",icon("shield")+"돌파 계속<small>+20 마감</small>","primary") : done ? openBtn("bladeArmorCollection",icon("shield")+"방어구 선택<small>+20 완성</small>","primary") :
-      btn("bladeArmor",icon("hammer")+"강화<small>"+fmt(fee)+" G</small>",item.id,"primary",s.gold<fee);
+    const button=ForgeItemView.strike(s,quote);
     return '<div class="columns forge-layout blade-layout"><div class="stage-side">'+switches("armor")+
       scene("forge",label(item),"",b.baseGradeNames[item.grade]+" · 착용 방어력 "+fmt(stats.armorRating),"cuirass",0,null,"",item)+'</div><section class="panel"><div class="stats">'+
       readout+'<div class="forge-odds journey-odds">'+meter+'</div></div>'+button+'<div class="actions forge-support">'+
       openBtn("bladeStyles",icon("swords")+"검술")+go("forest",icon("trees")+"숲 사냥","action")+
-      '<button class="round" data-open="bladeArmorInfo" aria-label="방어구 능력">'+icon("circle-help")+'</button></div>'+liningCard(s, true)+'</section></div>';
+      '<button class="round" data-open="'+ForgeItemView.detailKey(quote)+'" aria-label="방어구 능력">'+icon("circle-help")+'</button></div>'+(quote.wornSlot ? liningCard(s, true) : "")+'</section></div>';
   }
   function slots(item, polish = false, ore = 0) {
     const b = rules(), caps = b.itemCaps(item);

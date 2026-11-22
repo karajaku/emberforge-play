@@ -125,7 +125,8 @@ const BladeRules = (() => {
             (1 + craft.grindBonus(item.grind, 1) / 100),
         )
       : 0;
-  const armorCost = (s) => Math.ceil(cost(currentArmor(s)) / 2);
+  const armorCost = (s, item = currentArmor(s)) => Math.ceil(cost(item) / 2);
+  const salvageOre = item => 1 + item.mods.length;
   const armorRate = (s) => rate(currentArmor(s));
   const blade = (id, base, rank, level = 0) => ({ id, base, rank, level, grade: 0, mods: [] });
   function state(s) {
@@ -308,6 +309,16 @@ const BladeRules = (() => {
   function reward(s,h,rng) {
     return rewardText(rollReward(s,h,rng));
   }
+  function enhance(s, item, quote, itemName, rng, pay) {
+    if (item.finalTrial) return {ok:false, message:"진행 중인 마지막 돌파를 먼저 마치세요."};
+    if (item.level >= 20) return {ok:false, message:"+20 완성 장비입니다."};
+    if (s.gold < quote.cost) return {ok:false, message:"강화 골드가 부족합니다."};
+    pay(s, quote.cost);
+    const success = rng() * 100 < quote.success;
+    if (success) item.level++;
+    return {ok:true, kind:success ? "win" : "info",
+      message:itemName + " +" + item.level + (success ? " 강화 성공" : " 강화 유지")};
+  }
   function act(s, action, arg, rng, pay) {
     const b = state(s);
     const armorAction=action.startsWith("bladeArmor");
@@ -335,7 +346,7 @@ const BladeRules = (() => {
       case "bladeArmorSalvage": {
         const rack=armors(s), index=rack.findIndex(i=>i.id===arg);
         if (index<0 || arg===item.id || arg===s.hunt?.armorId || rack[index].soulChoice) return fail("전투·장착 중인 방어구는 분해할 수 없습니다.");
-        const ore=1+rack[index].mods.length;
+        const ore=salvageOre(rack[index]);
         rack.splice(index,1);
         b.ore+=ore;
         return ok("방어구 분해 · 각인석 +"+ore);
@@ -372,7 +383,7 @@ const BladeRules = (() => {
         const i = b.items.findIndex((x) => x.id === arg);
         if (i < 0 || arg === b.equipped || arg === s.hunt?.bladeId || deployed(arg) || b.items[i].soulChoice)
           return fail("전투·장착 중인 무기는 분해할 수 없습니다.");
-        const n = 1 + b.items[i].mods.length;
+        const n = salvageOre(b.items[i]);
         b.items.splice(i, 1);
         b.ore += n;
         return ok("무기 분해 · 각인석 +" + n);
@@ -380,14 +391,8 @@ const BladeRules = (() => {
       case "bladeArmor":
       case "bladeForge": {
         if (arg && arg !== item.id) return fail("장착 장비가 바뀌었습니다.");
-        if (item.finalTrial) return fail("진행 중인 마지막 돌파를 먼저 마치세요.");
-        if (item.level >= 20) return fail("+20 완성 장비입니다.");
         const fee = armorAction ? armorCost(s) : cost(item);
-        if (s.gold < fee) return fail("강화 골드가 부족합니다.");
-        pay(s, fee);
-        if (rng() * 100 >= rate(item)) return ok("강화 유지 · " + name(item) + " +" + item.level, "info");
-        item.level++;
-        return ok(name(item) + " +" + item.level + " 강화 성공");
+        return enhance(s, item, {cost:fee, success:rate(item)}, name(item), rng, pay);
       }
       case "bladeArmorEtch":
       case "bladeEtch": {
@@ -522,7 +527,7 @@ const BladeRules = (() => {
     cost,
     rate,
     income,
-    armorCost,
+    armorCost, salvageOre, enhance,
     armorRate,
     skills,
     available, maxTier, integer, rollMod, rollValue, validMod,

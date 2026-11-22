@@ -224,7 +224,7 @@ function trackToastDrag(event) {
 for (const type of ["pointermove", "pointerup", "pointercancel", "lostpointercapture"]) {
   toast.addEventListener(type, trackToastDrag);
 }
-function notify(msg, kind = "info") {
+function notify(msg, kind = "info", forgeItem = false) {
   if (HuntWatch.active && current() === 'forest' && !modal) return;
   if (!msg) return;
   if ((modal.startsWith("blade") || modal.startsWith("soul:")) && !el("shade").hidden) {
@@ -243,7 +243,7 @@ function notify(msg, kind = "info") {
     "forge-drop": "강화 하락", "forge-destroy": "장비 파괴", "forge-promotion": "검 승급", loss: "주의", win: "획득 · 완료" };
   el("noticeTitle").textContent = titles[kind] || "알림";
   el("noticeMessage").textContent = msg;
-  toast.className = "on " + kind;
+  toast.className = "on " + kind + (forgeItem ? " forge-item-notice" : "");
   scheduleToastDismissal();
 }
 function sound(kind, delay = 0) {
@@ -268,11 +268,17 @@ function outfitQuote(s, action, arg) {
   const wearing = Object.entries(data.equipped).find(([, value]) => value === id);
   return JSON.stringify([action, item, wearing?.[0], second && data.equipped[first]]);
 }
+function bindForgeRequests(container) {
+  for (const button of container.querySelectorAll("[data-forge-action]"))
+    button.forgeRequest = ForgeItemView.request(button.dataset.forgeAction);
+}
 function bindOutfitQuotes(container) {
   for (const button of container.querySelectorAll('[data-act^="outfit"]'))
     button.outfitQuote = outfitQuote(state, button.dataset.act, button.dataset.arg);
 }
 function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedSoul, expectedOutfit) {
+  const forgeItemAction = action?.startsWith("forgeItem");
+  const forgeVersion = forgeItemAction && ForgeItemView.version;
   const forgeWornItem = action === "outfitForge" && current() === "forge" && !modal;
   const sourceInventoryMenu = modal.startsWith("inventory-") && !automaticGuard && !repeatGuard ? modal : "";
   const bulkQuote = action === "journeyBulk" && typeof arg === "object" ? arg : null;
@@ -300,6 +306,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     arg = { rank: arg, request: state.hunting.serial + 1 };
   const heldEnhance = action === "enhance" && !!automaticGuard;
   return locked(() => {
+    if (forgeItemAction && !ForgeItemView.guard(action,arg.id,forgeVersion)) return;
     if (action === "huntStart" && !repeatGuard && repeatHunting.active) return;
     if (!repeatGuard && action === "openChest" && repeatHunting.active) {
       repeatHunting.stop("수동 전환"); autoCombat.stop();
@@ -349,6 +356,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     const goldBefore = state.gold;
     const breaksBefore = state.breaks;
     const actionLevel = () => {
+      if (forgeItemAction) return Game.forgeItems.quote(state,arg.id)?.item.level;
       if (forgeWornItem) return Game.outfit.state(state).items.find(item => item.id === arg)?.level;
       if (armorAction) return Game.blades.currentArmor(state).level;
       if (["bladeForge","bladeWorkFinish","bladeFinalMove"].includes(action)) return Game.blades.current(state).level;
@@ -380,7 +388,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     autoCombat.refresh(false);
     if (result.ok && ["craftMove","bladeWorkMove"].includes(equivalent)) animationStart = performance.now();
     if (result.impact) huntStart = performance.now();
-    const forgeAction = forgeWornItem || [
+    const forgeAction = action === "forgeItemEnhance" || forgeWornItem || [
       "enhance",
       "bladeForge",
       "bladeArmor",
@@ -411,6 +419,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
       animationStart = performance.now();
       navigator.vibrate?.(result.kind === "win" ? 18 : 36);
     }
+    if (forgeItemAction) modal = "";
     const inventoryAction = result.ok && !!sourceInventoryMenu && modal === sourceInventoryMenu;
     if (inventoryAction) modal = "";
     if (result.ok && action === "bladeMaster") { HuntWatch.selectMaster(); modal = ""; }
@@ -473,7 +482,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
       } else if (action === "huntStart" || action === "flee") Impacts.clear();
     }
     if (!repeatGuard && action !== "temperStart" && !(result.ok && ["openChest", "openTowerChests"].includes(action)) && !result.battle && !result.impact && result.message)
-      notify(result.message + (shortOfGold ? " · 골드 부족으로 연속 강화 종료" : ""), result.promotion ? "forge-promotion" : forgeOutcome ? "forge-" + forgeOutcome : result.ok ? result.kind : "loss");
+      notify(result.message + (shortOfGold ? " · 골드 부족으로 연속 강화 종료" : ""), result.promotion ? "forge-promotion" : forgeOutcome ? "forge-" + forgeOutcome : result.ok ? result.kind : "loss", forgeItemAction);
     if (result.ok && action !== "temperStart") {
       const stage = document.querySelector("#screen .scene");
       const chest = ["openChest", "openTowerChests"].includes(action);
@@ -624,6 +633,7 @@ function render() {
   const screen = el("screen");
   screen.innerHTML = view;
   bindOutfitQuotes(screen);
+  bindForgeRequests(screen);
   renderLesson();
   GameUI.shell();
   syncMusic();
@@ -655,7 +665,7 @@ function focusLesson() {
   const n = Apprentice.next(state);
   if (n < 0) return;
   const tip = Apprentice.guidance(state, n);
-  if (tip.route === "forge") { gear = "weapon"; forgeOutfitSlot = ""; }
+  if (tip.route === "forge") { gear = "weapon"; forgeOutfitSlot = ""; ForgeItemView.selectSlot(state,"weapon"); }
   const destination = phoneLessonDestination(tip);
   if ((location.hash.slice(1) || "forge") !== destination) {
     pendingLessonFocus = true;
@@ -718,6 +728,7 @@ function swordJournal(s, record = s.swordRecord) {
 }
 function modalData() {
   const s = state;
+  if (modal.startsWith("forgeItem:")) return ForgeItemView.modalContent(modal);
   if (modal.startsWith("outfit:")) return OutfitView.modal(s, modal);
   if (modal.startsWith("soul:")) return SoulView.modal(s, modal);
   if (modal === "firstGearCompare") return HuntWatch.compareLoot(s);
@@ -1092,6 +1103,7 @@ function displayModal() {
   for (const button of el("modalBody").querySelectorAll("[data-soul-act]"))
     button.soulQuote = soulQuote(state, JSON.parse(button.dataset.soulArg));
   bindOutfitQuotes(el("modalBody"));
+  bindForgeRequests(el("modalBody"));
   if (el("saleItem")) {
     el("saleItem").value = selectedSale || "";
     if (el("saleItem").selectedIndex < 0) el("saleItem").value = "";
@@ -1138,6 +1150,7 @@ function showModal(key, trigger = document.activeElement) {
   focus.focus({ preventScroll: true });
 }
 function closeModal(focus = true) {
+  ForgeItemView.invalidate();
   modal = "";
   storyScene = null;
   battle = null;
@@ -1260,7 +1273,23 @@ document.addEventListener("pointerdown", (e) => {
   const needle = el("finalNeedle");
   cutPress = button && needle ? { button, time: needle.frameAt || Date.now() } : null;
 });
+let forgeSwipe = null;
+document.addEventListener("pointerdown", event => {
+  const surface = event.target.closest(".forge-item-browser .scene");
+  if (!surface || event.target.closest("button") || !event.isPrimary || event.button !== 0 || modal) return;
+  forgeSwipe = {surface, pointer:event.pointerId, x:event.clientX, y:event.clientY};
+  surface.setPointerCapture(event.pointerId);
+});
+document.addEventListener("pointerup", event => {
+  const swipe = forgeSwipe;
+  if (!swipe || event.pointerId !== swipe.pointer) return;
+  forgeSwipe = null;
+  const dx = event.clientX - swipe.x, dy = event.clientY - swipe.y;
+  if (swipe.surface.isConnected && !modal && Math.abs(dx) >= 40 && Math.abs(dx) > Math.abs(dy) * 1.4)
+    ForgeItemView.step(dx < 0 ? 1 : -1);
+});
 document.addEventListener("pointercancel", () => {
+  forgeSwipe = null;
   cutPress = null;
 });
 document.addEventListener("click", (e) => {
@@ -1312,19 +1341,34 @@ document.addEventListener("click", (e) => {
   }
   if ("archiveBlade" in d) { archiveBlade = true; forgeOutfitSlot = ""; gear = d.archiveBlade === "armor" ? "armor" : "weapon"; return nav("forge"); }
   if ("bladeTarget" in d) return act(d.bladeTarget, el("bladeTarget").value);
-  if ("bladeHome" in d) { archiveBlade = false; forgeOutfitSlot = ""; gear = d.bladeHome === "armor" ? "armor" : "weapon"; return nav("forge"); }
+  if ("bladeHome" in d) { archiveBlade = false; ForgeItemView.selectSlot(state,d.bladeHome === "armor" ? "chest" : "weapon"); return nav("forge"); }
   if (d.forgeSlot) {
     const key = d.forgeSlot;
     if (key !== "weapon" && !Game.outfit.slots.some(slot => slot.key === key)) return;
     archiveBlade = false;
-    gear = key === "weapon" ? "weapon" : "armor";
-    forgeOutfitSlot = key === "weapon" || key === "chest" ? "" : key;
+    ForgeItemView.selectSlot(state,key);
     closeModal(false);
     render();
     el("screen").querySelector('.forge-slot-switch [data-open]')?.focus({preventScroll:true});
     return;
   }
-  if (d.gear) { gear = d.gear; forgeOutfitSlot = ""; if (d.go) archiveBlade = false; }
+  if (d.forgeStep) {
+    ForgeItemView.step(Number(d.forgeStep));
+    el("screen").querySelector('[data-forge-step="' + d.forgeStep + '"]')?.focus({preventScroll:true});
+    return;
+  }
+  if ("forgeApply" in d || "forgeReset" in d) return ForgeItemView.filterChange("forgeReset" in d);
+  if (d.forgePreview) return ForgeItemView.preview(d.forgePreview,b);
+  if (d.forgeAction && b.forgeRequest) {
+    b.disabled = true;
+    return act(d.forgeAction,b.forgeRequest);
+  }
+  if (d.gear) {
+    gear = d.gear;
+    forgeOutfitSlot = "";
+    if (d.go) archiveBlade = false;
+    if (!archiveBlade) ForgeItemView.selectSlot(state,gear === "armor" ? "chest" : "weapon");
+  }
   if (d.go) return nav(d.go);
   if (d.open) return showModal(d.open, b);
   if ("close" in d) return dismissModal();

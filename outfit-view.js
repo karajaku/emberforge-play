@@ -51,13 +51,13 @@ const OutfitView = (() => {
     });
     return ["강화할 부위 선택", '<div class="bag-loadout-grid forge-slot-grid">' + cells.join("") + '</div>'];
   }
-  function forge(s, key) {
+  function forge(s, key, quote) {
     const slot = api().slots.find(part => part.key === key);
-    const kit = api().state(s), item = kit.items.find(it => it.id === kit.equipped[key]);
-    const done = item?.level === 20, detail = item ? "outfit:item:" + item.id + ":" + key : "outfit:slot:" + key;
+    const kit = api().state(s), item = quote?.item;
+    const done = item?.level === 20, detail = item ? ForgeItemView.detailKey(quote) : "outfit:slot:" + key;
     let readout, odds, strike;
     if (item) {
-      const {cost,success} = api().quote(item);
+      const {success} = quote;
       const stat = item.mode === "expose" ? "exposure" : "conversion";
       const name = api().elements[item.element] + (stat === "exposure" ? " 저항 감소" : " 피해 전환");
       const next = api().effect({...item,level:item.level + 1});
@@ -69,9 +69,7 @@ const OutfitView = (() => {
       odds = done ? '<b>최고 강화 +20</b>' :
         "<b>강화 +" + item.level + " → +" + (item.level + 1) + '</b><div class="odds-bar" aria-hidden="true"><i class="odds-success" style="width:' +
         pct(success) + '"></i><i class="odds-hold" style="width:' + pct(100-success) + '"></i></div><span>성공 ' + pct(success) + " · 유지 " + pct(100-success) + "</span>";
-      const fee = fmt(cost) + " G" + (s.gold < cost ? " · 부족 " + fmt(cost-s.gold) + " G" : "");
-      strike = done ? '<button class="primary" disabled>' + icon("check") + '강화 완료<small>+20</small></button>' :
-        btn("outfitForge",icon("hammer") + "강화<small>" + fee + "</small>",item.id,"primary",s.gold < cost);
+      strike = ForgeItemView.strike(s,quote);
     } else {
       const spare = kit.items.some(it => it.kind === slot.kind && !slotFor(s,it.id));
       readout = line("착용 장비","빈칸");

@@ -317,8 +317,7 @@ function smithExperienceBar(s) {
 function forgeView(s) {
   const g = s[gear], weapon = gear === "weapon", page = phonePage("forge");
   if (typeof BladeView !== "undefined" && !archiveBlade && page === "work") {
-    if (forgeOutfitSlot) return OutfitView.forge(s, forgeOutfitSlot);
-    return weapon ? BladeView.forge(s) : BladeView.armor(s);
+    return ForgeItemView.view(s);
   }
   const plan = Game.journeyForge(s, gear);
   const recovery = weapon && !plan ? Game.midRecovery(g) : null;

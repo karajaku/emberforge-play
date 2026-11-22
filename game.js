@@ -3,9 +3,11 @@ const Game = (() => {
   const endgame = typeof module !== "undefined" ? require("./blade-endgame.js") : BladeEndgame;
   const blades = typeof module !== "undefined" ? require("./blade-rules.js") : BladeRules;
   const outfit = typeof module !== "undefined" ? require("./regional-gear.js") : RegionalGear;
+  const createForge = typeof module !== "undefined" ? require("./forge-item-rules.js") : createForgeItems;
   const journey = typeof module !== "undefined" ? require("./journey-rules.js") : JourneyRules;
   const story = typeof module !== "undefined" ? require("./charcoal-story.js") : CharcoalStory;
   const craft = typeof module !== "undefined" ? require("./swordcraft.js") : Swordcraft;
+  const forgeItems = createForge(blades, outfit, craft, price);
   const finale = typeof module !== "undefined" ? require("./breakthrough.js") : Breakthrough;
   const dice = typeof module !== "undefined" ? require("./dice-combat.js") : DiceCombat;
   const trail = typeof module !== "undefined" ? require("./hunt-trail.js") : HuntTrail;
@@ -775,6 +777,16 @@ const Game = (() => {
     h.bladeCombat = blades.skills(s,item,armor,style,outfitRating);
     h.attack = h.bladeCombat.attack;
   }
+  function refreshHuntGear(s, id) {
+    const h = s.hunt;
+    if (!h?.bladeCombat || !id || (id !== h.bladeId && id !== h.armorId)) return;
+    const weapon = blades.state(s).items.find(item => item.id === h.bladeId);
+    const armor = blades.armors(s).find(item => item.id === h.armorId) || blades.currentArmor(s);
+    const priorMax = h.maxHp;
+    bindBladeCombat(s, h, weapon, armor, h.bladeCombat.style);
+    h.maxHp = h.bladeCombat.hp;
+    h.hp = Math.max(1, Math.min(h.maxHp, h.hp + h.maxHp - priorMax));
+  }
   function bladeAttributes(s, trial = false, raid = false) {
     if (!s.bladeForge) return stats(s, trial, raid);
     const build = blades.skills(s),
@@ -861,6 +873,18 @@ const Game = (() => {
       return { ok: true, message, kind };
     };
     const int = (a, b) => a + Math.floor(random() * (b - a + 1));
+    if (["forgeItemEnhance", "forgeItemSell", "forgeItemSalvage"].includes(act)) {
+      endgame.record(s);
+      const result = forgeItems.act(s, act, arg, random, payForgeFee);
+      if (!result.ok) return result;
+      if (act === "forgeItemEnhance") {
+        const {item, type} = result;
+        if (type === "blade") s.best = Math.max(s.best, item.level);
+        if (type !== "outfit" && item.level === 20) endgame.record(s);
+        refreshHuntGear(s, item.id);
+      }
+      return success(result.message, result.kind);
+    }
     if (typeof act==="string" && act.startsWith("outfit")) {
       const result=outfit.act(s,act,arg,random,payForgeFee);
       return result.ok ? success(result.message,result.kind) : result;
@@ -875,17 +899,9 @@ const Game = (() => {
       const result=soulAction ? endgame.act(s,act,arg,random) :
         workshop ? bladeWorkshop(s,workshopAction,arg,t,random,pressedAt,target) : blades.act(s,act,arg,random,payForgeFee);
       if (!result.ok) return result;
-      const h=s.hunt;
       const changedId=soulAction ? arg?.id : target.id;
       const changedStats=["bladeForge","bladeEtch","bladePolish","bladeWorkFinish","bladeFinalMove","soulTransfer","soulChoose","soulAscend"].includes(workshopAction) || act==="bladeArmor";
-      if (h?.bladeCombat && changedStats && changedId && (changedId===h.armorId || changedId===h.bladeId)) {
-        const boundBlade=blades.state(s).items.find(i=>i.id===h.bladeId);
-        const boundArmor=blades.armors(s).find(i=>i.id===h.armorId) || blades.currentArmor(s);
-        const priorMax=h.maxHp;
-        bindBladeCombat(s,h,boundBlade,boundArmor,h.bladeCombat.style);
-        h.maxHp=h.bladeCombat.hp;
-        h.hp=Math.max(1,Math.min(h.maxHp,h.hp+h.maxHp-priorMax));
-      }
+      if (changedStats) refreshHuntGear(s, changedId);
       if (act==="bladeForge" || act==="bladeWorkFinish" || act==="bladeFinalMove") {
         s.best=Math.max(s.best,blades.current(s).level);
       }
@@ -1971,7 +1987,7 @@ const Game = (() => {
     return 1 - Math.abs((elapsed % 1800) / 900 - 1);
   }
   return {
-    compareGear, blades, outfit, endgame, bladeAttributes, bladePrizeGold, forestYield, liningCosts, huntStats, huntBlade, restoreHuntWeapon, migrateJourneyOpponent, hunting, settleHunting, huntingStatus, hasBossRetry, resetProgress,
+    compareGear, forgeItems, blades, outfit, endgame, bladeAttributes, bladePrizeGold, forestYield, liningCosts, huntStats, huntBlade, restoreHuntWeapon, migrateJourneyOpponent, hunting, settleHunting, huntingStatus, hasBossRetry, resetProgress,
     startSwordRecord, freshJourney, enableJourney, isJourneyGear, canAdoptSword, journeyForge, journeySmith, saleValue, currentOrder, dailyGold,
     journeyProcessOptions: i => journey.processOptions[i],
     huntArea: journey.area, journeyTraits: journey.bladeTraits,

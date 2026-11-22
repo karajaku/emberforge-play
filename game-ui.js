@@ -38,6 +38,7 @@ const GameUI = (() => {
       if (cost) primary.append(cost);
       support.insertBefore(primary, support.children[1]);
     } else support.classList.add('forge-actions--secondary');
+    ForgeItemView.decorate(s,layout);
     return template.innerHTML;
   };
   function shell() {
@@ -55,9 +56,15 @@ const GameUI = (() => {
       const rail=document.createElement('nav');rail.className='ui-forge-rail';rail.setAttribute('aria-label','대장간 작업');
       const armor = gear === "armor";
       const stage = document.querySelector('.forge-layout .stage-side');
+      if (!stage || stage.closest(".forge-empty-results")) return;
       if (archiveBlade) {
         rail.innerHTML = go('forge/craft',icon('anvil')+'<span>제작</span>', '') + go('forge/training',icon('hammer')+'<span>수련</span>', '') +
           '<button data-blade-home="'+gear+'">'+icon(armor?'shield':'sword')+'<span>'+(armor?'방어구':'무기')+' 복귀</span></button>';
+      } else if (ForgeItemView.shown && !ForgeItemView.shown.wornSlot) {
+        const q = ForgeItemView.shown;
+        const collection = q.type === "outfit" ? openBtn("outfit:slots",icon("shield") + "<span>착용 장비</span>") :
+          openBtn(armor ? "bladeArmorCollection" : "bladeCollection",icon(armor ? "shield" : "sword") + "<span>" + (armor ? "방어구함" : "무기함") + "</span>");
+        rail.innerHTML = collection + go("forge/orders",icon("scroll-text") + "<span>의뢰</span>");
       } else if (forgeOutfitSlot) {
         rail.innerHTML = openBtn('outfit:forgeEquip:' + forgeOutfitSlot,icon('backpack')+'<span>장비 선택</span>') +
           go('forge/orders',icon('scroll-text')+'<span>의뢰</span>');
@@ -75,6 +82,7 @@ const GameUI = (() => {
         }
       }
       stage.append(rail);
+      if (!archiveBlade) stage.insertAdjacentHTML("beforeend",ForgeItemView.disposalButtons());
       if (state.best > 0) {
         const duel = document.createElement('button');
         duel.className = 'ui-daily-duel';
