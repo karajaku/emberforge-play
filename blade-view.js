@@ -163,24 +163,28 @@ const BladeView = (() => {
   function lootPreview(s, rank) {
     const b=rules();
     if (!Number.isInteger(rank) || rank<1 || rank>60) rank=1;
-    const cleared=b.state(s).cleared;
-    const first=rank%5===1 && cleared<rank;
-    const odds=b.dropOdds(rank,first);
+    const odds=Game.huntGearOdds(s,rank);
+    const {grades}=b.dropOdds(rank);
     const percent=value=>Number(value.toFixed(5))+"%";
-    const stageText=rank%5===0 ? "우두머리" : first ? "구간 첫 승리" : "일반 사냥";
+    const first=b.state(s).cleared<rank;
+    const stageText=rank%5===0
+      ? (first ? "우두머리 첫 승리" : "우두머리 반복 승리")
+      : first && rank%5===1 ? "구간 첫 승리" : "일반 승리";
+    const count=odds.min===odds.max ? odds.min+"개" : odds.min+"~"+odds.max+"개";
     const opts=Array.from({length:60},(_,i)=>'<option value="'+(i+1)+'"'+(i+1===rank?' selected':'')+'>'+(i+1)+'단계</option>').join("");
-    const table='<table class="loot-table"><caption>승리 한 번 · 부위별 확률</caption><thead><tr><th>베이스 등급</th><th>무기</th><th>방어구</th></tr></thead><tbody>'+
-      odds.perWin.map((p,i)=>'<tr><th scope="row">'+b.baseGradeNames[i]+'</th><td>'+percent(p)+'</td><td>'+percent(p)+'</td></tr>').join("")+'</tbody></table>';
+    const chances=[odds.weapon,odds.armor,odds.outfit];
+    const table='<table class="loot-table"><caption>승리 한 번 · 부위별 확률</caption><thead><tr><th>베이스 등급</th><th>무기</th><th>흉갑</th><th>속성 장비</th></tr></thead><tbody>'+
+      grades.map((p,i)=>'<tr><th scope="row">'+b.baseGradeNames[i]+'</th>'+
+        chances.map(chance=>'<td>'+percent(p*chance/100)+'</td>').join("")+'</tr>').join("")+'</tbody></table>';
     const affixes='<details class="loot-rules"><summary>베이스별 접두·접미</summary><table class="loot-table"><thead><tr><th>베이스 등급</th><th>획득 시</th><th>최대 접두 / 접미</th></tr></thead><tbody>'+
       b.baseGradeRules.map((r,i)=>'<tr><th scope="row">'+b.baseGradeNames[i]+'</th><td>'+r.min+'~'+r.max+'줄</td><td>'+r.caps.join(' / ')+'</td></tr>').join("")+'</tbody></table>'+
       desc("접두·접미가 0개면 일반 장비입니다. 1~3개인 매직 장비는 이름과 테두리가 하늘색이고, 4~6개인 레어 장비는 금색입니다. 높은 단계에서는 한 줄의 수치 등급도 높아질 수 있습니다.")+'</details>';
     return ["장비 획득 확률",'<label for="lootRank">사냥 단계</label><select id="lootRank">'+opts+'</select>'+
-      line(stageText,"무기 · 흉갑 각각 "+percent(odds.itemPercent)) + table +
+      line(stageText+" · 장비",count) +
+      line("무기",percent(odds.weapon)) + line("흉갑",percent(odds.armor)) + line("속성 장비",percent(odds.outfit)) +
+      (odds.outfitSalvaged ? line("속성 장비 대신 각인석",percent(odds.outfitSalvaged)) : "") + table +
       desc("1단계 첫 승리에는 도끼·철퇴·단검 중 하나를 얻습니다. 이후 무기가 떨어지면 한손검·도끼·철퇴·단검이 각각 25%입니다.") +
-      line("속성 장비",pct(Game.outfit.dropChance(s,rank))) +
-      desc("무기·흉갑과 별도로 속성 장비 한 개를 추첨합니다. 속성 장비의 첫 획득과 우두머리 승리는 확정입니다.") +
-      openBtn("outfit:enemy:" + rank + ":" + Game.trail.lineup(rank,false)[0],"이 단계의 적 저항") +
-      (first ? desc("이 단계의 반복 사냥에서는 각 부위 등장률이 "+percent(b.dropOdds(rank,false).itemPercent)+"입니다.") : "")+affixes];
+      openBtn("outfit:enemy:" + rank + ":" + Game.trail.lineup(rank,false)[0],"이 단계의 적 저항") + affixes];
   }
   function styles(s) {
     const b = rules(), st=b.skills(s), chosen=b.state(s).style;

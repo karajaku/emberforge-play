@@ -101,10 +101,10 @@ const RegionalGear = (() => {
   function dropChance(s, rank) {
     return !s.bladeForge?.outfit?.serial || rank % 5 === 0 ? 100 : 35;
   }
-  function reward(s,h,rng) {
+  function reward(s,h,rng,awarded = false) {
     const kit = state(s);
     const first = kit.serial === 0;
-    const chance = dropChance(s,h.rank);
+    const chance = awarded ? 100 : dropChance(s,h.rank);
     if (chance < 100 && rng() * 100 >= chance) return {};
     if (kit.items.length >= capacity) {
       s.bladeForge.ore++;

@@ -266,7 +266,7 @@ const BladeRules = (() => {
     const [lo,hi]=modDefs[m.key].ranges[m.tier-1];
     return Number.isInteger(m.value) && m.value>=lo && m.value<=hi;
   }
-  function rollReward(s, h, rng) {
+  function rollReward(s, h, rng, awardedTypes) {
     const b = state(s),
       boss = h.rank % 5 === 0,
       first = h.rank > b.cleared && h.rank % 5 === 1;
@@ -279,9 +279,9 @@ const BladeRules = (() => {
     const materialPrize = "각인석 +" + ore + (boss ? " · 우두머리 인장 +1" : "");
     const base = 1 + Math.floor(((h.territoryRank || h.rank) - 1) / 5);
     const gearDrops=[];
-    const {itemPercent}=loot.dropOdds(h.rank,first);
+    const itemPercent = awardedTypes ? 100 : loot.dropOdds(h.rank,first).itemPercent;
     const armorRack=armors(s);
-    for (const type of ["weapon","armor"]) {
+    for (const type of awardedTypes ?? ["weapon","armor"]) {
       if (itemPercent < 100 && rng()*100 >= itemPercent) continue;
       const isArmor=type==="armor";
       const id=isArmor ? "a"+ ++b.armorSerial : "b"+ ++b.serial;
@@ -297,7 +297,7 @@ const BladeRules = (() => {
     }
     const weaponDrop = gearDrops.find(drop => drop.type === "weapon");
     if (weaponDrop) {
-      // Roll the base after both independent loot rolls. The first reward introduces another weapon type.
+      // The first reward introduces another weapon type.
       const kind = weaponKinds[integer(firstWeaponChoice ? 1 : 0, weaponKinds.length-1, rng)];
       b.items.at(-1).weaponKind = kind;
       weaponDrop.weaponKind = kind;

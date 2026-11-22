@@ -16,6 +16,47 @@ const Game = (() => {
   const compareGear = compare({blades, outfit, endgame, craft, dice, stats});
   const grades = blades.baseGradeNames;
   const live = typeof module !== "undefined" ? require("./live-data.js") : LiveData;
+
+  function huntGearPlans(s, rank, hasFieldKit) {
+    const first = rank > (s.bladeForge?.cleared ?? 0);
+    const boss = rank % 5 === 0;
+    const outfitFull = s.bladeForge?.outfit?.items.length >= outfit.capacity;
+    const outfitReward = !hasFieldKit ? null : outfitFull ? "outfitSalvaged" : "outfit";
+    if ((first && rank % 5 === 1) || (boss && !hasFieldKit)) {
+      return [{chance:100, gear:["weapon","armor"], outfit:rank === 1 ? outfitReward : null}];
+    }
+
+    const outfitOnly = boss ? (first ? 0 : 50) : (hasFieldKit ? 35 : 0);
+    const mainChance = (100 - outfitOnly) / 2;
+    const plans = [
+      {chance:mainChance, gear:["weapon"], outfit:boss ? outfitReward : null},
+      {chance:mainChance, gear:["armor"], outfit:boss ? outfitReward : null},
+    ];
+    if (outfitOnly && !outfitFull) {
+      plans.push({chance:outfitOnly, gear:[], outfit:outfitReward});
+    } else if (outfitOnly) {
+      // Still credit the overflow material, and supply one usable equipment drop.
+      plans.push(
+        {chance:outfitOnly / 2, gear:["weapon"], outfit:outfitReward},
+        {chance:outfitOnly / 2, gear:["armor"], outfit:outfitReward},
+      );
+    }
+    return plans;
+  }
+
+  function huntGearOdds(s, rank) {
+    const active = s.hunt?.rank === rank && s.hunt.bladeCombat;
+    const plans = huntGearPlans(s, rank, !active || Boolean(s.hunt.fieldKit));
+    const odds = {min:3, max:0, weapon:0, armor:0, outfit:0, outfitSalvaged:0};
+    for (const plan of plans) {
+      const count = plan.gear.length + Number(plan.outfit === "outfit");
+      odds.min = Math.min(odds.min, count);
+      odds.max = Math.max(odds.max, count);
+      for (const type of plan.gear) odds[type] += plan.chance;
+      if (plan.outfit) odds[plan.outfit] += plan.chance;
+    }
+    return odds;
+  }
   function baseSwordChances(level) {
     const swordRates = live.current.balance.swordRates;
     if (!swordRates[level]) return null;
@@ -1608,10 +1649,16 @@ const Game = (() => {
           };
           if (h.bladeCombat) {
             const firstClear = h.rank === 1 && blades.state(s).cleared === 0;
-            const receipt = blades.rollReward(s,h,random);
+            const plans = huntGearPlans(s, h.rank, Boolean(h.fieldKit));
+            let gearRoll = plans.length > 1 ? random() * 100 : 0;
+            const plan = plans.find(entry => {
+              gearRoll -= entry.chance;
+              return gearRoll < 0;
+            }) ?? plans.at(-1);
+            const receipt = blades.rollReward(s,h,random,plan.gear);
             receipt.materialPrize += endgame.victory(s,h);
             receipt.bladePrize = blades.rewardText(receipt);
-            if (h.fieldKit) Object.assign(receipt, outfit.reward(s,h,random));
+            if (plan.outfit) Object.assign(receipt, outfit.reward(s,h,random,true));
             if (firstClear) receipt.firstGearChoice = true;
             if (h.territoryRank) receipt.territoryRank = h.territoryRank;
             Object.assign(s.lastHunt, receipt);
@@ -2001,7 +2048,7 @@ const Game = (() => {
     return 1 - Math.abs((elapsed % 1800) / 900 - 1);
   }
   return {
-    compareGear, forgeItems, blades, outfit, endgame, bladeAttributes, bladePrizeGold, forestYield, liningCosts, huntStats, huntBlade, restoreHuntWeapon, migrateJourneyOpponent, hunting, settleHunting, huntingStatus, hasBossRetry, resetProgress,
+    compareGear, forgeItems, blades, outfit, endgame, bladeAttributes, bladePrizeGold, forestYield, liningCosts, huntStats, huntBlade, huntGearOdds, restoreHuntWeapon, migrateJourneyOpponent, hunting, settleHunting, huntingStatus, hasBossRetry, resetProgress,
     startSwordRecord, freshJourney, enableJourney, isJourneyGear, canAdoptSword, journeyForge, journeySmith, saleValue, currentOrder, dailyGold,
     journeyProcessOptions: i => journey.processOptions[i],
     huntArea: journey.area, journeyTraits: journey.bladeTraits,
