@@ -386,14 +386,69 @@ body.ui-game:has(.watch-ground[data-boss-territory])::before {
   }
 }
 
-/* Attack checks occupy the central slots. A skill replaces its own outer readout only while firing. */
+/* Reserve three lines for each d20 result in the existing central HUD. */
+.ui-game .watch-ground .watch-arena:has([data-d20]) { --action-width:62px; }
+.watch-ground .watch-arena:has([data-d20]) .hp-loss { display:none; }
+.watch-ground .watch-readout .watch-roll[data-d20] {
+  grid-template:25px 15px 17px / minmax(0,1fr);
+  gap:1px;
+  font-variant-numeric:tabular-nums;
+}
+.watch-ground .watch-roll[data-d20] .watch-dice-line {
+  display:grid;
+  grid-template-columns:25px 23px;
+  align-items:center;
+}
+.watch-ground .player .watch-roll[data-d20] .watch-dice-line { translate:-2px; }
+.watch-ground .enemy .watch-roll[data-d20] .watch-dice-line { translate:2px; }
+.watch-ground .watch-roll[data-d20] .watch-defense {
+  display:flex;
+  gap:1px;
+  align-items:center;
+  color:#e1eff4;
+}
+.watch-ground .watch-roll[data-d20] .watch-defense[hidden] { display:none; }
+.watch-ground .watch-roll[data-d20] .watch-defense svg { width:8px; height:10px; flex:none; }
+.watch-ground .watch-roll[data-d20] .watch-defense b {
+  min-width:14px;
+  height:15px;
+  border:1px solid #adcbd3;
+  border-radius:3px;
+  background:#183645;
+  text-align:center;
+  font-size:13px;
+  line-height:13px;
+}
+body[data-motion="on"] .watch-ground .watch-roll[data-d20].chosen .watch-defense {
+  animation:watch-d20-settle 65ms ease-out both;
+}
+.watch-ground .watch-roll[data-d20] .watch-verdict {
+  grid-row:2;
+  font-size:13px;
+  line-height:15px;
+}
+.watch-ground .watch-roll[data-d20] .watch-damage {
+  grid-row:3;
+  font-size:15px;
+  line-height:17px;
+}
+.watch-ground .watch-roll[data-d20] > :is(.watch-verdict,.watch-damage):empty {
+  display:block;
+  visibility:hidden;
+  min-width:1px;
+}
+.watch-ground .watch-damage[data-bleed]::before { content:"출혈 "; font-size:11px; }
+.watch-ground .watch-roll[data-outcome="critical"] .watch-damage { color:#ffdc82; }
 .watch-ground .watch-roll[data-d20] .watch-die {
+  width:25px;
+  height:25px;
   font-size:23px;
   line-height:1;
+  white-space:nowrap;
+  overflow-wrap:normal;
   font-weight:900;
   font-variant-numeric:tabular-nums;
 }
-.watch-ground .watch-roll[data-d20] > span { font-size:10px; }
 .watch-ground .watch-roll[data-outcome="critical"] :is(.watch-die,span) { color:#ffe297; }
 .watch-ground .watch-roll[data-outcome="miss"] :is(.watch-die,span) { color:#f1e6d4; }
 .watch-ground .watch-roll[data-outcome="blocked"] :is(.watch-die,span) { color:#c7eafa; }
@@ -428,8 +483,6 @@ body[data-motion="on"] .watch-ground [data-d20].chosen[data-outcome="critical"] 
   0% { transform:scale(1.23); text-shadow:0 0 8px #ffc54d, 0 2px 1px #442205; }
   100% { transform:scale(1); }
 }
-.watch-ground .watch-arena:has([data-d20]) .hunt-burst b { white-space:nowrap; }
-.d20-critical b { color:#ffdc82; }
 .d20-critical .hunt-cut { background:#fff3be; box-shadow:0 0 16px #ffcf62, 0 8px #a66725; }
 .d20-critical.charge .hunt-cut { background:transparent; border-color:#ffe2a0; }
 .watch-ground .watch-readout :is(.watch-skills,.watch-enemy-skill):has(.watch-skill-flare) { position:relative; }

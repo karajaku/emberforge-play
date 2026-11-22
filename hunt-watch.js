@@ -153,15 +153,22 @@ const HuntWatch=(()=>{
     // Keep the final round's skill readouts while the saved result supplies HP and dice.
     else if(before&&state.lastHunt?.id===before.id)lastRound=before;
   }
-  function d20(side, face, check) {
+  function d20(side, face, check, damage) {
     const label = check ? HuntEffects.checkLabel(check.outcome, side) : '';
-    const description = (side === 'player' ? '내 공격' : '적 공격') +
-      (check ? ' d20 ' + face + ' · ' + label : ' 주사위 대기');
+    const actor = side === 'player' ? '내 공격' : '적 공격';
+    const defender = side === 'player' ? '적 방어' : '내 방어';
+    const description = check ? actor + ' d20 ' + face : actor + ' 주사위 대기';
+    const defense = check ? defender + ' d6 ' + check.defense + ' · 목표 ' + check.target : '';
     return '<div class="watch-roll" data-die="' + side + '" data-d20="true"' +
       (check ? ' data-outcome="' + check.outcome + '"' : '') +
-      '><div class="watch-die" data-action="' + (check ? 'strike' : '') +
+      '><div class="watch-dice-line"><div class="watch-die" data-action="' + (check ? 'strike' : '') +
       '" role="img" aria-label="' + description + '">' + (check ? face : '') +
-      '</div><span>' + label + '</span></div>';
+      '</div><div class="watch-defense" role="img" aria-label="' + defense +
+      '"' + (check ? '' : ' hidden') + '>' + icon('shield') + '<b>' + (check?.defense ?? '') +
+      '</b></div></div><span class="watch-verdict">' + label +
+      '</span><span class="watch-damage"' + (damage ? (check.outcome === 'miss' ? ' data-bleed title="출혈 피해 ' : ' title="피해 ') +
+      fmt(damage) + '"' : '') + '>' +
+      (damage ? HuntEffects.damageLabel(damage, check.outcome) : '') + '</span></div>';
   }
   function die(face,action,side) {
     return '<div class="watch-roll" data-die="'+side+'"><div class="watch-die" data-action="'+(action||'')+'" role="img" aria-label="'+(face?names[action]+' 주사위':'주사위 대기')+'">'+icon(icons[action]||'sword')+'</div><span>'+(face?names[action]:'')+'</span></div>';
@@ -255,7 +262,8 @@ const HuntWatch=(()=>{
       const actor = elite ? '<img class="trail-creature boss-creature" src="assets/hunt/boss-'+bossKind+'.webp" alt="">' : ['wolf','moth','tree','goblin'].includes(asset)
         ? '<img class="trail-creature" src="assets/hunt/'+asset+'.webp" alt="">'
         : '<canvas width="'+width+'" height="144" data-sprite="'+asset+'" aria-hidden="true"></canvas>';
-      const action = useD20 ? d20(side,roll?.[side+'Face'],side==='player'?roll?.attackCheck:roll?.replyCheck) :
+      const action = useD20 ? d20(side,roll?.[side+'Face'],side==='player'?roll?.attackCheck:roll?.replyCheck,
+        side==='player'?roll?.damage:roll?.taken) :
         useDice ? die(roll?.[side+'Face'],roll?.[side],side) : '';
       return '<div class="watch-fighter '+side+'"'+(elite?' data-elite="true" data-boss="'+bossKind+'"':'')+' data-action="'+(roll?.[side]||'')+'">'+
         '<div class="watch-readout">'+healthMeter(side,label,current,maxHp,level,side==='player' ? fightingItem : null)+
