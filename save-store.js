@@ -222,12 +222,15 @@ const SaveStore = (() => {
           typeof w.daily !== "string" || !/^(|\d{4}-\d{2}-\d{2})$/.test(w.daily) ||
           (w.free >= game.hunting.cap) !== (w.rechargeAt === null) ||
           (w.rechargeAt !== null && w.rechargeAt > w.observedAt)) throw fault("corrupt");
+      // Starting over can leave the previous journey's retry receipt without an active hunt.
+      const previousJourneyRetry = retry === undefined && data.hunt === null;
       if (w.serial === 0 ? w.lastStart !== null :
           !object(w.lastStart) || w.lastStart.request !== w.serial ||
           w.lastStart.id !== w.id + "-" + w.serial ||
           !Number.isInteger(w.lastStart.rank) || w.lastStart.rank < 1 || w.lastStart.rank > 60 ||
           !(["free", "purchased"].includes(w.lastStart.source) ||
-            (w.lastStart.source === "retry" && w.lastStart.rank === 5 && retry === "used"))) throw fault("corrupt");
+            (w.lastStart.source === "retry" && w.lastStart.rank === 5 &&
+              (retry === "used" || previousJourneyRetry)))) throw fault("corrupt");
     }
     function validEntry(id) {
       const wallet = data.hunting;

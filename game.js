@@ -210,10 +210,14 @@ const Game = (() => {
     return { ...w, remaining: w.rechargeAt === null ? null :
       Math.max(0, w.rechargeAt + hunting.interval - w.observedAt) };
   }
-  function resetProgress(s, t = Date.now()) {
-    settleHunting(s, t);
+  function resetProgress(s, t = Date.now(), { keepFood = false } = {}) {
+    const wallet = settleHunting(s, t);
     const next = s.journeyEconomy ? freshJourney(t) : fresh(t);
-    next.hunting = JSON.parse(JSON.stringify(s.hunting));
+    next.hunting = { ...wallet, lastStart: wallet.lastStart && { ...wallet.lastStart } };
+    if (!keepFood) {
+      next.hunting.free = hunting.initial;
+      next.hunting.rechargeAt = null;
+    }
     next.day = s.day; // Resetting progress does not grant another daily supply.
     return next;
   }

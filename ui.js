@@ -906,13 +906,18 @@ function modalData() {
           openBtn("help", icon("book-open") + "플레이 안내") + "</div>" +
           row("게임 진행", "새 게임으로 돌아갑니다.", openBtn("confirmNewGame", "처음부터 시작", "action danger")),
       ];
-    case "confirmNewGame":
+    case "confirmNewGame": {
+      const purchased = Game.huntingStatus(state).purchased;
       return [
         "처음부터 시작할까요?",
-        desc("장비, 골드, 숲결 섬유, 숲 방호 안감, 환생과 이야기 기록을 초기화하고 첫 장면부터 시작합니다. 비축 식량·보급 시간·출석 수령 기록은 유지되며 최초 식량 30개를 다시 지급하지 않습니다. 현재 원본을 별도로 보존한 뒤 새 진행 저장이 성공해야 시작합니다.") +
+        desc("장비, 골드, 재료, 환생과 이야기 기록을 초기화합니다. 기본 비축 식량은 " +
+          Game.hunting.initial + "개로 돌아갑니다." +
+          (purchased ? " 구매 식량 " + fmt(purchased) + "개는 유지됩니다." : "")) +
+        desc("출석 수령 기록은 유지됩니다. 현재 저장을 별도로 보관하고 새 진행을 저장한 뒤 시작합니다.") +
           '<div class="actions">' + openBtn("settings", "취소") +
           '<button class="action danger" data-new-game>진행을 지우고 시작</button></div>',
       ];
+    }
     case "lessons":
       return lessonMenu();
     case "help":
