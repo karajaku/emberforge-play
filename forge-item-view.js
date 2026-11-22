@@ -93,9 +93,16 @@ const ForgeItemView = (() => {
       return '<button type="button" data-forge-step="' + direction + '" aria-label="' + label + '"' +
         (canStep ? "" : " disabled") + '>' + icon("arrow-left") + '</button>';
     }
-    const pager = '<div class="forge-item-pager">' + arrow(-1,"이전 장비") + '<span>' +
-      (emptySlot ? "빈 부위" : fmt(position + 1) + " / " + fmt(visible.length)) + '</span>' + arrow(1,"다음 장비") + '</div>';
-    scene.insertAdjacentHTML("afterbegin",pager);
+    const number = emptySlot ? "빈 부위" : fmt(position + 1) + " / " + fmt(visible.length);
+    scene.insertAdjacentHTML("afterbegin",'<span class="forge-item-pager">' + number + '</span>');
+    const stat = layout.querySelector(".forge-readout > .line");
+    const center = document.createElement("div");
+    center.className = "forge-step-stat";
+    center.append(...stat.childNodes);
+    stat.classList.add("forge-step-row");
+    stat.append(center);
+    stat.insertAdjacentHTML("afterbegin",arrow(-1,"이전 장비"));
+    stat.insertAdjacentHTML("beforeend",arrow(1,"다음 장비"));
     if (!q) return;
     const c = Game.compareGear(s,q.item,q.type);
     const delta = c.delta === 0 ? "0" : (c.delta < 0 ? "−" : "+") + fmt(Math.abs(c.delta));
@@ -108,6 +115,13 @@ const ForgeItemView = (() => {
       ' G</b></span></div>';
     scene.querySelector(".location")?.remove();
     scene.querySelector(".caption").insertAdjacentHTML("beforeend",data);
+  }
+  function equipButton(q) {
+    const ring = q.kind === "ring";
+    const attr = ring ? 'data-forge-preview="equip" aria-haspopup="dialog"' :
+      'data-forge-action="forgeItemEquip" data-equip-slot="' + q.equipTargets[0].slot + '"';
+    const blocked = q.equipBlocked ? ' disabled title="' + escapeHtml(q.equipBlocked) + '" aria-label="착용 · ' + escapeHtml(q.equipBlocked) + '"' : "";
+    return '<button ' + attr + blocked + '>' + icon("shield") + '<span>착용</span></button>';
   }
   function disposalButtons() {
     if (!shown) return "";
@@ -131,7 +145,20 @@ const ForgeItemView = (() => {
         filterField("worn","착용 상태",[["on","착용 중"],["off","미착용"]]) + '</div><div class="forge-dialog-actions">' +
         '<button class="action" data-forge-reset>초기화</button><button class="primary" data-forge-apply>적용</button></div>'];
     }
-    const sell = key === "forgeItem:sell", q = pending;
+    const q = pending;
+    if (key === "forgeItem:equip" && q) {
+      const baseline = Game.compareGear(state,q.item,"outfit").slot;
+      const choices = q.equipTargets.map(({slot}) => {
+        const c = Game.compareGear(state,q.item,"outfit",slot);
+        const current = c.current ? GearGradeView.colored(c.current,Game.outfit.name(c.current) + " +" + c.current.level) : "빈칸";
+        const delta = (c.delta > 0 ? "+" : c.delta < 0 ? "−" : "") + fmt(Math.abs(c.delta));
+        return '<button class="action forge-ring-choice" data-forge-action="forgeItemEquip" data-equip-slot="' + slot + '">' +
+          '<b>' + slotName(slot) + (slot === baseline ? ' <small class="forge-ring-baseline">비교 기준</small>' : '') + '</b><span>' + current + '</span><small>전투력 차이 ' + delta + '</small></button>';
+      });
+      return ["반지 착용 위치", line("착용할 반지",GearGradeView.colored(q.item,itemName(q))) +
+        '<div class="forge-ring-choices">' + choices.join("") + '</div><button class="action" data-close>취소</button>'];
+    }
+    const sell = key === "forgeItem:sell";
     if (!q) return ["장비 확인", desc("대장간에서 장비를 다시 선택하세요.")];
     const verb = sell ? "판매" : "분해";
     return ["장비 " + verb, line("선택한 장비",GearGradeView.colored(q.item,itemName(q))) +
@@ -149,19 +176,23 @@ const ForgeItemView = (() => {
     el("screen").querySelector('[data-open="forgeItem:filter"]')?.focus({preventScroll:true});
   }
   function preview(mode,button) {
-    if (!shown || !["sell","salvage"].includes(mode)) return;
+    if (!shown || !["sell","salvage","equip"].includes(mode)) return;
     pending = structuredClone(shown);
     showModal("forgeItem:" + mode, button);
   }
-  function request(action) {
-    const quote = action === "forgeItemEnhance" ? shown : pending;
-    return quote && {id:quote.id, token:quote.token};
+  function request(action,slot,fromScreen) {
+    const quote = fromScreen ? shown : pending;
+    if (!quote) return null;
+    const base = {id:quote.id, token:quote.token};
+    if (action !== "forgeItemEquip") return base;
+    const target = quote.equipTargets.find(option => option.slot === slot);
+    return target && {...base,...target};
   }
   function guard(action,id,version) {
-    const source = {forgeItemEnhance:"", forgeItemSell:"forgeItem:sell",forgeItemSalvage:"forgeItem:salvage"}[action];
+    const source = {forgeItemEnhance:"", forgeItemEquip:shown?.kind === "ring" ? "forgeItem:equip" : "", forgeItemSell:"forgeItem:sell",forgeItemSalvage:"forgeItem:salvage"}[action];
     return version === selectionVersion && current() === "forge" && phonePage("forge") === "work" && !archiveBlade &&
       modal === source && selected === id;
   }
-  return {view,selectSlot,selectItem,step,detailKey,strike,decorate,disposalButtons,modalContent,filterChange,preview,request,guard,filtering,
+  return {view,selectSlot,selectItem,step,detailKey,strike,decorate,equipButton,disposalButtons,modalContent,filterChange,preview,request,guard,filtering,
     get shown(){return shown;},get version(){return selectionVersion;},invalidate(){selectionVersion++;}};
 })();

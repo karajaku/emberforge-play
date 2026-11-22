@@ -270,7 +270,7 @@ function outfitQuote(s, action, arg) {
 }
 function bindForgeRequests(container) {
   for (const button of container.querySelectorAll("[data-forge-action]"))
-    button.forgeRequest = ForgeItemView.request(button.dataset.forgeAction);
+    button.forgeRequest = ForgeItemView.request(button.dataset.forgeAction,button.dataset.equipSlot,container === el("screen"));
 }
 function bindOutfitQuotes(container) {
   for (const button of container.querySelectorAll('[data-act^="outfit"]'))
@@ -635,9 +635,9 @@ function render() {
   const screen = el("screen");
   screen.innerHTML = view;
   bindOutfitQuotes(screen);
-  bindForgeRequests(screen);
   renderLesson();
   GameUI.shell();
+  bindForgeRequests(screen);
   syncMusic();
 }
 // Only the lesson explicitly located from the tutorial can appear during play.

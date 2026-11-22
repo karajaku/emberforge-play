@@ -48,7 +48,7 @@ function createForgeItems(blades, outfit, craft, price) {
   function quote(s, id) {
     const entry = list(s).find(candidate => candidate.id === id);
     if (!entry) return null;
-    const {item, type, wornSlot} = entry;
+    const {item, type, kind, wornSlot} = entry;
     const rack = blades.state(s);
     const deployed = id === rack.deployed || id === rack.extraDeployed;
     const hunting = id === s.hunt?.bladeId || id === s.hunt?.armorId;
@@ -60,20 +60,38 @@ function createForgeItems(blades, outfit, craft, price) {
     let enhanceBlocked = recall;
     if (item.finalTrial) enhanceBlocked = "진행 중인 마지막 돌파를 먼저 마치세요.";
     else if (item.level >= 20) enhanceBlocked = "+20 완성 장비입니다.";
+    const equipBlocked = wornSlot ? "이미 착용한 장비입니다." : recall;
+    const equipped = outfit.state(s).equipped;
+    const equipTargets = type === "outfit"
+      ? outfit.slots.filter(slot => slot.kind === kind).map(({key}) => ({
+        slot:key, currentId:equipped[key] ?? null,
+      }))
+      : [{slot:kind, currentId:type === "chest" ? rack.armorEquipped : rack.equipped}];
 
     const productionCost = standardCost(s, type, item);
     const value = 20 + 5 * item.base + 10 * item.grade + Math.floor(productionCost * salePercent(item.level) / 100);
     const ore = type === "outfit" ? outfit.salvageOre(item) : blades.salvageOre(item);
     const {cost, success} = enhancementQuote(s, type, item);
     const token = JSON.stringify([item, wornSlot, hunting, deployed, cost, success, value, ore]);
-    return {...entry, cost, success, value, productionCost, ore, enhanceBlocked, disposeBlocked, token};
+    return {...entry, cost, success, value, productionCost, ore, enhanceBlocked, disposeBlocked, equipBlocked, equipTargets, token};
   }
 
   function act(s, action, request, rng, pay) {
     const q = quote(s, request?.id);
-    if (!q || q.token !== request.token)
-      return {ok:false, message:"장비가 바뀌었습니다. 대상과 금액을 다시 확인하세요."};
+    if (!q || q.token !== request.token) {
+      const message = action === "forgeItemEquip" ? "장비가 바뀌었습니다. 착용할 장비를 다시 확인하세요." :
+        "장비가 바뀌었습니다. 대상과 금액을 다시 확인하세요.";
+      return {ok:false, message};
+    }
     const {item, type} = q;
+    if (action === "forgeItemEquip") {
+      if (q.equipBlocked) return {ok:false, message:q.equipBlocked};
+      const target = q.equipTargets.find(entry => entry.slot === request.slot);
+      if (!target || target.currentId !== request.currentId)
+        return {ok:false, message:"착용 장비가 바뀌었습니다. 교체할 자리를 다시 확인하세요."};
+      if (type === "outfit") return outfit.act(s, "outfitEquip", target.slot + ":" + item.id, rng, pay);
+      return blades.act(s, type === "chest" ? "bladeArmorEquip" : "bladeEquip", item.id, rng, pay);
+    }
     const itemName = type === "outfit" ? outfit.name(item) : blades.name(item);
     if (action === "forgeItemEnhance") {
       if (q.enhanceBlocked) return {ok:false, message:q.enhanceBlocked};

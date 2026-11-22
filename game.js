@@ -873,7 +873,7 @@ const Game = (() => {
       return { ok: true, message, kind };
     };
     const int = (a, b) => a + Math.floor(random() * (b - a + 1));
-    if (["forgeItemEnhance", "forgeItemSell", "forgeItemSalvage"].includes(act)) {
+    if (["forgeItemEnhance", "forgeItemEquip", "forgeItemSell", "forgeItemSalvage"].includes(act)) {
       endgame.record(s);
       const result = forgeItems.act(s, act, arg, random, payForgeFee);
       if (!result.ok) return result;
