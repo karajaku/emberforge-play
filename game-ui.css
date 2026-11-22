@@ -284,7 +284,7 @@ body.ui-game {
 }
 .bag-slot[data-group="items"] { --slot-light: #40584d; }
 .bag-slot[data-group="relics"] { --slot-light: #67537b; }
-.bag-slot:has(.bag-slot-status) { border-color: #e0bf79; }
+.bag-slot:is([data-group="items"],[data-group="relics"]):has(.bag-slot-status) { border-color: #e0bf79; }
 .bag-slot:active { transform: translateY(1px); }
 .bag-slot:focus-visible { outline: 2px solid #fff4ae; outline-offset: 1px; }
 .bag-slot-art, .bag-detail-art { display: grid; place-items: center; }
@@ -310,7 +310,7 @@ body.ui-game {
 .bag-worn-slot .bag-slot-name { font-size:11px; }
 .bag-worn-slot .bag-slot-affix { font-size:10px; }
 .bag-worn-level { position:absolute; top:21px; right:2px; color:#ffedb8; background:#222821d9; padding:0 2px; border-radius:3px; font-size:10px; }
-.bag-worn-slot[data-empty="true"] { background:#27302a; border:1px dashed #81765d; box-shadow:none; }
+.bag-slot[data-empty="true"] { background:#27302a; border:1px dashed #81765d; box-shadow:none; }
 .bag-worn-slot[data-empty="true"] .outfit-art { opacity:.45; filter:grayscale(1); }
 .bag-worn-slot[data-empty="true"] .bag-slot-name { color:#c2b9a3; font-weight:500; }
 .outfit-art { display:inline-block; flex:none; width:46px; height:46px; background-image:url("assets/outfit-atlas.webp"); background-size:400% 200%; background-repeat:no-repeat; image-rendering:pixelated; }
@@ -344,16 +344,14 @@ body.ui-game {
 .blade-mastery { margin-top:14px; }
 .blade-mastery button { margin:2px;min-height:44px; }
 .blade-drop { color:#ffe29a; word-break:keep-all; }
-#screen .loot-normal, [data-rarity="normal"] { --rarity-ink:#eceff0; --slot-light:#515955; }
 #screen .loot-magic, [data-rarity="magic"] { --rarity-ink:#a3dcff; --slot-light:#34536a; }
 #screen .loot-rare, [data-rarity="rare"] { --rarity-ink:#ffda79; --slot-light:#705932; }
-.dialog :is(.gear-grade,#modalTitle)[data-rarity="normal"] { --rarity-ink:#414748; }
 .dialog :is(.gear-grade,#modalTitle)[data-rarity="magic"] { --rarity-ink:#165e89; }
 .dialog :is(.gear-grade,#modalTitle)[data-rarity="rare"] { --rarity-ink:#805000; }
-.gear-grade[data-rarity], #modalTitle[data-rarity], .bag-slot[data-rarity]:not([data-rarity=""]) .bag-slot-name {
+.gear-grade[data-rarity], #modalTitle[data-rarity], .bag-slot[data-rarity] .bag-slot-name {
   color:var(--rarity-ink);
 }
-.bag-slot[data-rarity]:not([data-rarity=""]) { border:2px solid var(--rarity-ink); }
+.bag-slot:is([data-rarity="magic"],[data-rarity="rare"]) { border:2px solid var(--rarity-ink); }
 .bag-base { font-size:10px; color:#d2c9b6; font-weight:500; line-height:1.15; }
 .grade-access {
   position:absolute; width:1px; height:1px; padding:0; overflow:hidden;
@@ -366,7 +364,7 @@ body.ui-game {
 .loot-gear-list { flex:1 0 100%; display:grid; justify-content:center; gap:2px; }
 .watch-loot .loot-gear { display:grid; grid-template-columns:16px minmax(0,1fr) auto; gap:6px; align-items:center; text-align:left; color:#fff3d9; font-size:13px; }
 .watch-loot button.loot-gear { min-height:30px; padding:3px 8px; background:#1d2924ec; border:1px solid #9d8965; border-radius:5px; }
-.watch-loot button.loot-gear:is(.loot-normal,.loot-magic,.loot-rare) { border:2px solid var(--rarity-ink); }
+.watch-loot button.loot-gear:is(.loot-magic,.loot-rare) { border:2px solid var(--rarity-ink); }
 .watch-loot .loot-gear svg { width:15px; height:15px; }
 .watch-loot .loot-gear small { font-size:11px; }
 .loot-rules summary { cursor:pointer; padding:8px 0; font-weight:700; }

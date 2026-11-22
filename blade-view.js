@@ -175,7 +175,7 @@ const BladeView = (() => {
       odds.perWin.map((p,i)=>'<tr><th scope="row">'+b.baseGradeNames[i]+'</th><td>'+percent(p)+'</td><td>'+percent(p)+'</td></tr>').join("")+'</tbody></table>';
     const affixes='<details class="loot-rules"><summary>베이스별 접두·접미</summary><table class="loot-table"><thead><tr><th>베이스 등급</th><th>획득 시</th><th>최대 접두 / 접미</th></tr></thead><tbody>'+
       b.baseGradeRules.map((r,i)=>'<tr><th scope="row">'+b.baseGradeNames[i]+'</th><td>'+r.min+'~'+r.max+'줄</td><td>'+r.caps.join(' / ')+'</td></tr>').join("")+'</tbody></table>'+
-      desc("장비 이름과 장비칸 테두리는 접두·접미 합계가 0개면 은백색(일반), 1~3개면 하늘색(매직), 4~6개면 금색(레어)입니다. 높은 단계에서는 한 줄의 수치 등급도 높아질 수 있습니다.")+'</details>';
+      desc("접두·접미가 0개면 일반 장비입니다. 1~3개인 매직 장비는 이름과 테두리가 하늘색이고, 4~6개인 레어 장비는 금색입니다. 높은 단계에서는 한 줄의 수치 등급도 높아질 수 있습니다.")+'</details>';
     return ["장비 획득 확률",'<label for="lootRank">사냥 단계</label><select id="lootRank">'+opts+'</select>'+
       line(stageText,"무기 · 흉갑 각각 "+percent(odds.itemPercent)) + table +
       desc("1단계 첫 승리에는 도끼·철퇴·단검 중 하나를 얻습니다. 이후 무기가 떨어지면 한손검·도끼·철퇴·단검이 각각 25%입니다.") +

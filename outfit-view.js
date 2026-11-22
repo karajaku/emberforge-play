@@ -40,11 +40,12 @@ const OutfitView = (() => {
       const item = blade ? Game.blades.current(s) : chest ? Game.blades.currentArmor(s) :
         kit.items.find(it => it.id === kit.equipped[slot.key]);
       const image = blade || chest ? BladeView.artwork(item) : art(slot.kind);
+      const rarity = item && Game.blades.itemRarity(item);
       const name = item ? (blade || chest ? Game.blades.name(item) : api().name(item)) : "빈칸";
       const part = {shoulder:"어깨",legs:"다리"}[slot.key] || slot.name;
       return '<button class="bag-slot bag-worn-slot" data-forge-slot="' + slot.key +
-        '" data-empty="' + !item + '" data-rarity="' + (item ? Game.blades.itemRarity(item).key : "") + '" aria-pressed="' + (slot.key === chosen) +
-        '" aria-label="' + escapeHtml(slot.name + " · " + name + (item ? " +" + item.level + " · " + Game.blades.itemRarity(item).name : "")) + '"><span class="bag-worn-part">' + part +
+        '" data-empty="' + !item + '"' + GearGradeView.attribute(rarity) + ' aria-pressed="' + (slot.key === chosen) +
+        '" aria-label="' + escapeHtml(slot.name + " · " + name + (item ? " +" + item.level + " · " + rarity.name : "")) + '"><span class="bag-worn-part">' + part +
         '</span><span class="bag-slot-art">' + image + '</span><b class="bag-slot-name">' +
         escapeHtml(name) + '</b>' + (item ? '<small class="bag-worn-level">+' + item.level + '</small>' : '') + '</button>';
     });
@@ -91,10 +92,11 @@ const OutfitView = (() => {
       const chest = slot.kind === "armor";
       const item = chest ? armor : data.items.find(it => it.id === data.equipped[slot.key]);
       const picture = chest ? BladeView.artwork(armor) : art(slot.kind);
+      const rarity = item && Game.blades.itemRarity(item);
       const name = item ? (chest ? Game.blades.name(item) : api().name(item)) : "비어 있음";
       return '<button class="bag-slot outfit-slot" data-open="outfit:slot:' + slot.key +
-        '" aria-label="' + escapeHtml(slot.name + ' · ' + name + (item ? ' +' + item.level + ' · ' + Game.blades.itemRarity(item).name : '')) + '" data-empty="' + !item + '" data-rarity="' +
-        (item ? Game.blades.itemRarity(item).key : "") + '"><span class="outfit-slot-title">' + slot.name + '</span><span class="bag-slot-art">' +
+        '" aria-label="' + escapeHtml(slot.name + ' · ' + name + (item ? ' +' + item.level + ' · ' + rarity.name : '')) + '" data-empty="' + !item + '"' +
+        GearGradeView.attribute(rarity) + '><span class="outfit-slot-title">' + slot.name + '</span><span class="bag-slot-art">' +
         picture + '</span><b class="bag-slot-name">' + escapeHtml(name) + '</b>' +
         (item ? '<small>+' + item.level + '</small>' : '') + '</button>';
     });
@@ -238,7 +240,7 @@ const OutfitView = (() => {
     if (!item) return "";
     const content = art(item.kind) + '<b>' + GearGradeView.colored(item,api().name(item)) + '</b><small>' + effectLabel(item) + '</small>';
     return api().state(s).items.some(it => it.id === item.id) ?
-      openBtn("outfit:item:"+item.id,content,"loot-gear loot-"+Game.blades.itemRarity(item).key) :
+      openBtn("outfit:item:"+item.id,content,GearGradeView.lootClass(item)) :
       '<span class="loot-gear">'+content+'</span>';
   }
   return {art,loadout,entries,forge,modal,encounterChip,receipt};

@@ -1084,13 +1084,10 @@ function displayModal() {
   el("shade").dataset.modal = modal;
   const titleNode = el("modalTitle");
   titleNode.textContent = title;
-  if (rarity) {
-    titleNode.dataset.rarity = rarity.key;
-    titleNode.setAttribute("aria-label", title + " · " + rarity.name);
-  } else {
-    delete titleNode.dataset.rarity;
-    titleNode.removeAttribute("aria-label");
-  }
+  if (GearGradeView.emphasized(rarity)) titleNode.dataset.rarity = rarity.key;
+  else delete titleNode.dataset.rarity;
+  if (rarity) titleNode.setAttribute("aria-label", title + " · " + rarity.name);
+  else titleNode.removeAttribute("aria-label");
   el("modalBody").innerHTML = html;
   for (const button of el("modalBody").querySelectorAll("[data-soul-act]"))
     button.soulQuote = soulQuote(state, JSON.parse(button.dataset.soulArg));

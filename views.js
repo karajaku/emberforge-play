@@ -90,10 +90,21 @@ const navItems = [
   ["growth", "성장", "sparkles"],
 ];
 const GearGradeView = {
-  colored(item, text) {
+  emphasized(rarity) {
+    return rarity?.key === "magic" || rarity?.key === "rare";
+  },
+  attribute(rarity) {
+    return this.emphasized(rarity) ? ' data-rarity="' + rarity.key + '"' : "";
+  },
+  lootClass(item) {
     const rarity = Game.blades.itemRarity(item);
-    return '<span class="gear-grade" data-rarity="' + rarity.key + '">' + escapeHtml(text) +
-      '<span class="grade-access"> (' + rarity.name + ')</span></span>';
+    return this.emphasized(rarity) ? "loot-gear loot-" + rarity.key : "loot-gear";
+  },
+  colored(item, text) {
+    const rarity = Game.blades.itemRarity(item), name = escapeHtml(text);
+    const attr = this.attribute(rarity);
+    const visible = attr ? '<span class="gear-grade"' + attr + '>' + name + '</span>' : name;
+    return visible + '<span class="grade-access"> (' + rarity.name + ')</span>';
   },
   detail(item) {
     const count = item.mods?.length || 0;
@@ -107,7 +118,7 @@ function creature(f) {
 }
 function scene(id, heading, english, loc, sprite = "", grade = 0, enemy = null, artwork = "", item = null) {
   return (
-    '<div class="scene"' + (item ? ' data-rarity="' + Game.blades.itemRarity(item).key + '"' : "") + (enemy ? ' data-enemy="' + enemy.kind + '" data-depth="' + Math.min(3, Math.floor((enemy.rank - 1) / 15)) + '"' : "") + ' style="--image:url(assets/' +
+    '<div class="scene"' + (enemy ? ' data-enemy="' + enemy.kind + '" data-depth="' + Math.min(3, Math.floor((enemy.rank - 1) / 15)) + '"' : "") + ' style="--image:url(assets/' +
     (id === "forge" ? "hud/workshop.webp" : id + ".png") +
     ')">' + (loc ? '<span class="location">' + icon("map-pin") + loc + "</span>" : "") +
     (sprite

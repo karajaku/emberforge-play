@@ -166,7 +166,7 @@ const InventoryView = (() => {
   }
   function tile(item) {
     const label = [item.rarity?.name, item.name, item.baseGrade, item.mark, item.status, item.affix, item.compareLabel, item.comparison && GearCompareView.accessible(item.comparison)].filter(Boolean).join(" ");
-    return '<button class="bag-slot" data-rarity="'+(item.rarity?.key || "")+'" data-group="' + item.group + '" data-open="' + escapeHtml(item.open || "inventory-" + item.key) +
+    return '<button class="bag-slot"' + GearGradeView.attribute(item.rarity) + ' data-group="' + item.group + '" data-open="' + escapeHtml(item.open || "inventory-" + item.key) +
       '" aria-label="' + escapeHtml(label) + '" aria-haspopup="dialog">' +
       '<span class="bag-slot-art" aria-hidden="true">' + item.art + '</span>' +
       (item.status ? '<small class="bag-slot-status">' + item.status + '</small>' : '') +
@@ -203,7 +203,7 @@ const InventoryView = (() => {
       const open = item ? item.open || "inventory-" + item.key : "outfit:slot:" + slot.key;
       const label = [slot.name, item ? item.rarity.name + " " + item.name + " " + item.baseGrade + " " + item.mark : "빈칸", item?.affix, item?.comparison && GearCompareView.accessible(item.comparison)].filter(Boolean).join(" · ");
       return '<button class="bag-slot bag-worn-slot" data-slot="' + slot.key + '" data-empty="' + !item +
-        '" data-open="' + escapeHtml(open) + '" data-rarity="' + (item?.rarity?.key || "") + '"' +
+        '" data-open="' + escapeHtml(open) + '"' + GearGradeView.attribute(item?.rarity) +
         (item ? ' data-item-id="' + escapeHtml(item.id) + '"' : '') + ' aria-haspopup="dialog" aria-label="' + escapeHtml(label) + '">' +
         '<span class="bag-worn-part">' + part + '</span><span class="bag-slot-art" aria-hidden="true">' +
         (item ? item.art : OutfitView.art(slot.kind)) + '</span>' +

@@ -65,7 +65,7 @@ const HuntWatch=(()=>{
       const armor=drop.type==='armor';
       const owned=(armor ? b.armors(s) : b.state(s).items).some(it=>it.id===drop.id);
       const content=BladeView.artwork(drop)+'<b>'+GearGradeView.colored(drop,b.name(drop))+'</b><small>'+b.baseGradeNames[drop.grade]+' · '+drop.lines+'줄</small>';
-      return owned ? openBtn((armor?'bladeArmorItem-':'bladeItem-')+drop.id,content,'loot-gear loot-'+b.itemRarity(drop).key) :
+      return owned ? openBtn((armor?'bladeArmorItem-':'bladeItem-')+drop.id,content,GearGradeView.lootClass(drop)) :
         '<span class="loot-gear">'+content+'</span>';
     }).join("") + OutfitView.receipt(s,result);
     return (rows?'<div class="loot-gear-list">'+rows+'</div>':'')+
