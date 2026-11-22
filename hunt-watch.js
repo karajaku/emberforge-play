@@ -156,16 +156,12 @@ const HuntWatch=(()=>{
   function d20(side, face, check, damage) {
     const label = check ? HuntEffects.checkLabel(check.outcome, side) : '';
     const actor = side === 'player' ? '내 공격' : '적 공격';
-    const defender = side === 'player' ? '적 방어' : '내 방어';
     const description = check ? actor + ' d20 ' + face : actor + ' 주사위 대기';
-    const defense = check ? defender + ' d6 ' + check.defense + ' · 목표 ' + check.target : '';
     return '<div class="watch-roll" data-die="' + side + '" data-d20="true"' +
       (check ? ' data-outcome="' + check.outcome + '"' : '') +
-      '><div class="watch-dice-line"><div class="watch-die" data-action="' + (check ? 'strike' : '') +
+      '><div class="watch-die" data-action="' + (check ? 'strike' : '') +
       '" role="img" aria-label="' + description + '">' + (check ? face : '') +
-      '</div><div class="watch-defense" role="img" aria-label="' + defense +
-      '"' + (check ? '' : ' hidden') + '>' + icon('shield') + '<b>' + (check?.defense ?? '') +
-      '</b></div></div><span class="watch-verdict">' + label +
+      '</div><span class="watch-verdict">' + label +
       '</span><span class="watch-damage"' + (damage ? (check.outcome === 'miss' ? ' data-bleed title="출혈 피해 ' : ' title="피해 ') +
       fmt(damage) + '"' : '') + '>' +
       (damage ? HuntEffects.damageLabel(damage, check.outcome) : '') + '</span></div>';

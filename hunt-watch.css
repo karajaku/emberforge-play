@@ -394,34 +394,6 @@ body.ui-game:has(.watch-ground[data-boss-territory])::before {
   gap:1px;
   font-variant-numeric:tabular-nums;
 }
-.watch-ground .watch-roll[data-d20] .watch-dice-line {
-  display:grid;
-  grid-template-columns:25px 23px;
-  align-items:center;
-}
-.watch-ground .player .watch-roll[data-d20] .watch-dice-line { translate:-2px; }
-.watch-ground .enemy .watch-roll[data-d20] .watch-dice-line { translate:2px; }
-.watch-ground .watch-roll[data-d20] .watch-defense {
-  display:flex;
-  gap:1px;
-  align-items:center;
-  color:#e1eff4;
-}
-.watch-ground .watch-roll[data-d20] .watch-defense[hidden] { display:none; }
-.watch-ground .watch-roll[data-d20] .watch-defense svg { width:8px; height:10px; flex:none; }
-.watch-ground .watch-roll[data-d20] .watch-defense b {
-  min-width:14px;
-  height:15px;
-  border:1px solid #adcbd3;
-  border-radius:3px;
-  background:#183645;
-  text-align:center;
-  font-size:13px;
-  line-height:13px;
-}
-body[data-motion="on"] .watch-ground .watch-roll[data-d20].chosen .watch-defense {
-  animation:watch-d20-settle 65ms ease-out both;
-}
 .watch-ground .watch-roll[data-d20] .watch-verdict {
   grid-row:2;
   font-size:13px;
@@ -454,8 +426,7 @@ body[data-motion="on"] .watch-ground .watch-roll[data-d20].chosen .watch-defense
 .watch-ground .watch-roll[data-outcome="blocked"] :is(.watch-die,span) { color:#c7eafa; }
 /* The spotlight occupies the clearing above the fixed combat and touch controls. */
 .watch-arena[data-duel-animating] .watch-report .trail-detail { visibility:hidden; }
-.watch-arena[data-duel-animating][data-phase^="player-"]:not([data-phase="player-hit"]) [data-d20][data-die="player"],
-.watch-arena[data-duel-animating][data-phase^="enemy-"]:not([data-phase="enemy-hit"]) [data-d20][data-die="enemy"] { visibility:hidden; }
+.watch-arena:has(.watch-spotlight) [data-d20][data-die="enemy"] { visibility:hidden; }
 .watch-spotlight {
   --attack-die:clamp(80px,22vw,92px);
   --defense-die:clamp(42px,12vw,50px);
@@ -473,19 +444,13 @@ body[data-motion="on"] .watch-ground .watch-roll[data-d20].chosen .watch-defense
   row-gap:3px;
 }
 .watch-spotlight-dice {
-  display:grid; grid-template-columns:var(--attack-die) var(--defense-die); align-items:start;
+  display:grid; grid-template-columns:var(--defense-die) var(--attack-die); align-items:start;
   gap:18px;
 }
-.watch-spotlight[data-spotlight="enemy"] .watch-spotlight-dice {
-  grid-template-columns:var(--defense-die) var(--attack-die);
-}
-.watch-spotlight[data-spotlight="enemy"] .watch-spotlight-attack { grid-column:2; grid-row:1; }
-.watch-spotlight[data-spotlight="enemy"] .watch-spotlight-defense { grid-column:1; grid-row:1; }
 .watch-spotlight :is(.watch-spotlight-attack,.watch-spotlight-defense) {
   display:grid; justify-items:center; grid-template-rows:15px var(--attack-die); align-items:center;
   font-size:13px; line-height:15px; white-space:nowrap;
 }
-.watch-spotlight:is([data-step="roll"],[data-step="attack"]) .watch-spotlight-defense { visibility:hidden; }
 .watch-spotlight-d20 {
   position:relative; width:var(--attack-die); height:var(--attack-die);
   display:grid; place-items:center;
@@ -500,17 +465,8 @@ body[data-motion="on"] .watch-ground .watch-roll[data-d20].chosen .watch-defense
     conic-gradient(from 30deg,#ffe8a9 0deg 60deg,#926239 60deg 120deg,#e1be78 120deg 180deg,
       #815431 180deg 240deg,#bd965b 240deg 300deg,#fff0be 300deg);
 }
-.watch-spotlight[data-spotlight="enemy"] .watch-spotlight-d20::before { filter:hue-rotate(-17deg); }
-.watch-spotlight[data-step="roll"] .watch-spotlight-d20::before {
-  animation:watch-spotlight-tumble var(--spotlight-roll) ease-out both;
-}
+.watch-spotlight-d20::before { filter:hue-rotate(-17deg); }
 .watch-spotlight-d20 span { position:relative; }
-@keyframes watch-spotlight-tumble {
-  0% { transform:translateY(3px) rotate(-235deg) scale(.82,1); }
-  42% { transform:translateY(-7px) rotate(-42deg) scale(1,.8); }
-  75% { transform:translateY(2px) rotate(-7deg) scale(.91,1); }
-  100% { transform:none; }
-}
 .watch-spotlight-d6 {
   width:var(--defense-die); height:var(--defense-die);
   display:grid; place-items:center;
@@ -519,25 +475,18 @@ body[data-motion="on"] .watch-ground .watch-roll[data-d20].chosen .watch-defense
   box-shadow:0 3px #142830;
   color:#edf7f1; font-size:calc(var(--defense-die) * .55); line-height:1; font-weight:900;
 }
-.watch-spotlight[data-step="attack"] .watch-spotlight-d20,
-.watch-spotlight[data-step="defense"] .watch-spotlight-d6,
-.watch-spotlight[data-step="verdict"] .watch-spotlight-verdict {
-  animation:watch-duel-snap 112ms ease-out both;
-}
+.watch-spotlight-content { animation:watch-duel-snap 112ms ease-out both; }
 @keyframes watch-duel-snap {
   0% { transform:scale(.91); }
   55% { transform:scale(1.07); }
   100% { transform:none; }
 }
-.watch-spotlight-verdict { color:#fff2d2; font-size:25px; line-height:29px; }
-.watch-spotlight[data-outcome="critical"] .watch-spotlight-verdict { color:#ffe197; }
-.watch-spotlight[data-outcome="blocked"] .watch-spotlight-verdict { color:#c7eafa; }
+.watch-spotlight-verdict { color:#c7eafa; font-size:25px; line-height:29px; }
 @media (max-width:350px), (max-height:640px) {
   .watch-spotlight { --attack-die:64px; --defense-die:36px; }
   .watch-spotlight-dice { gap:16px; }
   .watch-spotlight-verdict { font-size:24px; }
 }
-body[data-motion="on"] .watch-ground [data-d20].rolling .watch-die { animation:none; }
 body[data-motion="on"] .watch-ground [data-d20].chosen .watch-die {
   animation:watch-d20-settle 220ms ease-out both;
 }
