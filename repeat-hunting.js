@@ -56,7 +56,7 @@ const RepeatHunting = (() => {
             if (token.chest) return { action: "openChest", arg: token.chest };
             const s = state(), w = s.hunting;
             if (run.rank > Math.min(60, s.huntBest + 1)) { stop("구역 변경"); return null; }
-            if (w.free + w.purchased < 1) { stop("사냥권 소진"); return null; }
+            if (w.free + w.purchased < 1) { stop("식량 소진"); return null; }
             return { action: "huntStart", arg: { rank: run.rank, request: token.serial + 1 } };
           });
         } catch { stop("저장 실패"); }
@@ -83,7 +83,9 @@ const RepeatHunting = (() => {
       if (!candidate || !run) return;
       const c = candidate; candidate = null;
       if (c.type === "start") {
-        run.started++; run[c.source === "free" ? "usedFree" : "usedPurchased"]++;
+        run.started++;
+        if (c.source === "free") run.usedFree++;
+        else if (c.source === "purchased") run.usedPurchased++;
         run.battle = c.id; run.serial = c.serial;
       } else if (c.type === "finish") {
         run.completed++; run.wins += Number(!!c.chest);
@@ -93,7 +95,7 @@ const RepeatHunting = (() => {
         run.chests++; for (const key of ["gold", "shards", "scrolls", "charms"]) run[key] += c[key];
         run.chest = null;
         if (run.stopping) stop("이번 전투 후 중단");
-        else if (!state().hunting.free && !state().hunting.purchased) stop("사냥권 소진");
+        else if (!state().hunting.free && !state().hunting.purchased) stop("식량 소진");
       }
     }
     return { start, afterBattle, stop, refresh, stage, committed,

@@ -131,14 +131,18 @@ const HuntWatch=(()=>{
     const training = task?.open && !task.ready ? '<small>수련 ' + task.needed + '단계 이상</small>' : '';
     return '<div class="watch-status">' + estimate + training + motion + '</div>';
   }
-  function ticketInfo(w){
-    const empty=w.free+w.purchased===0,seconds=Math.ceil((w.remaining||0)/1000);
-    const countdown=Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0');
-    const text=(w.purchased?'무료 ':'사냥권 ')+fmt(w.free)+' / '+Game.hunting.cap+
-      (w.purchased?' → 구매 '+fmt(w.purchased):empty?' · 충전 '+countdown:'');
-    return {text,empty,width:Math.min(100,Math.max(0,w.free/Game.hunting.cap*100))};
+  function foodMeter(w, departure) {
+    const total = w.free + w.purchased, empty = total === 0;
+    const seconds = Math.ceil((w.remaining || 0) / 1000);
+    const countdown = Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2,'0');
+    const detail = empty ? ' · 보급 ' + countdown : departure === 'retry' ? ' · 소모 없음' : departure ? ' · 1개 소모' : '';
+    return {text:'식량 ' + fmt(total) + detail, empty, width:Math.min(100,total / Game.hunting.cap * 100)};
   }
-  function ticketBar(w){const t=ticketInfo(w);return '<span class="watch-ticket-bar" data-empty="'+t.empty+'"><span class="watch-ticket-fill" aria-hidden="true" style="width:'+t.width+'%"></span><span class="watch-ticket-text">'+t.text+'</span></span>';}
+  function foodBar(w, departure) {
+    const meter = foodMeter(w, departure);
+    return '<span class="watch-ticket-bar" data-departure="' + departure + '" data-empty="' + meter.empty + '"><span class="watch-ticket-fill" aria-hidden="true" style="width:' +
+      meter.width + '%"></span><span class="watch-ticket-text">' + meter.text + '</span></span>';
+  }
   function stop(why='',paint=true) {active=false;generation++;clearTimeout(timer);timer=null;nextStrikeAt=0;reason=why;if(paint&&state)render();}
   function restoreReceipt() {
     mode = 'progress'; fixedRank = 1; replayRank = 0;
@@ -267,19 +271,21 @@ const HuntWatch=(()=>{
         '<div class="watch-actor'+(asset==='moth'?' airborne':'')+'"'+(current<=0?' data-defeated="true"':'')+'>'+
         actor+'<div class="watch-ward" aria-hidden="true">'+icon('shield')+'</div></div></div>';
     }
-    const retry = !h && Game.hasBossRetry(s,nextRank());
-    const w=Game.huntingStatus(s),empty=!w.free&&!w.purchased&&!h&&!pending()&&!retry;
-    const held = h || pending(), finished = !held && !validRank(nextRank());
+    const w = Game.huntingStatus(s), held = h || pending();
+    const finished = !held && !validRank(nextRank());
+    const empty = !held && !w.free && !w.purchased;
+    const retry = !held && Game.hasBossRetry(s,nextRank());
+    const departure = active || held || finished ? '' : retry ? 'retry' : 'hunt';
     const label = active ? '사냥 중단' : finished ? '구역 선택' :
       held ? (mode === 'repeat' ? '반복 재개' : cleared(s) >= 60 ? '재도전 재개' : '진행 재개') :
-      empty ? '충전 보기' : first ? '계속 사냥' : retry ? '무료 재도전' : mode === 'repeat' ? '반복 시작' : cleared(s) >= 60 ? '1회 재도전' : '사냥';
+      empty ? '식량 부족' : retry ? '지원 재도전' : first ? '계속 사냥' : mode === 'repeat' ? '반복 시작' : cleared(s) >= 60 ? '1회 재도전' : '사냥';
     const detail = encounterHint(h,result,enemy,rank,pack);
     const kit = h ? h.fieldKit : !result && targetRank ? Game.outfit.build(s) : null;
     const home = !active && (!encounter || location.hash === '#world');
     const control = finished ? 'data-open="huntPlan"' : empty && !active ? 'data-open="huntWallet"' : 'data-watch="toggle"';
     const start = '<button class="primary watch-start' + (active ? ' watch-active' : '') + '" ' + control + '><span class="watch-start-label">' +
       controlArt(finished ? "compass" : "hunt") + label + '</span>' +
-      (retry && !active ? '<small>사냥권 소모 없음</small>' : ticketBar(w)) + '</button>';
+      foodBar(w, departure) + '</button>';
     const controls = '<div class="watch-home-actions">' +
       go('forest/field', icon('hand-coins') + '<span>배치 수익</span>', 'action') + start +
       go('world/map', controlArt('compass') + '<span>모험 지도</span>', 'action') + '</div>';
@@ -300,10 +306,10 @@ const HuntWatch=(()=>{
     if(!allowed())return;
     const button=document.querySelector('.watch-start'),w=Game.huntingStatus(state);
     if(!button)return;
-    if(!active&&!state.hunt&&!pending()&&validRank(nextRank())&&(button.dataset.open==='huntWallet') !== (!w.free&&!w.purchased&&!Game.hasBossRetry(state,nextRank()))){render();return;}
+    if(!active&&!state.hunt&&!pending()&&validRank(nextRank())&&(button.dataset.open==='huntWallet') !== (!w.free&&!w.purchased)){render();return;}
     // Update only the meter: a whole-screen render would cancel the current attack.
     const bar=button.querySelector('.watch-ticket-bar');if(!bar)return;
-    const t=ticketInfo(w),label=bar.querySelector('.watch-ticket-text');
+    const t=foodMeter(w,bar.dataset.departure),label=bar.querySelector('.watch-ticket-text');
     if(label.textContent!==t.text)label.textContent=t.text;
     bar.dataset.empty=String(t.empty);bar.querySelector('.watch-ticket-fill').style.width=t.width+'%';
   }
@@ -351,12 +357,12 @@ const HuntWatch=(()=>{
         } else {
           if(!validRank(nextRank())){stop('모든 스테이지 완료');return;}
           const w=Game.huntingStatus(state);
-          if(!w.free&&!w.purchased&&!Game.hasBossRetry(state,nextRank())){stop('사냥권을 모두 사용했습니다');return;}
+          if(!w.free&&!w.purchased){stop('식량 소진');return;}
           const rank=nextRank(),serial=state.hunting.serial,wallet=state.hunting.id, selectedMode=mode;
           reward=null;lastRound=null;reason='';
           await act(null,'',undefined,undefined,()=>live(token)&&!state.hunt&&!pending()&&
             mode===selectedMode&&validRank(rank)&&state.hunting.id===wallet&&state.hunting.serial===serial&&
-            (state.hunting.free>0||state.hunting.purchased>0||Game.hasBossRetry(state,rank))?
+            (state.hunting.free>0||state.hunting.purchased>0)?
             {action:'huntStart',arg:{rank,request:serial+1,combat:"blade-d20-v1"}}:null);
           // The legacy repeat runner is inactive; no second controller is armed.
           autoCombat.stop();
@@ -411,13 +417,15 @@ const HuntWatch=(()=>{
     if(button.dataset.watch==='continue' && modal==='firstGearCompare') {
       closeModal(false);
       if(active){event.preventDefault();event.stopImmediatePropagation();return;}
-      const wallet=Game.huntingStatus(state);
-      if(!wallet.free&&!wallet.purchased&&!Game.hasBossRetry(state,nextRank())){showModal('huntWallet');return;}
     }
     event.preventDefault();event.stopImmediatePropagation();if(!allowed())return;
     if(active){stop('일시 중단');return;}
     // Capturing this click bypasses the general UI handler; unlock sound here too.
     if(!state.hunt&&!pending()&&!validRank(nextRank()))return;
+    if(!state.hunt&&!pending()){
+      const wallet=Game.huntingStatus(state);
+      if(!wallet.free&&!wallet.purchased){showModal('huntWallet');return;}
+    }
     if(prefs.sound)GameSound.unlock();GameMusic.unlock();
     saveGeneration = state._save?.generation;
     repeatHunting.stop('관전 사냥');autoCombat.stop();active=true;reason='';reward=null;lastRound=null;generation++;render();arm(100);

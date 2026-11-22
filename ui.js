@@ -177,7 +177,7 @@ function storageAction(action) {
     return;
   }
   if (action === "reset") return;
-  if (action === "recover" && !confirm("표시된 직전 정상본으로 복구할까요? 로컬 사냥권도 그때의 잔량으로 돌아갑니다. 현재 원본도 별도로 보존합니다.")) return;
+  if (action === "recover" && !confirm("표시된 직전 정상본으로 복구할까요? 비축 식량도 그때의 잔량으로 돌아갑니다. 현재 원본도 별도로 보존합니다.")) return;
   return locked(() => {
     if (!storageError) return; // Ignore already queued recovery/retry double-clicks.
     if (action === "recover") state = store.recover();
@@ -608,7 +608,7 @@ function render() {
   else if (zones[id]) view = zoneView(state, id);
   else if (phonePage(id) === "board")
     view = card("대장간 게시판",
-      row("오늘의 보급품", "하루 한 번 골드와 입장권, 가호 지급", openBtn("daily", "보상 확인", "mini")) +
+      row("오늘의 보급품", "하루 한 번 식량과 골드, 입장권, 가호 지급", openBtn("daily", "보상 확인", "mini")) +
       row("포인트 상점", "플레이 1분마다 1 P 적립", openBtn("shop", "상점 열기", "mini"))
     ) + orderView(state);
   else
@@ -622,7 +622,7 @@ function render() {
       '<div class="baggrid">' +
       card(
         "오늘의 보급품",
-        desc("하루 한 번 골드와 입장권, 가호를 받습니다.") + openBtn("daily", "출석 보상 확인"),
+        desc("하루 한 번 식량과 골드, 입장권, 가호를 받습니다.") + openBtn("daily", "출석 보상 확인"),
         "gift",
       ) +
       card(
@@ -779,7 +779,11 @@ function modalData() {
                   minute: "2-digit",
                 }) +
                 "</time>" +
-                l.message +
+                escapeHtml(l.message)
+                  .replaceAll("무료 사냥권 ", "비축 식량 ")
+                  .replaceAll("사냥권 1개 사용", "식량 1개 사용")
+                  .replaceAll("사용한 사냥권", "사용한 식량")
+                  .replaceAll("사냥 시작 · 무료 재도전", "사냥 시작 · 지원 재도전 · 식량 소모 없음") +
                 "</div>",
             )
             .join("") || desc("첫 강화부터 여기에 기록됩니다.")),
@@ -902,7 +906,7 @@ function modalData() {
     case "confirmNewGame":
       return [
         "처음부터 시작할까요?",
-        desc("장비, 골드, 숲결 섬유, 숲 방호 안감, 환생과 이야기 기록을 초기화하고 첫 장면부터 시작합니다. 사냥권 잔량·충전 시간·출석 수령 기록은 유지되며 최초 30개를 다시 지급하지 않습니다. 현재 원본을 별도로 보존한 뒤 새 진행 저장이 성공해야 시작합니다.") +
+        desc("장비, 골드, 숲결 섬유, 숲 방호 안감, 환생과 이야기 기록을 초기화하고 첫 장면부터 시작합니다. 비축 식량·보급 시간·출석 수령 기록은 유지되며 최초 식량 30개를 다시 지급하지 않습니다. 현재 원본을 별도로 보존한 뒤 새 진행 저장이 성공해야 시작합니다.") +
           '<div class="actions">' + openBtn("settings", "취소") +
           '<button class="action danger" data-new-game>진행을 지우고 시작</button></div>',
       ];
@@ -927,7 +931,7 @@ function modalData() {
       return [
         "오늘의 출석 보상",
         '<p class="desc" data-attendance-day="' + Game.day(Date.now()) + '">오늘 ' + Game.day(Date.now()) + " · 한국 시간(KST) 자정 갱신 · 로컬 기기 시각 기준</p>" +
-          row("무료 사냥권 +" + Game.hunting.daily, "30개를 넘어 보유 가능 · 상한 이상이면 자연 충전 대기", icon("gift")) +
+          row("비축 식량 +" + Game.hunting.daily + "개", "출석 식량은 " + Game.hunting.cap + "개를 넘겨 보유할 수 있습니다.", '<img class="hunt-food-icon" src="assets/hunt-food.png" alt="">') +
           row(fmt(Game.dailyGold(s)) + " G", "무한의 탑 입장권 5장 · 산소통 1개", icon("gift")) +
           row("가호 보급", "정령과 대장장이 가호 각 3개", icon("shield")) +
           btn(
@@ -1050,21 +1054,21 @@ function modalData() {
         ) + btn("restart", "1층부터 다시 도전", "", "primary"),
       ];
     case "huntWallet":
-      return ["사냥권 · 충전", '<section id="huntingWallet">' + huntingWalletContent(s) + '</section>' + openBtn("daily", "출석 보상 확인")];
+      return ["비축 식량", '<section id="huntingWallet">' + huntingWalletContent(s) + '</section>'];
     case "huntPlan":
       return ["사냥 구역", HuntWatch.planView(s)];
     case "huntRules":
       if (!s.hunt || s.hunt.diceVersion === 2) return ["숲 사냥",
         line("공격 d20", "1은 빗나감 · 20은 치명타") +
         desc("타격 순간에 공격 눈과 판정, 피해를 표시합니다. 공격 주사위와 기술 보정의 합이 방어 d6으로 정한 목표 이상이면 명중하며, 명중한 공격에는 무기의 치명타 확률이 적용됩니다. 예고된 적 기술에는 방어 보정이 붙고 반격 검술은 보정이 더 큽니다. 우두머리의 기술을 완전히 막으면 두 굴림을 중앙에 잠깐 표시합니다. 방어 눈과 목표는 사냥을 중단한 뒤 사냥 구역에서 확인할 수 있습니다.") +
-        desc("다섯 단계마다 우두머리를 만납니다. 무기와 방어구는 보관함에서 비교하고 장착합니다.") + openBtn("bladeStyles","검술과 능력 확인")];
+        desc("사냥에 나갈 때 식량을 1개 씁니다. 진행 중인 사냥은 식량이 없어도 재개할 수 있습니다. 다섯 단계마다 우두머리를 만납니다. 무기와 방어구는 보관함에서 비교하고 장착합니다.") + openBtn("bladeStyles","검술과 능력 확인")];
       if (s.hunt.bladeCombat) return ["숲 사냥", line("주사위", "1~3 타격 · 4~5 방어 · 6 강타") +
         desc("강공 검술은 기세 2를 써서 일격, 반격 검술은 적 스킬 방어 뒤 반격, 상처 검술은 상처 3겹부터 파열을 발동합니다.") +
         desc("다섯 단계마다 우두머리를 만납니다. 무기와 방어구는 보관함에서 비교하고 장착합니다.") + openBtn("bladeLoot-"+(s.hunt?.rank || Math.min(60,Game.blades.state(s).cleared+1)),"장비 획득 확률") + openBtn("bladeStyles","검술과 능력 확인")];
       return ["주사위 사냥", line("1~3 공격 · 4~5 방어 · 6 강공", "양쪽이 매 턴 굴립니다") +
         desc("강공은 공격력의 1.7배, 방어는 받는 피해를 75% 줄입니다. 먼저 쓰러뜨린 적은 반격하지 못합니다. 40턴 안에 쓰러뜨리지 못하면 패배합니다.") +
         desc("공격 주사위에 준비된 스킬이 자동 발동합니다. 강공은 2단계에서 열리고 기세 2가 필요합니다. 적 스킬을 방어하면 반격을 준비합니다.") +
-        desc("사냥권 1장으로 한 무리를 연달아 상대합니다. 다섯 단계마다 우두머리가 기다립니다. 승리하면 해당 단계의 골드와 숲결 섬유를 받습니다. 중단한 토벌은 이어서 할 수 있습니다.")];
+        desc("식량 1개로 한 무리를 연달아 상대합니다. 다섯 단계마다 우두머리가 기다립니다. 승리하면 해당 단계의 골드와 숲결 섬유를 받습니다. 중단한 토벌은 식량 소모 없이 이어서 할 수 있습니다.")];
     case "battle": {
       if (!battle) return ["전투 기록", ""];
       return [
@@ -1162,16 +1166,19 @@ function showModal(key, trigger = document.activeElement) {
 }
 function closeModal(focus = true) {
   ForgeItemView.invalidate();
+  const provisionDialog = modal === "huntWallet" || modal === "daily";
   modal = "";
   storyScene = null;
   battle = null;
   el("shade").hidden = true;
   document.body.style.overflow = "";
   syncMusic();
+  if (provisionDialog) HuntWatch.refreshWallet();
   if (!focus) return;
   const key = lastFocus?.dataset.open;
   const targets = [
     lastFocus,
+    lastFocus?.classList.contains("watch-start") && el("screen").querySelector(".watch-start"),
     key && el("screen").querySelector('[data-open="' + CSS.escape(key) + '"]'),
     lastFocus?.classList.contains("bag-slot") && el("screen").querySelector(".bag-slot"),
     key === "daily" && el("screen").querySelector('[data-act="fastTower"]'),
@@ -1553,7 +1560,7 @@ setInterval(() => {
   for (const button of document.querySelectorAll('[data-act="huntStart"]'))
     button.disabled = wallet.free + wallet.purchased < 1;
   const walletSummary = document.querySelector('[data-wallet-summary]');
-  if (walletSummary) walletSummary.textContent = "사냥권 · 무료 " + wallet.free + " / 구매 " + wallet.purchased;
+  if (walletSummary) walletSummary.textContent = huntingWalletSummary(wallet);
   if (el("huntingWallet")) {
     const w = Game.huntingStatus(state);
     if (el("huntingWallet").firstElementChild?.dataset.huntingStatus !== huntingWalletKey(state, w))

@@ -1427,7 +1427,7 @@ const Game = (() => {
         s.tanks++;
         s.charms[0] += 3;
         s.charms[1] += 3;
-        return success("출석 · 무료 사냥권 " + hunting.daily + "개, " + dailyGold(s).toLocaleString("ko-KR") + " G, 입장권 5장, 산소통 1개, 가호 2종 각 3개", "win");
+        return success("출석 · 식량 " + hunting.daily + "개, " + dailyGold(s).toLocaleString("ko-KR") + " G, 입장권 5장, 산소통 1개, 가호 2종 각 3개", "win");
       case "tank":
         if (s.gold < 10000000) return fail("산소통은 1,000만 G입니다.");
         s.gold -= 10000000;
@@ -1447,11 +1447,12 @@ const Game = (() => {
         const rank = Number(typeof arg === "object" && arg !== null ? arg.rank : arg);
         if (!Number.isInteger(rank) || rank < 1 || rank > Math.min(60, s.huntBest + 1))
           return fail("먼저 이전 지역을 토벌하세요.");
+        if (w.free + w.purchased < 1)
+          return fail("비축 식량이 부족해 사냥을 떠날 수 없습니다. 식량 보급이나 출석 보상을 확인하세요.");
         const journeyBattle = arg?.combat === "journey-v1";
         const d20Battle = arg?.combat === "blade-d20-v1";
         const bladeBattle = d20Battle || arg?.combat === "blade-v1";
         const retry = bladeBattle && hasBossRetry(s, rank);
-        if (!retry && w.free + w.purchased < 1) return fail("사냥권이 부족합니다. 10분 충전·오늘의 출석을 확인하거나 대장간과 배치 수익을 이용하세요.");
         if (bladeBattle && (blades.state(s).items.length>=120 || blades.armors(s).length>=120))
           return fail("장비 보관함이 가득 찼습니다. 가득 찬 부위의 여분 장비를 분해하세요.");
         const trailBattle = bladeBattle || journeyBattle || arg?.combat === "trail-v1";
@@ -1521,7 +1522,7 @@ const Game = (() => {
             s.hunt.armorDamageMultiplier = bossDamageMultiplier(s.armor.level, rank);
           trail.enter(s.hunt, 0);
         }
-        return { ...success(huntEnemy(s.hunt).habitat + " " + rank + "구역 사냥 시작 · " + (retry ? "무료 재도전" : "사냥권 1개 사용")), receipt: { ...w.lastStart } };
+        return { ...success(huntEnemy(s.hunt).habitat + " " + rank + "구역 사냥 시작 · " + (retry ? "지원 재도전 · 식량 소모 없음" : "식량 1개 사용")), receipt: { ...w.lastStart } };
       }
       case "huntAdvance": {
         const h = s.hunt;
@@ -1530,10 +1531,12 @@ const Game = (() => {
         trail.enter(h, h.wave + 1);
         return { ok: true, message: h.last, kind: "info" };
       }
-      case "flee":
+      case "flee": {
         if (!s.hunt) return fail("교전 중인 적이 없습니다.");
+        const spent = s.hunt.ticketSource === "free" || s.hunt.ticketSource === "purchased";
         s.hunt = null;
-        return success("숲길에서 안전하게 퇴각했습니다. 사용한 사냥권은 반환되지 않습니다.");
+        return success("숲길에서 안전하게 퇴각했습니다." + (spent ? " 사용한 식량은 돌려받을 수 없습니다." : ""));
+      }
       case "strike":
       case "heavyStrike":
       case "block": {

@@ -72,7 +72,7 @@ const Apprentice = (() => {
       if (s.hunt) return guidance(s, 1);
       const wallet = Game.huntingStatus(s);
       if (wallet.free + wallet.purchased < 1)
-        return target("사냥권과 강화비가 부족합니다. 무료 담금질로 골드를 마련하세요.",
+        return target("비축 식량과 강화비가 부족합니다. 무료 담금질로 골드를 마련하세요.",
           "forge", '[data-open="temper"]', "무료 담금질");
       return forest(
         "강화비가 " +

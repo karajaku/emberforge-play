@@ -18,7 +18,7 @@ header .headwrap { height:60px; gap:8px; padding:8px 12px; }
 .wallet,.ticket-wallet { background:#fff6df; color:#513517; border:2px solid #fff9ea; border-radius:18px; box-shadow:0 3px 0 #79502e80; padding:5px 10px; min-height:44px; min-width:0; gap:3px; font-size:14px; }
 .wallet b { font-size:15px; }
 .ticket-wallet { display:flex; align-items:center; font-weight:800; }
-.ticket-wallet svg { color:#a04fc7; width:18px; }
+.hunt-food-icon { width:20px; height:20px; flex:none; image-rendering:pixelated; }
 #settingsIcon { flex:none; width:44px; }
 main { padding:0 10px 6px; gap:6px; }
 .titlebar,body:is([data-place="bag"],[data-place="growth"]) .titlebar { min-height:44px; padding:0; margin:0; background:none; }
