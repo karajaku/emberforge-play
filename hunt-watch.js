@@ -50,16 +50,22 @@ const HuntWatch=(()=>{
       '<button class="primary" data-hunt-plan-apply' + (chooseRank && !rank ? ' disabled' : '') + '>적용</button></div>' + mastery(s) +
       '<p class="desc" data-farm-hint>'+farmingHint(s,nextRank() || 60)+'</p>'+openBtn("bladeLoot-"+(nextRank() || Math.min(60,cleared(s)+1)), "단계별 장비 획득 확률");
   }
+  function legacyGearPrize(text) {
+    const receipt = /^([^·]+) · 옵션 ([0-6])줄 · (.+)$/.exec(text);
+    if (!receipt) return escapeHtml(text);
+    return GearGradeView.colored({lines:Number(receipt[2])},receipt[1]) +
+      " · 옵션 " + receipt[2] + "줄 · " + escapeHtml(receipt[3]);
+  }
   function gearReceipt(s, result) {
     if (!Array.isArray(result?.gearDrops)) {
-      return result?.bladePrize ? '<span class="blade-drop">'+icon('backpack')+escapeHtml(result.bladePrize)+'</span>' : '';
+      return result?.bladePrize ? '<span class="blade-drop">'+icon('backpack')+legacyGearPrize(result.bladePrize)+'</span>' : '';
     }
     const b=Game.blades;
     const rows=result.gearDrops.map(drop=>{
       const armor=drop.type==='armor';
       const owned=(armor ? b.armors(s) : b.state(s).items).some(it=>it.id===drop.id);
-      const content=BladeView.artwork(drop)+'<b>'+GearGradeView.colored(drop,b.itemRarity(drop).name+' '+b.name(drop))+'</b><small>'+b.baseGradeNames[drop.grade]+' · '+drop.lines+'줄</small>';
-      return owned ? openBtn((armor?'bladeArmorItem-':'bladeItem-')+drop.id,content,'loot-gear') :
+      const content=BladeView.artwork(drop)+'<b>'+GearGradeView.colored(drop,b.name(drop))+'</b><small>'+b.baseGradeNames[drop.grade]+' · '+drop.lines+'줄</small>';
+      return owned ? openBtn((armor?'bladeArmorItem-':'bladeItem-')+drop.id,content,'loot-gear loot-'+b.itemRarity(drop).key) :
         '<span class="loot-gear">'+content+'</span>';
     }).join("") + OutfitView.receipt(s,result);
     return (rows?'<div class="loot-gear-list">'+rows+'</div>':'')+
@@ -106,7 +112,7 @@ const HuntWatch=(()=>{
         const diff = outfit.profile(s.lastHunt.territoryRank || s.lastHunt.rank)[item.element] < 0 ? ' · '+area.name+' 약점' : '';
         const action = slot ? btn('outfitEquip',current ? slot.name+' 착용 중' : slot.name+' 착용',slot.key+':'+item.id,'mini',!!current) :
           openBtn('outfit:item:'+item.id,'교체할 부위 선택','mini');
-        regional = row(GearGradeView.colored(item,b.itemRarity(item).name+' '+outfit.name(item)),(b.armorRating(item) ? '방어력 '+fmt(b.armorRating(item))+' · ' : '')+element+' 피해 전환 '+effect.conversion+'%'+
+        regional = row(GearGradeView.colored(item,outfit.name(item)),(b.armorRating(item) ? '방어력 '+fmt(b.armorRating(item))+' · ' : '')+element+' 피해 전환 '+effect.conversion+'%'+
           (effect.exposure ? ' · 저항 −'+effect.exposure+'%p' : '')+diff,action,'',OutfitView.art(item.kind));
       }
     } else if (s.lastHunt.outfitSalvaged) regional = OutfitView.receipt(s,s.lastHunt);
@@ -223,6 +229,8 @@ const HuntWatch=(()=>{
     const useDice=encounter?encounter.diceVersion===1:true;
     const item=Game.blades.current(s);
     const blade=encounter ? Game.huntBlade(s,encounter) : {name:Game.blades.name(item),level:item.level,weaponKind:item.weaponKind,stage:Game.bladeStage({level:item.level,grade:0})};
+    const fightingItem = encounter?.bladeId ? Game.blades.state(s).items.find(it => it.id === encounter.bladeId) :
+      encounter ? null : item;
     const sprite=BladeView.sprite(blade,blade.stage || 0);
     const resultHealth=result?.health;
     const skillState = h || (result?.bladeCombat && result.lastDice ? {
@@ -238,7 +246,7 @@ const HuntWatch=(()=>{
         : '<canvas width="'+width+'" height="144" data-sprite="'+asset+'" aria-hidden="true"></canvas>';
       const action = useDice ? die(roll?.[side+'Face'],roll?.[side],side) : '';
       return '<div class="watch-fighter '+side+'"'+(elite?' data-elite="true" data-boss="'+bossKind+'"':'')+' data-action="'+(roll?.[side]||'')+'">'+
-        '<div class="watch-readout">'+healthMeter(side,label,current,maxHp,level)+
+        '<div class="watch-readout">'+healthMeter(side,label,current,maxHp,level,side==='player' ? fightingItem : null)+
         '<div class="watch-action">'+action+'</div>'+(side==='player'?skills(skillState):enemySkill(skillState))+'</div>'+
         '<div class="watch-actor'+(asset==='moth'?' airborne':'')+'"'+(current<=0?' data-defeated="true"':'')+'>'+
         actor+'<div class="watch-ward" aria-hidden="true">'+icon('shield')+'</div></div></div>';

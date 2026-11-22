@@ -1079,10 +1079,18 @@ function modalData() {
 function displayModal() {
   cancelForgePress();
   const selectedSale = el("saleItem")?.value;
-  const [title, html] = modalData();
+  const [title, html, rarity] = modalData();
   document.body.dataset.storyMotion = motionEnabled() ? "on" : "off";
   el("shade").dataset.modal = modal;
-  el("modalTitle").textContent = title;
+  const titleNode = el("modalTitle");
+  titleNode.textContent = title;
+  if (rarity) {
+    titleNode.dataset.rarity = rarity.key;
+    titleNode.setAttribute("aria-label", title + " · " + rarity.name);
+  } else {
+    delete titleNode.dataset.rarity;
+    titleNode.removeAttribute("aria-label");
+  }
   el("modalBody").innerHTML = html;
   for (const button of el("modalBody").querySelectorAll("[data-soul-act]"))
     button.soulQuote = soulQuote(state, JSON.parse(button.dataset.soulArg));

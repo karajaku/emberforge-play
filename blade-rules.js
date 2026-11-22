@@ -302,7 +302,7 @@ const BladeRules = (() => {
   }
   function rewardText({gearDrops,materialPrize}) {
     const gear = gearDrops.map(item =>
-      loot.itemRarity(item).name + " " + name(item) + " · " + loot.baseGradeNames[item.grade] + " · 옵션 " + item.lines + "줄");
+      name(item) + " · " + loot.baseGradeNames[item.grade] + " · 옵션 " + item.lines + "줄");
     return [...gear, materialPrize].join(" · ");
   }
   function reward(s,h,rng) {

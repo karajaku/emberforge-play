@@ -8,8 +8,7 @@ const BladeView = (() => {
   };
   const sideLabel = {prefix: "접두", suffix: "접미"};
   const isArmor = item => item.type === "armor";
-  const gradeName = item => rules().itemRarity(item).name;
-  const label = item => gradeName(item) + " " + rules().name(item) + " +" + item.level;
+  const label = item => rules().name(item) + " +" + item.level;
   const prefix = item => isArmor(item) ? "bladeArmor" : "blade";
   function sprite(item, stage = Game.bladeStage({level:item.level, grade:0})) {
     if (isArmor(item)) return "cuirass";
@@ -148,15 +147,15 @@ const BladeView = (() => {
     if (key==="bladeArmorCraft") return ["방어구 제작",workshop(s,true)];
     if (key==="bladeArmorWork") return craftWorkshop({...s,weapon:item},"armor");
     if (key==="bladeArmorFinal") return finalWorkshop({...s,weapon:item},"armor");
-    if (key==="bladeArmorInfo") return [label(item),armorDetail(s,item)];
+    if (key==="bladeArmorInfo") return [label(item),armorDetail(s,item),b.itemRarity(item)];
     const target=list.find(it=>key==="bladeArmorItem-"+it.id || key==="bladeArmorSalvage-"+it.id);
     if (target) {
       if (key.startsWith("bladeArmorSalvage-")) return ["방어구 분해",
-        line("분해할 방어구",label(target)+" · "+target.id.toUpperCase()) +
+        line("분해할 방어구",GearGradeView.colored(target,label(target))+" · "+target.id.toUpperCase()) +
         line("받는 각인석",1+target.mods.length+"개") + desc("방어구 한 벌과 강화·옵션이 함께 소모됩니다.") +
         (SoulView.canOffer(s,target) ? SoulView.open("offer:"+target.id,"환생 보상 보기 · 영혼 5 P와 전승 재료") : "") + openBtn("bladeArmorItem-"+target.id,"방어구로 돌아가기") +
         btn("bladeArmorSalvage","각인석으로 분해",target.id,"action",target.id===item.id || target.id===s.hunt?.armorId || !!target.soulChoice)];
-      return [label(target),armorDetail(s,target)];
+      return [label(target),armorDetail(s,target),b.itemRarity(target)];
     }
     return ["방어구 보관함",OutfitView.loadout() + line("흉갑",list.length+" / 120벌") + (Game.endgame.info(s).gift ? SoulView.open("lessons","첫 +20 선물 선택","primary") : "") + list.slice().reverse().map(it=>
       row(GearGradeView.colored(it,label(it)),GearCompareView.score(Game.compareGear(s,it,"chest"))+" · 방어력 "+fmt(b.armorRating(it))+" · 체력 "+fmt(b.armorStats(s,it).hp)+(it.id===item.id?" · 장착 중":""),
@@ -176,7 +175,7 @@ const BladeView = (() => {
       odds.perWin.map((p,i)=>'<tr><th scope="row">'+b.baseGradeNames[i]+'</th><td>'+percent(p)+'</td><td>'+percent(p)+'</td></tr>').join("")+'</tbody></table>';
     const affixes='<details class="loot-rules"><summary>베이스별 접두·접미</summary><table class="loot-table"><thead><tr><th>베이스 등급</th><th>획득 시</th><th>최대 접두 / 접미</th></tr></thead><tbody>'+
       b.baseGradeRules.map((r,i)=>'<tr><th scope="row">'+b.baseGradeNames[i]+'</th><td>'+r.min+'~'+r.max+'줄</td><td>'+r.caps.join(' / ')+'</td></tr>').join("")+'</tbody></table>'+
-      desc("현재 접두·접미 합계가 0개면 일반, 1~3개면 매직, 4~6개면 레어입니다. 높은 단계에서는 한 줄의 수치 등급도 높아질 수 있습니다.")+'</details>';
+      desc("장비 이름과 장비칸 테두리는 접두·접미 합계가 0개면 은백색(일반), 1~3개면 하늘색(매직), 4~6개면 금색(레어)입니다. 높은 단계에서는 한 줄의 수치 등급도 높아질 수 있습니다.")+'</details>';
     return ["장비 획득 확률",'<label for="lootRank">사냥 단계</label><select id="lootRank">'+opts+'</select>'+
       line(stageText,"무기 · 흉갑 각각 "+percent(odds.itemPercent)) + table +
       desc("1단계 첫 승리에는 도끼·철퇴·단검 중 하나를 얻습니다. 이후 무기가 떨어지면 한손검·도끼·철퇴·단검이 각각 25%입니다.") +
@@ -202,7 +201,7 @@ const BladeView = (() => {
     if (key.startsWith("bladeLoot-")) return lootPreview(s, Number(key.slice(10)));
     if (key === "bladeWork") return craftWorkshop({...s,weapon:item},true);
     if (key === "bladeFinal") return finalWorkshop({...s,weapon:item},true);
-    if (key === "bladeInfo") return [label(item), info(s,item)+desc("실패하면 강화비를 쓰고 현재 강화를 유지합니다.")+openBtn("bladeCraft","각인·연마")];
+    if (key === "bladeInfo") return [label(item), info(s,item)+desc("실패하면 강화비를 쓰고 현재 강화를 유지합니다.")+openBtn("bladeCraft","각인·연마"),b.itemRarity(item)];
     if (key === "bladeStyles") return ["검술 선택",styles(s)];
     if (key === "bladeCraft") return ["무기 제작",workshop(s)];
     if (key === "bladeCollection") return ["무기 보관함",collection(s)];
@@ -212,10 +211,10 @@ const BladeView = (() => {
       openBtn("bladeLoot-1","단계별 장비 획득 확률") + openBtn("bladeStyles","검술 고르기") + go("forest","숲 사냥","primary")];
     const target=b.state(s).items.find(it=>key==="bladeItem-"+it.id || key==="bladeSalvage-"+it.id);
     if (!target) return ["무기 보관함",collection(s)];
-    if (key.startsWith("bladeSalvage-")) return ["무기 분해", line("분해할 무기",label(target)+" · "+target.id.toUpperCase()) +
+    if (key.startsWith("bladeSalvage-")) return ["무기 분해", line("분해할 무기",GearGradeView.colored(target,label(target))+" · "+target.id.toUpperCase()) +
       line("받는 각인석",1 + target.mods.length + "개") + desc("강화와 옵션을 포함해 무기 한 자루를 소모합니다.") + (SoulView.canOffer(s,target) ? SoulView.open("offer:"+target.id,"환생 보상 보기 · 영혼 5 P와 전승 재료") : "") + openBtn("bladeItem-"+target.id,"무기로 돌아가기") +
       btn("bladeSalvage","각인석으로 분해",target.id,"action",target.id===item.id)];
-    return [label(target),itemDetail(s,target)];
+    return [label(target),itemDetail(s,target),b.itemRarity(target)];
   }
   return {forge, armor, switches, modal, sprite, artwork, damageRange, itemDetail, armorDetail, label};
 })();

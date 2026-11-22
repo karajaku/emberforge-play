@@ -5,15 +5,16 @@ function healthAmount(n) {
   const unit = n >= 100000000 ? 100000000 : 10000;
   return (Math.floor(n / unit * 10) / 10).toLocaleString("ko-KR") + (unit === 10000 ? "만" : "억");
 }
-function healthMeter(side, name, hp, max, level = "") {
+function healthMeter(side, name, hp, max, level = "", item = null) {
   const scale = "scaleX(" + hp / max + ")";
   const label = escapeHtml(level ? name + " " + level : name);
+  const title = item ? GearGradeView.colored(item,name) : escapeHtml(name);
   const identity = level
-    ? '<span class="hp-identity" title="' + label + '"><span class="hp-title">' + escapeHtml(name) +
+    ? '<span class="hp-identity" title="' + label + '"><span class="hp-title">' + title +
       '</span> <span class="hp-level">' + escapeHtml(level) + '</span></span>'
     : label;
   return '<div class="hp-meter" data-side="' + side + '" role="meter" aria-label="' + label +
-    ' HP" aria-valuemin="0" aria-valuemax="' + max + '" aria-valuenow="' + hp + '">' +
+    (item ? " · " + Game.blades.itemRarity(item).name : "") + ' HP" aria-valuemin="0" aria-valuemax="' + max + '" aria-valuenow="' + hp + '">' +
     '<div class="hp-name">' + icon(side === "player" ? "shield" : "sword") + identity +
     '<b class="hp-loss" aria-hidden="true"></b></div>' +
     '<div class="hp-track"><i class="hp-trail" style="transform:' + scale + '"></i>' +

@@ -1,7 +1,6 @@
 "use strict";
 const SoulView = (() => {
   const grade = tier => ["", "초벌", "중급", "상급", "최상급"][tier];
-  const label = item => BladeView.label(item);
   const bosses = ["황금엄니 우두머리", "잿불 무리어미", "안개 비늘용", "천년 고목왕"];
   const lessons = {
     luck: "장비마다 한 번, 무작위 각인 후보 두 줄 중 하나를 고릅니다.",
@@ -26,7 +25,7 @@ const SoulView = (() => {
     if (item.id===b.deployed || item.id===b.extraDeployed) return "배치 중";
     return (armor(item)?s.hunt?.armorId:s.hunt?.bladeId) === item.id ? "사냥 중" : "보관 중";
   }
-  const identity = item => label(item) + " · " + item.id.toUpperCase();
+  const identity = item => GearGradeView.colored(item,BladeView.label(item)) + " · " + escapeHtml(item.id.toUpperCase());
   const normMods = item => item.mods.filter(m => !m.ascended);
   const canOffer = (s, item) => item.level === 20 && where(s,item) === "보관 중" && !item.soulChoice && normMods(item).length>0;
   const mark = () => '<div class="progression-stage" aria-hidden="true"></div>';

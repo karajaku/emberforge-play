@@ -58,7 +58,7 @@ const GearCompareView = (() => {
       }).join(""), "gear-worn-stats");
     }
     return '<section class="gear-comparison"><div class="gear-baseline"><span>' + heading + '</span> <strong>' +
-      escapeHtml(name || "빈칸") + '</strong></div>' + body + '</section>';
+      (current ? GearGradeView.colored(current,name) : "빈칸") + '</strong></div>' + body + '</section>';
 
   }
   return {score, accessible, detail};
@@ -161,10 +161,8 @@ const InventoryView = (() => {
     return items;
   }
 
-  function gradeMark(item) {
-    if (!item?.rarity) return "";
-    return '<small class="bag-rarity">' + item.rarity.name + ' <span title="' + item.baseGrade + '">· ' +
-      item.baseGrade.split(" ").at(-1) + '</span></small>';
+  function baseMark(item) {
+    return item?.baseGrade ? '<small class="bag-base">' + item.baseGrade + '</small>' : "";
   }
   function tile(item) {
     const label = [item.rarity?.name, item.name, item.baseGrade, item.mark, item.status, item.affix, item.compareLabel, item.comparison && GearCompareView.accessible(item.comparison)].filter(Boolean).join(" ");
@@ -172,7 +170,7 @@ const InventoryView = (() => {
       '" aria-label="' + escapeHtml(label) + '" aria-haspopup="dialog">' +
       '<span class="bag-slot-art" aria-hidden="true">' + item.art + '</span>' +
       (item.status ? '<small class="bag-slot-status">' + item.status + '</small>' : '') +
-      gradeMark(item) +
+      baseMark(item) +
       '<b class="bag-slot-name">' + escapeHtml(item.shortName || item.name) + '</b>' +
       (item.affix ? '<small class="bag-slot-affix">'+escapeHtml(item.affix)+'</small>' : '')+
       (item.comparison ? GearCompareView.score(item.comparison,true) : '') +
@@ -209,7 +207,7 @@ const InventoryView = (() => {
         (item ? ' data-item-id="' + escapeHtml(item.id) + '"' : '') + ' aria-haspopup="dialog" aria-label="' + escapeHtml(label) + '">' +
         '<span class="bag-worn-part">' + part + '</span><span class="bag-slot-art" aria-hidden="true">' +
         (item ? item.art : OutfitView.art(slot.kind)) + '</span>' +
-        gradeMark(item) +
+        baseMark(item) +
         '<b class="bag-slot-name">' + escapeHtml(name || "빈칸") + '</b>' +
         (item?.affix ? '<small class="bag-slot-affix">' + escapeHtml(item.affix) + '</small>' : '') +
         (item ? GearCompareView.score(item.comparison,true) : '') +
@@ -246,8 +244,8 @@ const InventoryView = (() => {
   function menu(s, key) {
     const item = entries(s).find(item => item.key === key);
     if (!item) return ["아이템", desc("이미 사용했거나 옮긴 아이템입니다.")];
-    return [(item.rarity ? item.rarity.name + " " : "") + item.name + (item.group === "gear" ? " " + item.mark : ""),
-      '<div class="bag-detail-art" aria-hidden="true">' + item.art + '</div>' + item.detail()];
+    return [item.name + (item.group === "gear" ? " " + item.mark : ""),
+      '<div class="bag-detail-art" aria-hidden="true">' + item.art + '</div>' + item.detail(), item.rarity];
   }
   return { view, menu };
 })();

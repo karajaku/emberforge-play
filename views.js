@@ -90,12 +90,14 @@ const navItems = [
   ["growth", "성장", "sparkles"],
 ];
 const GearGradeView = {
-  colored(item, text = Game.blades.itemRarity(item).name) {
-    return '<span class="gear-grade" data-rarity="' + Game.blades.itemRarity(item).key + '">' + escapeHtml(text) + '</span>';
+  colored(item, text) {
+    const rarity = Game.blades.itemRarity(item);
+    return '<span class="gear-grade" data-rarity="' + rarity.key + '">' + escapeHtml(text) +
+      '<span class="grade-access"> (' + rarity.name + ')</span></span>';
   },
   detail(item) {
     const count = item.mods?.length || 0;
-    return line("아이템 등급", this.colored(item) + " · 접두·접미 " + count + "개") +
+    return line("접두·접미", count + "개") +
       line("베이스 등급", Game.blades.baseGradeNames[item.grade]);
   },
 };
@@ -123,7 +125,7 @@ function scene(id, heading, english, loc, sprite = "", grade = 0, enemy = null, 
     '<span class="scene-ambient" aria-hidden="true"></span><div class="caption"><span class="eyebrow">' +
     english +
     "</span><b>" +
-    heading +
+    (item ? GearGradeView.colored(item,heading) : heading) +
     "</b></div></div>"
   );
 }
@@ -328,7 +330,7 @@ function forgeView(s) {
   const hasNext = plan ? plan.next > g.level : g.level < 20;
   const switcher = '<div class="segment gear-switch">' + [["weapon","sword","무기"],["armor","shield","방어구"]].map(([id,ic,label]) =>
     '<button data-gear="' + id + '" aria-pressed="' + (gear === id) + '" class="' + (gear === id ? 'sel' : '') + '">' + icon(ic) + label + '</button>').join('') + '</div>';
-  return '<div class="columns forge-layout"><div class="stage-side">' + switcher + scene("forge", Game.blades.itemRarity(g).name + " " + Game.name(g, gear) + " +" + g.level,
+  return '<div class="columns forge-layout"><div class="stage-side">' + switcher + scene("forge", Game.name(g, gear) + " +" + g.level,
     "", tier(g, gear), weapon ? "blade" + (Game.bladeStage(g) || "") : "cuirass", 0, null, "", g) + '</div><section class="panel">' +
     '<div class="stats">' + line(weapon ? "공격력" : "체력", fmt(weapon ? stat.attack : stat.hp) + (hasNext ? ' <span class="mint">→ ' + fmt(weapon ? next.attack : next.hp) + '</span>' : '')) +
     (journey ? '<div class="forge-odds journey-odds"><b>' + journey.heading + '</b>' +

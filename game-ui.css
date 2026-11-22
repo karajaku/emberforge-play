@@ -107,7 +107,11 @@ body.ui-game { grid-template-rows:auto minmax(0,1fr) auto auto; }
 .ui-game .forge-slot-switch { width:min(290px,100%); }
 .ui-game[data-place="forge"][data-page="work"] #noticeSlot { top:calc(env(safe-area-inset-top) + 112px); }
 .forge-slot-switch button { white-space:nowrap; }
-.forge-slot-grid .bag-worn-slot[aria-pressed="true"] { outline:2px solid #e6b657; outline-offset:-2px; background:#49402c; }
+.forge-slot-grid .bag-worn-slot[aria-pressed="true"] { box-shadow:inset 0 0 0 2px #18261f; background:#38463c; }
+.forge-slot-grid .bag-worn-slot[aria-pressed="true"]::after {
+  content:"✓"; position:absolute; left:3px; top:21px; color:white; background:#354a3c;
+  border-radius:50%; width:15px; height:15px; font:700 11px/15px sans-serif;
+}
 .outfit-layout .scene > .outfit-art {
   position:absolute; top:49%; left:50%; transform:translate(-50%,-50%);
   width:auto; height:clamp(95px,60%,230px); aspect-ratio:1;
@@ -340,16 +344,21 @@ body.ui-game {
 .blade-mastery { margin-top:14px; }
 .blade-mastery button { margin:2px;min-height:44px; }
 .blade-drop { color:#ffe29a; word-break:keep-all; }
-[data-rarity="normal"] { --rarity-ink:#eceff0; --slot-light:#515955; }
-[data-rarity="magic"] { --rarity-ink:#a3dcff; --slot-light:#34536a; }
-[data-rarity="rare"] { --rarity-ink:#ffda79; --slot-light:#705932; }
-.dialog .gear-grade[data-rarity="normal"] { --rarity-ink:#414748; }
-.dialog .gear-grade[data-rarity="magic"] { --rarity-ink:#165e89; }
-.dialog .gear-grade[data-rarity="rare"] { --rarity-ink:#805000; }
-.gear-grade, .bag-slot .bag-rarity, .scene[data-rarity] .caption b,
-.forge-slot-grid [data-rarity] .bag-slot-name { color:var(--rarity-ink); }
-.bag-rarity { font-size:10px; font-weight:750; line-height:1.15; }
-.bag-rarity span { color:#d2c9b6; font-weight:500; }
+#screen .loot-normal, [data-rarity="normal"] { --rarity-ink:#eceff0; --slot-light:#515955; }
+#screen .loot-magic, [data-rarity="magic"] { --rarity-ink:#a3dcff; --slot-light:#34536a; }
+#screen .loot-rare, [data-rarity="rare"] { --rarity-ink:#ffda79; --slot-light:#705932; }
+.dialog :is(.gear-grade,#modalTitle)[data-rarity="normal"] { --rarity-ink:#414748; }
+.dialog :is(.gear-grade,#modalTitle)[data-rarity="magic"] { --rarity-ink:#165e89; }
+.dialog :is(.gear-grade,#modalTitle)[data-rarity="rare"] { --rarity-ink:#805000; }
+.gear-grade[data-rarity], #modalTitle[data-rarity], .bag-slot[data-rarity]:not([data-rarity=""]) .bag-slot-name {
+  color:var(--rarity-ink);
+}
+.bag-slot[data-rarity]:not([data-rarity=""]) { border:2px solid var(--rarity-ink); }
+.bag-base { font-size:10px; color:#d2c9b6; font-weight:500; line-height:1.15; }
+.grade-access {
+  position:absolute; width:1px; height:1px; padding:0; overflow:hidden;
+  clip-path:inset(50%); white-space:nowrap;
+}
 .loot-table { width:100%; border-collapse:collapse; margin:9px 0; font-size:.9rem; font-variant-numeric:tabular-nums; }
 .loot-table caption { text-align:left; font-weight:700; margin-bottom:4px; }
 .loot-table th,.loot-table td { padding:6px 4px; text-align:right; border-bottom:1px solid #87795748; }
@@ -357,6 +366,7 @@ body.ui-game {
 .loot-gear-list { flex:1 0 100%; display:grid; justify-content:center; gap:2px; }
 .watch-loot .loot-gear { display:grid; grid-template-columns:16px minmax(0,1fr) auto; gap:6px; align-items:center; text-align:left; color:#fff3d9; font-size:13px; }
 .watch-loot button.loot-gear { min-height:30px; padding:3px 8px; background:#1d2924ec; border:1px solid #9d8965; border-radius:5px; }
+.watch-loot button.loot-gear:is(.loot-normal,.loot-magic,.loot-rare) { border:2px solid var(--rarity-ink); }
 .watch-loot .loot-gear svg { width:15px; height:15px; }
 .watch-loot .loot-gear small { font-size:11px; }
 .loot-rules summary { cursor:pointer; padding:8px 0; font-weight:700; }
