@@ -397,9 +397,41 @@ body.ui-game:has(.watch-ground[data-boss-territory])::before {
 .watch-ground .watch-roll[data-outcome="critical"] :is(.watch-die,span) { color:#ffe297; }
 .watch-ground .watch-roll[data-outcome="miss"] :is(.watch-die,span) { color:#f1e6d4; }
 .watch-ground .watch-roll[data-outcome="blocked"] :is(.watch-die,span) { color:#c7eafa; }
-body[data-motion="on"] .watch-ground [data-d20].rolling .watch-die { animation:watch-d20-roll 140ms ease-in-out infinite alternate; }
-@keyframes watch-d20-roll { from { transform:translateY(1px) scale(.92); } to { transform:translateY(-2px) scale(1.08); } }
+body[data-motion="on"] .watch-ground [data-d20].rolling .watch-die { animation:none; }
+.watch-ground [data-d20].rolling .watch-die::before {
+  content:"";
+  width:26px;
+  height:26px;
+  clip-path:polygon(50% 0, 94% 25%, 94% 75%, 50% 100%, 6% 75%, 6% 25%);
+  background:conic-gradient(from 30deg, #ffe9b8 0deg 60deg, #a37342 60deg 120deg,
+    #ead29b 120deg 180deg, #936237 180deg 240deg, #bd965e 240deg 300deg, #fff1cc 300deg);
+  animation:watch-d20-tumble var(--d20-roll-duration) ease-out both;
+}
+.watch-ground .enemy [data-d20].rolling .watch-die::before { filter:hue-rotate(-24deg); }
+@keyframes watch-d20-tumble {
+  0% { transform:translateY(1px) rotate(-210deg) scale(.75,1); }
+  37% { transform:translateY(-5px) rotate(20deg) scale(1,.76); }
+  76% { transform:translateY(1px) rotate(131deg) scale(.88,1); }
+  100% { transform:translateY(0) rotate(150deg) scale(.94); }
+}
+body[data-motion="on"] .watch-ground [data-d20].chosen .watch-die {
+  animation:watch-d20-settle 220ms ease-out both;
+}
+body[data-motion="on"] .watch-ground [data-d20].chosen[data-outcome="critical"] .watch-die {
+  animation-name:watch-d20-critical;
+}
+@keyframes watch-d20-settle {
+  0% { transform:scale(1.18); }
+  100% { transform:scale(1); }
+}
+@keyframes watch-d20-critical {
+  0% { transform:scale(1.23); text-shadow:0 0 8px #ffc54d, 0 2px 1px #442205; }
+  100% { transform:scale(1); }
+}
 .watch-ground .watch-arena:has([data-d20]) .hunt-burst b { white-space:nowrap; }
+.d20-critical b { color:#ffdc82; }
+.d20-critical .hunt-cut { background:#fff3be; box-shadow:0 0 16px #ffcf62, 0 8px #a66725; }
+.d20-critical.charge .hunt-cut { background:transparent; border-color:#ffe2a0; }
 .watch-ground .watch-readout :is(.watch-skills,.watch-enemy-skill):has(.watch-skill-flare) { position:relative; }
 .watch-ground .watch-readout :is(.watch-skills,.watch-enemy-skill):has(.watch-skill-flare) > :not(.watch-skill-flare) {
   visibility:hidden;

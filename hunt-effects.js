@@ -12,6 +12,8 @@ const HuntEffects=(()=>{
   }
   const later=(fn,ms)=>timers.push(setTimeout(fn,ms*timeScale));
   function animate(node,frames,options){if(node&&motionEnabled())animations.push(node.animate(frames,{...options,duration:options.duration*timeScale}));}
+  // Times are authored at full duration and share the journey's half-duration scale.
+  const d20Timing={roll:800,reply:1640,windup:340,contact:300,recover:3800,finish:3930};
   const names={strike:'공격',block:'방어',heavyStrike:'강타'},icons={strike:'sword',block:'shield',heavyStrike:'hammer'};
   function checkLabel(outcome,side){
     return {miss:'빗나감',blocked:side==='player'?'막힘':'방어',hit:'명중',critical:'치명타'}[outcome];
@@ -54,6 +56,7 @@ const HuntEffects=(()=>{
     const actions=roll||{player:hit.kind==='block'||hit.kind==='parry'?'block':'strike',enemy:'strike'};
     for(const side of ['player','enemy'])updateHealthMeter(meters[side],start[side],start[side],false);
     const lead=roll&&!d20?1600:0;
+    function d20RevealAt(side){return (side==='enemy'?d20Timing.reply:0)+d20Timing.roll;}
     if(d20){
       for(const side of ['player','enemy']){
         const host=arena.querySelector('[data-die="'+side+'"]'),die=host.querySelector('.watch-die');
@@ -62,17 +65,20 @@ const HuntEffects=(()=>{
         host.classList.add('waiting');host.removeAttribute('data-outcome');die.dataset.action='';
         host.querySelector('span').textContent='';die.textContent='';die.setAttribute('aria-label',actorLabel+' 주사위 대기');
         if(!check)continue;
-        const at=side==='player'?0:840;
+        const revealAt=d20RevealAt(side);
+        die.style.setProperty('--d20-roll-duration',d20Timing.roll*timeScale+'ms');
         later(()=>{
-          arena.dataset.phase=side+'-roll';host.classList.remove('waiting');host.classList.add('rolling');sound('dice');
-          for(let i=0;i<5;i++)later(()=>{die.textContent=1+(i*7+(side==='player'?0:3))%20;},i*70);
-        },at);
+          arena.dataset.phase=side+'-roll';host.classList.remove('waiting');host.classList.add('rolling');
+          die.setAttribute('aria-label',actorLabel+' 주사위 굴리는 중');
+          sound('dice');
+        },revealAt-d20Timing.roll);
         later(()=>{
+          arena.dataset.phase=side+'-reveal';
           const face=roll[side+'Face'],label=checkLabel(check.outcome,side);
           host.classList.remove('rolling');host.classList.add('chosen');host.dataset.outcome=check.outcome;die.dataset.action='strike';
           die.textContent=face;host.querySelector('span').textContent=label;
           die.setAttribute('aria-label',actorLabel+' d20 '+face+' · '+label);
-        },at+350);
+        },revealAt);
       }
     }
     function diceTurn(side,at){
@@ -89,8 +95,11 @@ const HuntEffects=(()=>{
         },600);
       },at);
     }
-    if(roll&&!d20){diceTurn('player',0);diceTurn('enemy',800);}else arena.dataset.phase='reveal';
-    later(()=>{arena.dataset.phase='reveal';},lead);
+    if(!d20){
+      if(roll){diceTurn('player',0);diceTurn('enemy',800);}
+      else arena.dataset.phase='reveal';
+      later(()=>{arena.dataset.phase='reveal';},lead);
+    }
     function skillFlare(side,key,at){if(!key)return;later(()=>{
       const def=side==='player' && before.bladeCombat && key==='rupture' ? {name:'파열',icon:'sword'} :
         side==='player' && before.bladeCombat && key==='heavyStrike' ? {name:'일격',icon:'hammer'} : (side==='player'?DiceCombat.skills:DiceCombat.enemySkills)[key];
@@ -105,8 +114,8 @@ const HuntEffects=(()=>{
       if(slot){slot.append(banner);nodes.push(banner);later(()=>banner.remove(),650);}
       animate(actors[side],[{filter:'brightness(1)'},{filter:'brightness(1.8) drop-shadow(0 0 14px '+(key==='counter'?'#73eac7':side==='enemy'?'#ff986d':'#ffd67a')+')',offset:.4},{filter:'brightness(1)'}],{duration:700});
     },at);}
-    skillFlare('player',roll?.skill,d20?365:lead+100);
-    if(end.enemy>0)skillFlare('enemy',roll?.enemySkill,d20?1210:lead+760);
+    skillFlare('player',roll?.skill,d20?d20RevealAt('player'):lead+100);
+    if(end.enemy>0)skillFlare('enemy',roll?.enemySkill,d20?d20RevealAt('enemy'):lead+760);
     function guard(side){
       const ward=actors[side].querySelector('.watch-ward');
       animate(ward,[{opacity:0,transform:'scale(.5)'},{opacity:1,transform:'scale(1.1)',offset:.2},{opacity:.8,transform:'scale(1)',offset:.85},{opacity:0}],{duration:1200,fill:'forwards'});
@@ -118,7 +127,8 @@ const HuntEffects=(()=>{
       if(actions[side]==='block'||d20&&!check)return;
       const dir=side==='player'?1:-1;
       const own=actors[side].getBoundingClientRect(),other=actors[target].getBoundingClientRect();
-      const dx=(other.left+other.width/2-own.left-own.width/2)*.65,dy=(other.top+other.height/2-own.top-own.height/2)*.65;
+      const reach=check?.outcome==='miss' ? .38 : .65;
+      const dx=(other.left+other.width/2-own.left-own.width/2)*reach,dy=(other.top+other.height/2-own.top-own.height/2)*reach;
       later(()=>{
         arena.dataset.phase=side+'-windup';
         actors[side].dataset.attackAt=String(performance.now());
@@ -141,7 +151,9 @@ const HuntEffects=(()=>{
         if(d20&&guarded)guard(target);
         updateHealthMeter(meters[target],end[target],start[target],motionEnabled());
         if(side==='player'&&firstCounter){counterBonus(arena);bonusStatus?.style.removeProperty('visibility');}
-        burst(actors[target],guarded?'guarded':charge?'charge':side==='player'&&roll?.skill==='counter'?'counter':heavy?'heavy':'slash',damage,!d20&&side==='player'&&roll?.critical);
+        const kind=guarded?'guarded':charge?'charge':side==='player'&&roll?.skill==='counter'?'counter':heavy?'heavy':'slash';
+        const accent=check?.outcome==='critical'?' d20-critical':'';
+        burst(actors[target],kind+accent,damage,!d20&&side==='player'&&roll?.critical);
         const result=guarded?(held?(charge?'stopped':'guard'):'broken'):charge?'direct':null;
         if(result&&!d20)reaction(actors[target],result,charge?DiceCombat.enemySkills[roll.enemySkill].name:null);
         if(held){
@@ -155,9 +167,9 @@ const HuntEffects=(()=>{
         animate(actors[target],[{transform:'translate(0,0)',filter:'brightness(1)'},{transform:recoil,filter:'brightness('+(held?1.25:1.9)+')',offset:.15},{transform:recoil,filter:'brightness(1.3)',offset:.38},{transform:'translate(0,0)',filter:'brightness(1)'}],{duration:held?300:360});
         if(heavy&&!held)animate(arena,[{transform:'translate(0,0)'},{transform:'translate(-4px,2px)'},{transform:'translate(4px,-2px)'},{transform:'translate(0,0)'}],{duration:160});
         sound(held&&charge?'parry':guarded?'block':heavy?'counter':'slash');
-      },at+300);
+      },at+(d20?d20Timing.contact:300));
     }
-    strike('player',d20?375:lead+260);
+    strike('player',d20?d20RevealAt('player')+d20Timing.windup:lead+260);
     if (before.bladeCombat && actions.player === "block" && hit.damage > 0) {
       later(() => {
         updateHealthMeter(meters.enemy,end.enemy,start.enemy,motionEnabled());
@@ -165,19 +177,19 @@ const HuntEffects=(()=>{
       },lead+560);
     }
     // The existing model resolves lethal player hits before an enemy reply.
-    if(end.enemy>0 && before.enemyKind!=='goblin')strike('enemy',d20?1220:lead+920);
-    if(roll?.enemySkill==='escape')later(()=>animate(actors.enemy,[{opacity:1,transform:'translateX(0)'},{opacity:0,transform:'translateX(75%)'}],{duration:430,fill:'forwards'}),d20?1220:lead+940);
+    if(end.enemy>0 && before.enemyKind!=='goblin')strike('enemy',d20?d20RevealAt('enemy')+d20Timing.windup:lead+920);
+    if(roll?.enemySkill==='escape')later(()=>animate(actors.enemy,[{opacity:1,transform:'translateX(0)'},{opacity:0,transform:'translateX(75%)'}],{duration:430,fill:'forwards'}),d20?d20RevealAt('enemy')+d20Timing.windup:lead+940);
     later(()=>{
       arena.dataset.phase=end.enemy<=0?'victory':end.player<=0?'defeat':'recover';
       const dead=end.enemy<=0?'enemy':end.player<=0?'player':null;
       if(dead)animate(actors[dead],[{opacity:1,transform:'translateY(0)'},{opacity:.65,transform:'translateY(12px) rotate(14deg)',offset:.45},{opacity:0,transform:'translateY(36px) rotate(30deg) scale(.8)'}],{duration:430,fill:'forwards'});
-    },d20?(end.enemy<=0?930:1900):lead+(end.enemy<=0?850:1460));
+    },d20?(end.enemy<=0?1750:d20Timing.recover):lead+(end.enemy<=0?850:1460));
     later(()=>{
       for(const side of ['player','enemy'])updateHealthMeter(meters[side],end[side],end[side],false);
       for(const side of ['player','enemy'])if(end[side]<=0)actors[side].dataset.defeated='true';
       arena.dataset.phase=end.enemy<=0?'victory':end.player<=0?'defeat':'rest';
       if(resolve){const done=resolve;resolve=null;done();}
-    },d20?(end.enemy<=0?1460:2370):lead+(end.enemy<=0?1350:1900));
+    },d20?(end.enemy<=0?2230:d20Timing.finish):lead+(end.enemy<=0?1350:1900));
     return true;
   }
   return {play,cancel,checkLabel,finished:()=>completion};
