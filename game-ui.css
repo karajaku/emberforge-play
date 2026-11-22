@@ -49,8 +49,40 @@ body.ui-game[data-place="forge"] #noticeSlot:has(.forge-item-notice) { top:37%; 
 #toast.forge-item-notice.on { width:max-content; max-width:calc(100vw - 125px); min-height:0; padding:7px 11px; pointer-events:none; text-align:center; }
 #toast.forge-item-notice #noticeTitle, #toast.forge-item-notice::after { display:none; }
 body:has(#shade:not([hidden])) #toast.forge-item-notice { visibility:hidden; }
-.forge-item-filter { display:grid; grid-template-columns:auto 1fr; align-items:center; gap:10px 16px; margin:4px 0 16px; }
-.forge-item-filter select { width:100%; min-height:44px; padding:6px 10px; border:1px solid #987a55; border-radius:6px; background:#fff8eb; color:#443021; font:inherit; }
+#shade[data-modal="forgeItem:filter"] {
+  align-items:end;
+  padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+}
+#shade[data-modal="forgeItem:filter"] .dialog {
+  display:grid; grid-template-rows:auto minmax(0,1fr); max-height:100%; overflow:hidden; padding:0;
+}
+#shade[data-modal="forgeItem:filter"] .dialog-head { margin:0; padding:5px 12px; min-height:54px; }
+#shade[data-modal="forgeItem:filter"] .dialog-head [data-close] { display:none; }
+#shade[data-modal="forgeItem:filter"] #modalBody {
+  display:grid; grid-template-rows:minmax(0,1fr) auto; min-height:0;
+}
+.forge-item-filter { overflow:auto; overscroll-behavior:contain; padding:7px 10px 8px; }
+.forge-item-filter fieldset { min-width:0; margin:0 0 7px; padding:0; border:0; }
+.forge-item-filter fieldset:last-child { margin-bottom:0; }
+.forge-item-filter legend { padding:0 0 3px; color:#5c452d; font-size:13px; font-weight:700; }
+.forge-filter-choices { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px; }
+.forge-filter-choices button,
+.forge-filter-footer button {
+  min-height:44px; margin:0; padding:3px; border:1px solid #9c8056; border-radius:6px;
+  background:#fff8eb; color:#443021; font:700 13px var(--sans); box-shadow:none;
+}
+.forge-filter-choices button {
+  display:flex; align-items:center; justify-content:center; gap:3px; word-break:keep-all;
+}
+.forge-filter-check { display:none; }
+.forge-filter-choices button[aria-pressed="true"] { background:#30372d; color:#fff3d0; }
+.forge-filter-choices button[aria-pressed="true"] .forge-filter-check { display:inline; color:#f4d491; }
+.forge-filter-footer {
+  display:grid; grid-template-columns:minmax(0,1fr) 1fr 1fr; align-items:center;
+  gap:6px; padding:6px 10px; border-top:1px solid #cdb991; color:#513b25;
+}
+.forge-filter-footer output { font-size:13px; font-weight:700; }
+.forge-filter-footer button[data-close] { background:#30372d; color:#fff3d0; }
 .forge-dialog-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
 .forge-dialog-actions button { min-height:44px; }
 @media(max-height:660px) {

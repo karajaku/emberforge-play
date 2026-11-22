@@ -1161,7 +1161,7 @@ function showModal(key, trigger = document.activeElement) {
   modal = key;
   displayModal();
   const focus = key === "confirmNewGame" ? el("modalBody").querySelector("[data-open=settings]") :
-    el("shade").querySelector("button");
+    el("shade").querySelector(key === "forgeItem:filter" ? "[data-forge-filter]" : "button");
   focus.focus({ preventScroll: true });
 }
 function closeModal(focus = true) {
@@ -1375,7 +1375,7 @@ document.addEventListener("click", (e) => {
     el("screen").querySelector('[data-forge-step="' + d.forgeStep + '"]')?.focus({preventScroll:true});
     return;
   }
-  if ("forgeApply" in d || "forgeReset" in d) return ForgeItemView.filterChange("forgeReset" in d);
+  if ("forgeReset" in d || d.forgeFilter) return ForgeItemView.filterChange(d.forgeFilter,d.filterValue);
   if (d.forgePreview) return ForgeItemView.preview(d.forgePreview,b);
   if (d.forgeAction && b.forgeRequest) {
     b.disabled = true;

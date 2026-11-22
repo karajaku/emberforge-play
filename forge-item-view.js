@@ -133,17 +133,22 @@ const ForgeItemView = (() => {
         '</span></button>').join("") + '</nav>';
   }
   function filterField(id,title,choices) {
-    return '<label for="forge-filter-' + id + '">' + title + '</label><select id="forge-filter-' + id + '">' +
-      [["","전체"], ...choices].map(([value,label]) => '<option value="' + value + '"' +
-        (value === filter[id] ? ' selected' : '') + '>' + label + '</option>').join("") + '</select>';
+    return '<fieldset><legend>' + title + '</legend><div class="forge-filter-choices">' +
+      choices.map(([value,label]) => '<button type="button" data-forge-filter="' + id +
+        '" data-filter-value="' + value + '" aria-pressed="' + (value === filter[id]) + '">' +
+        '<span class="forge-filter-check" aria-hidden="true">✓</span>' + label + '</button>').join("") + '</div></fieldset>';
+  }
+  function filterCount() {
+    return '장비 ' + fmt(visible.length) + '개';
   }
   function modalContent(key) {
     if (key === "forgeItem:filter") {
       const kinds = [["weapon","무기"],["chest","흉갑"],...Game.outfit.slots.filter(o=>o.kind!=="armor" && o.key!=="ring2").map(o=>[o.kind,o.kind === "ring" ? "반지" : o.name])];
       return ["장비 필터", '<div class="forge-item-filter">' + filterField("kind","부위",kinds) +
         filterField("rarity","등급",[["normal","일반"],["magic","매직"],["rare","레어"]]) +
-        filterField("worn","착용 상태",[["on","착용 중"],["off","미착용"]]) + '</div><div class="forge-dialog-actions">' +
-        '<button class="action" data-forge-reset>초기화</button><button class="primary" data-forge-apply>적용</button></div>'];
+        filterField("worn","착용 상태",[["on","착용 중"],["off","미착용"]]) + '</div><div class="forge-filter-footer">' +
+        '<output aria-live="polite">' + filterCount() + '</output><button type="button" data-forge-reset>초기화</button>' +
+        '<button type="button" data-close>닫기</button></div>'];
     }
     const q = pending;
     if (key === "forgeItem:equip" && q) {
@@ -167,13 +172,21 @@ const ForgeItemView = (() => {
       '<div class="forge-dialog-actions"><button class="action" data-close>취소</button><button class="primary" data-forge-action="' +
       (sell ? "forgeItemSell" : "forgeItemSalvage") + '"' + (q.disposeBlocked ? " disabled" : "") + '>' + verb + ' 확정</button></div>'];
   }
-  function filterChange(reset) {
-    for (const key of Object.keys(filter)) filter[key] = reset ? "" : el("forge-filter-" + key).value;
+  function filterChange(key, value) {
+    if (key) filter[key] = filter[key] === value ? "" : value;
+    else Object.assign(filter, defaults);
     emptySlot = "";
     selectionVersion++;
-    closeModal(false);
     render();
-    el("screen").querySelector('[data-open="forgeItem:filter"]')?.focus({preventScroll:true});
+    if (modal === "forgeItem:filter") {
+      const body = el("modalBody");
+      for (const button of body.querySelectorAll("[data-forge-filter]")) {
+        button.setAttribute("aria-pressed", filter[button.dataset.forgeFilter] === button.dataset.filterValue);
+      }
+      body.querySelector("output").textContent = filterCount();
+    } else {
+      el("screen").querySelector('[data-open="forgeItem:filter"]')?.focus({preventScroll:true});
+    }
   }
   function preview(mode,button) {
     if (!shown || !["sell","salvage","equip"].includes(mode)) return;
