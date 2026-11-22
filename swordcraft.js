@@ -62,7 +62,7 @@ const Swordcraft = (() => {
     const s = stages[index];
     if (g.journeyBlade) {
       const rules = typeof module !== "undefined" ? require("./journey-rules.js") : JourneyRules;
-      return rules.cost("weapon", s.level, s.target, 0);
+      return rules.workshopCost(s.level, s.target);
     }
     return [s.level, s.level + 1].reduce((n, level) => n + price({ level, grade: g.grade }), 0);
   }

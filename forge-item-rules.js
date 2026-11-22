@@ -14,12 +14,12 @@ function createForgeItems(blades, outfit, craft, price) {
     ];
   }
 
-  function enhancementQuote(s, type, item) {
+  function enhancementQuote(type, item) {
     if (type === "outfit") return outfit.quote(item);
-    return {cost:type === "chest" ? blades.armorCost(s, item) : blades.cost(item), success:blades.rate(item)};
+    return {cost:blades.cost(item), success:blades.rate(item)};
   }
 
-  function standardCost(s, type, item) {
+  function standardCost(type, item) {
     let total = 0;
     for (let level = 0; level < item.level;) {
       // A mark identifies a completed workshop stage, including on older saves.
@@ -30,7 +30,7 @@ function createForgeItems(blades, outfit, craft, price) {
         total += craft.fee(item, price, index);
         level = craft.stages[index].target;
       } else {
-        const step = enhancementQuote(s, type, {...item, level});
+        const step = enhancementQuote(type, {...item, level});
         total += step.cost * 100 / step.success;
         level++;
       }
@@ -68,10 +68,10 @@ function createForgeItems(blades, outfit, craft, price) {
       }))
       : [{slot:kind, currentId:type === "chest" ? rack.armorEquipped : rack.equipped}];
 
-    const productionCost = standardCost(s, type, item);
+    const productionCost = standardCost(type, item);
     const value = 20 + 5 * item.base + 10 * item.grade + Math.floor(productionCost * salePercent(item.level) / 100);
     const ore = type === "outfit" ? outfit.salvageOre(item) : blades.salvageOre(item);
-    const {cost, success} = enhancementQuote(s, type, item);
+    const {cost, success} = enhancementQuote(type, item);
     const token = JSON.stringify([item, wornSlot, hunting, deployed, cost, success, value, ore]);
     return {...entry, cost, success, value, productionCost, ore, enhanceBlocked, disposeBlocked, equipBlocked, equipTargets, token};
   }

@@ -111,8 +111,12 @@ const BladeRules = (() => {
   const caps = (r) => (r <= 10 ? [1, 1] : r <= 20 ? [2, 1] : r <= 40 ? [2, 2] : r <= 50 ? [3, 2] : [3, 3]);
   const itemCaps = item => item.lootVersion === 1 ? loot.baseGradeRules[item.grade].caps : caps(item.rank);
   const maxTier = (r) => (r <= 10 ? 1 : r <= 20 ? 2 : r <= 40 ? 3 : 4);
-  const cost = (item) =>
-    Math.round((80 + 40 * item.level ** 1.8) * (1 + Math.floor(Math.max(0, item.base - 1) / 4) * 0.25));
+  function cost(item) {
+    const baseFactor = 1 + Math.floor(Math.max(0, item.base - 1) / 4) * 0.25;
+    const formerWeaponFee = Math.round((80 + 40 * item.level ** 1.8) * baseFactor);
+    // The former ten slot prices added up to roughly twice the weapon fee.
+    return Math.ceil(formerWeaponFee / 5);
+  }
   const rates = [100, 100, 100, 95, 90, 85, 80, 80, 78, 75, 72, 70, 68, 65, 60, 55, 50, 45, 40, 35];
   const rate = (item) => rates[item.level] || 0;
   const income = (item) =>
@@ -125,7 +129,6 @@ const BladeRules = (() => {
             (1 + craft.grindBonus(item.grind, 1) / 100),
         )
       : 0;
-  const armorCost = (s, item = currentArmor(s)) => Math.ceil(cost(item) / 2);
   const salvageOre = item => 1 + item.mods.length;
   const armorRate = (s) => rate(currentArmor(s));
   const blade = (id, base, rank, level = 0) => ({ id, base, rank, level, grade: 0, mods: [] });
@@ -391,8 +394,7 @@ const BladeRules = (() => {
       case "bladeArmor":
       case "bladeForge": {
         if (arg && arg !== item.id) return fail("장착 장비가 바뀌었습니다.");
-        const fee = armorAction ? armorCost(s) : cost(item);
-        return enhance(s, item, {cost:fee, success:rate(item)}, name(item), rng, pay);
+        return enhance(s, item, {cost:cost(item), success:rate(item)}, name(item), rng, pay);
       }
       case "bladeArmorEtch":
       case "bladeEtch": {
@@ -527,7 +529,7 @@ const BladeRules = (() => {
     cost,
     rate,
     income,
-    armorCost, salvageOre, enhance,
+    salvageOre, enhance,
     armorRate,
     skills,
     available, maxTier, integer, rollMod, rollValue, validMod,

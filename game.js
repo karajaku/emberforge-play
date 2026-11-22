@@ -282,7 +282,7 @@ const Game = (() => {
     const ceiling = Math.min(threshold, missing >= 0 ? craft.stages[missing].level : limit);
     const next = Math.max(g.level, Math.min(g.level + 1, ceiling));
     const cap = journey.smith(s.journeyEconomy.xp).cap;
-    const fee = target => journey.cost(type, g.level, target, cap);
+    const fee = target => journey.cost(g.level, target, cap);
     let bulk = g.level, end = Math.min(ceiling, limit - 1);
     while (bulk < end) {
       const mid = Math.ceil((bulk + end) / 2);
@@ -499,7 +499,7 @@ const Game = (() => {
   }
   function enhancementCost(s, g) {
     if (s.journeyEconomy && (g === s.armor || isJourneyGear(s, g))) {
-      return journey.step(g === s.armor ? "armor" : "weapon", g.level + 1);
+      return journey.step(g.level + 1);
     }
     return s.enabled[2] && s.charms[2] > 0 ? 0 : price(g);
   }

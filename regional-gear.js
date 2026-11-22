@@ -42,7 +42,7 @@ const RegionalGear = (() => {
     return {conversion:22+3*i.grade+i.level+depth,exposure:0};
   }
   function quote(i) {
-    return {cost:Math.ceil(blades.cost(i)/16),success:blades.rate(i)};
+    return {cost:blades.cost(i),success:blades.rate(i)};
   }
   const salvageOre = item => 1 + item.grade;
   function build(s, override) {

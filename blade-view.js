@@ -120,7 +120,7 @@ const BladeView = (() => {
     const available = b.available(item).map(key => [key, b.modDefs[key]]);
     if (item.soulChoice) return SoulView.modal(s,"soul:craft:"+item.id)[1];
     const firstProcess = item.level===7 && Swordcraft.stageIndex(item)===0;
-    const choice = firstProcess ? line("일반 강화 → +8",fmt(armor ? b.armorCost(s) : b.cost(item))+" G · 성공 "+pct(b.rate(item))) +
+    const choice = firstProcess ? line("일반 강화 → +8",fmt(b.cost(item))+" G · 성공 "+pct(b.rate(item))) +
       line((armor ? armorStageNames[0] : Swordcraft.stages[0].title)+" → +"+Swordcraft.stages[0].target,"연마 3회 후 마감") : "";
     return line(armor ? "장착 방어구" : "장착 무기", GearGradeView.colored(item,label(item))) + line("베이스 등급",b.baseGradeNames[item.grade]) + line("각인석 / 우두머리 인장",fmt(rack.ore)+"개 / "+fmt(rack.seals || 0)+"개") + choice + processes(s,item) +
       slots(item,true,rack.ore) + (available.length ? btn(prefix(item)+"Etch",icon("sparkles")+"무작위 각인 · 2석","","primary",rack.ore<2) +

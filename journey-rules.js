@@ -56,13 +56,20 @@ const JourneyRules = (() => {
       [b, y] = caps[next];
     return { level, cap: Math.floor(x + ((level - a) * (y - x)) / (b - a)) };
   }
-  const step = (type, n) => (live.current.balance.journeyForgeBase + 10 * n) / (type === "armor" ? 2 : 1);
-  function cost(type, from, to, cap) {
+  const baseStep = target => live.current.balance.journeyForgeBase + 10 * target;
+  const step = target => Math.ceil(baseStep(target) * 0.75);
+  function workshopCost(from, to) {
+    return (to - from) * (baseStep(from + 1) + baseStep(to)) / 2;
+  }
+  function cost(from, to, cap) {
     if (to <= from) return 0;
     const jump = Math.min(cap, to);
-    const first = jump > from ? step(type, jump) : 0;
+    const first = jump > from ? step(jump) : 0;
     const start = Math.max(from, jump);
-    return first + ((to - start) * (step(type, start + 1) + step(type, to))) / 2;
+    const count = to - start;
+    // The live base is even. Every other discounted step ends in half a gold.
+    const roundedSteps = Math.floor(count / 2) + (count % 2 && baseStep(start + 1) % 4 === 2 ? 1 : 0);
+    return first + workshopCost(start, to) * 0.75 + roundedSteps * 0.5;
   }
   // Stage, recommended sword/armor, ordinary monster HP/attack, and gold.
   const anchors = [
@@ -97,6 +104,6 @@ const JourneyRules = (() => {
       prize: Math.round(Math.round(stage.g / expectedWins) * live.current.balance.journeyForestGold / anchors[0][5]) * live.forestMultiplier(time),
     };
   }
-  return { limit, bladeTraits, processOptions, thresholds, smith, xpAt, convertLegacyXp, cost, step, stageBalance, area, forgeSuccess };
+  return { limit, bladeTraits, processOptions, thresholds, smith, xpAt, convertLegacyXp, cost, step, workshopCost, stageBalance, area, forgeSuccess };
 })();
 if (typeof module !== "undefined") module.exports = JourneyRules;
