@@ -2,16 +2,22 @@
 const HuntWatch=(()=>{
   let active=false,generation=0,timer=null,busy=false,reward=null,reason='',lastRound=null;
   let mode = 'progress', fixedRank = 1, replayRank = 0, saveGeneration = null, nextStrikeAt = 0;
+  let run = null, endgameRepeatSelected = false;
   const names={strike:'공격',block:'방어',heavyStrike:'강타'};
   const icons={strike:'sword',block:'shield',heavyStrike:'hammer'};
   const allowed=()=>ready&&!storageError&&!restarting&&!document.hidden&&(!modal || HuntLootView.isReader(modal))&&current()==='forest'&&phonePage('forest')==='hunt';
   const live = token => token === generation && active && allowed() && state._save?.generation === saveGeneration;
   const pending=()=>!state.hunt&&state.chests.find(c=>c.id===state.lastHunt?.chestId&&c.source==='forest');
   const cleared = s => Game.blades.state(s).cleared;
-  const nextRank = () => mode === 'repeat' ? fixedRank : cleared(state) >= 60 ? replayRank : cleared(state) + 1;
+  const nextRank = () => {
+    if (run?.advance) return cleared(state) + 1;
+    return mode === 'repeat' ? fixedRank : cleared(state) >= 60 ? replayRank : cleared(state) + 1;
+  };
   function validRank(rank) {
     if (!Number.isInteger(rank) || rank < 1 || rank > 60 || rank !== nextRank()) return false;
-    return mode === 'repeat' || cleared(state) >= 60 ? rank <= cleared(state) : rank === cleared(state) + 1;
+    const currentClear = cleared(state);
+    const progressing = run?.advance || (mode === 'progress' && currentClear < 60);
+    return progressing ? rank === currentClear + 1 : rank <= currentClear;
   }
   function bossTerritory(s, rank) {
     return rank === 60 && cleared(s) === 60 ? 45 + Game.blades.state(s).master * 5 : rank;
@@ -25,7 +31,8 @@ const HuntWatch=(()=>{
     }).join("") + '</div>';
   }
   function selectMaster() {
-    mode = "progress"; replayRank = 60; reward = null; lastRound = null; reason = "";
+    mode = "progress"; replayRank = 60; endgameRepeatSelected = false;
+    reward = null; lastRound = null; reason = "";
   }
   function farmingHint(s,rank) {
     const territory = bossTerritory(s,rank);
@@ -57,7 +64,8 @@ const HuntWatch=(()=>{
     }).join('');
     return recentCheck(s) + '<div class="hunt-plan-fields"><label>사냥 방식<select class="watch-mode">' +
       '<option value="progress">' + (cleared(s) >= 60 ? '1회 재도전' : '다음 단계 진행') + '</option>' +
-      '<option value="repeat"' + (repeat ? ' selected' : '') + '>완료 구역 반복</option></select></label>' +
+      '<option value="repeat"' + (repeat ? ' selected' : '') + '>' +
+      (cleared(s) >= 60 ? '완료 구역 반복' : '완료 구역 재도전') + '</option></select></label>' +
       '<label' + (chooseRank ? '' : ' hidden') + '>완료 구역<select class="trail-replay">' +
       '<option value="0" disabled' + (rank ? '' : ' selected') + '>단계 선택</option>' + choices + '</select></label>' +
       '<button class="primary" data-hunt-plan-apply' + (!cleared(s) || chooseRank && !rank ? ' disabled' : '') + '>적용</button></div>' + mastery(s) +
@@ -143,9 +151,9 @@ const HuntWatch=(()=>{
     return '<span class="watch-ticket-bar" data-departure="' + departure + '" data-empty="' + meter.empty + '"><span class="watch-ticket-fill" aria-hidden="true" style="width:' +
       meter.width + '%"></span><span class="watch-ticket-text">' + meter.text + '</span></span>';
   }
-  function stop(why='',paint=true) {active=false;generation++;clearTimeout(timer);timer=null;nextStrikeAt=0;reason=why;if(paint&&state)render();}
+  function stop(why='',paint=true) {active=false;run=null;generation++;clearTimeout(timer);timer=null;nextStrikeAt=0;reason=why;if(paint&&state)render();}
   function restoreReceipt() {
-    mode = 'progress'; fixedRank = 1; replayRank = 0;
+    mode = 'progress'; fixedRank = 1; replayRank = 0; endgameRepeatSelected = false;
     reward = null;
     lastRound = null;
     if (current() === 'forest' && phonePage('forest') === 'hunt' && !state.hunt &&
@@ -276,16 +284,20 @@ const HuntWatch=(()=>{
     const empty = !held && !w.free && !w.purchased;
     const retry = !held && Game.hasBossRetry(s,nextRank());
     const departure = active || held || finished ? '' : retry ? 'retry' : 'hunt';
-    const label = active ? '사냥 중단' : finished ? '구역 선택' :
-      held ? (mode === 'repeat' ? '반복 재개' : cleared(s) >= 60 ? '재도전 재개' : '진행 재개') :
-      empty ? '식량 부족' : retry ? '지원 재도전' : first ? '계속 사냥' : mode === 'repeat' ? '반복 시작' : cleared(s) >= 60 ? '1회 재도전' : '사냥';
+    const stageLabel = result && nextRank() !== result.rank ? nextRank() + '단계 사냥' : '사냥';
+    const label = active ? '사냥 중지' : finished ? '구역 선택' :
+      held ? '진행 재개' :
+      empty ? '식량 부족' : retry ? '지원 재도전' : cleared(s) >= 60 && mode !== 'repeat' ? '1회 재도전' : stageLabel;
     const detail = encounterHint(h,result,enemy,rank,pack);
     const kit = h ? h.fieldKit : !result && targetRank ? Game.outfit.build(s) : null;
     const home = !active && (!encounter || location.hash === '#world');
-    const control = finished ? 'data-open="huntPlan"' : empty && !active ? 'data-open="huntWallet"' : 'data-watch="toggle"';
+    const canToggle = active || (!finished && !empty);
+    const control = canToggle ? 'data-watch="toggle"' : finished ? 'data-open="huntPlan"' : 'data-open="huntWallet"';
+    const modeNote = canToggle && (active || cleared(s) < 60 || endgameRepeatSelected) ? '<span class="watch-start-mode">' +
+      (active ? (run.continuous ? '연속 사냥 중' : '이번 단계 자동사냥') : '1초 누르면 연속 사냥') + '</span>' : '';
     const start = '<button class="primary watch-start' + (active ? ' watch-active' : '') + '" ' + control + '><span class="watch-start-label">' +
-      controlArt(finished ? "compass" : "hunt") + label + '</span>' +
-      foodBar(w, departure) + '</button>';
+      controlArt(!active && finished ? "compass" : "hunt") + label + '</span>' +
+      modeNote + foodBar(w, departure) + '</button>';
     const controls = '<div class="watch-home-actions">' +
       go('forest/field', icon('hand-coins') + '<span>배치 수익</span>', 'action') + start +
       go('world/map', controlArt('compass') + '<span>모험 지도</span>', 'action') + '</div>';
@@ -301,7 +313,10 @@ const HuntWatch=(()=>{
         :reason&&!(h&&reason==='일시 중단')?'<b>'+reason+'</b>':'')+'</div>'+
       huntStatus(s, held)+'</div></div>'+controls+'</section>';
   };
-  function beforeRender(){if(active&&!allowed())stop('',false);}
+  function beforeRender() {
+    cancelHuntPress();
+    if (active && !allowed()) stop('', false);
+  }
   function refreshWallet() {
     if(!allowed())return;
     const button=document.querySelector('.watch-start'),w=Game.huntingStatus(state);
@@ -313,9 +328,36 @@ const HuntWatch=(()=>{
     if(label.textContent!==t.text)label.textContent=t.text;
     bar.dataset.empty=String(t.empty);bar.querySelector('.watch-ticket-fill').style.width=t.width+'%';
   }
+  function beginHunt(continuous = false) {
+    if (active || !allowed()) return;
+    if (!state.hunt && !pending()) {
+      if (!validRank(nextRank())) return;
+      const wallet = Game.huntingStatus(state);
+      if (!wallet.free && !wallet.purchased) {showModal('huntWallet');return;}
+    }
+    if (prefs.sound) GameSound.unlock();
+    GameMusic.unlock();
+    saveGeneration = state._save?.generation;
+    repeatHunting.stop('관전 사냥');
+    autoCombat.stop();
+    run = {continuous:continuous && (cleared(state) < 60 || endgameRepeatSelected), advance:false};
+    active = true;
+    reason = '';
+    reward = null;
+    lastRound = null;
+    generation++;
+    render();
+    arm(100);
+  }
   function arm(delay=400) {
     if(!active||busy||timer)return;
-    const token=generation;timer=setTimeout(()=>{timer=null;step(token).catch(()=>stop('저장 상태를 확인해 주세요'));},delay);
+    const token = generation;
+    timer = setTimeout(() => {
+      timer = null;
+      step(token).catch(() => {
+        if (token === generation) stop('저장 상태를 확인해 주세요');
+      });
+    }, delay);
   }
   async function step(token) {
     if(token!==generation||!active)return;
@@ -352,7 +394,14 @@ const HuntWatch=(()=>{
           if(token!==generation)return;
           if(pending()?.id===chest.id || state.lastChest?.id!==chest.id){stop('보물을 수령할 수 없습니다');return;}
           reward={...state.lastChest};
-          if(mode==='progress'&&cleared(state)>=60){replayRank=0;stop('모든 스테이지 완료');return;}
+          if (cleared(state) >= 60 && !endgameRepeatSelected) {
+            mode = 'progress';
+            replayRank = 0;
+            stop('모든 스테이지 완료');
+            return;
+          }
+          if (!run.continuous) {stop('스테이지 완료');return;}
+          run.advance = !endgameRepeatSelected;
           render();
         } else {
           if(!validRank(nextRank())){stop('모든 스테이지 완료');return;}
@@ -405,12 +454,19 @@ const HuntWatch=(()=>{
       const rank = Number(fields.querySelector('.trail-replay').value);
       if ((repeat || cleared(state) >= 60) && (!Number.isInteger(rank) || rank < 1 || rank > Math.min(60,cleared(state)))) return;
       mode = repeat ? 'repeat' : 'progress';
+      endgameRepeatSelected = repeat && cleared(state) >= 60;
       if (repeat) fixedRank = rank;
       else if (cleared(state) >= 60) replayRank = rank;
       generation++; reward = null; lastRound = null; reason = '';
       closeModal(false);
       render();
       document.querySelector('.watch-start')?.focus({preventScroll:true});
+      return;
+    }
+    if (event.detail > 0 && suppressHuntClick) {
+      suppressHuntClick = false;
+      event.preventDefault();
+      event.stopImmediatePropagation();
       return;
     }
     const button=event.target.closest('[data-watch]');if(!button)return;
@@ -420,19 +476,83 @@ const HuntWatch=(()=>{
     }
     event.preventDefault();event.stopImmediatePropagation();if(!allowed())return;
     if(active){stop('일시 중단');return;}
-    // Capturing this click bypasses the general UI handler; unlock sound here too.
-    if(!state.hunt&&!pending()&&!validRank(nextRank()))return;
-    if(!state.hunt&&!pending()){
-      const wallet=Game.huntingStatus(state);
-      if(!wallet.free&&!wallet.purchased){showModal('huntWallet');return;}
-    }
-    if(prefs.sound)GameSound.unlock();GameMusic.unlock();
-    saveGeneration = state._save?.generation;
-    repeatHunting.stop('관전 사냥');autoCombat.stop();active=true;reason='';reward=null;lastRound=null;generation++;render();arm(100);
+    beginHunt();
   },true);
-  document.addEventListener('visibilitychange',()=>{if(document.hidden)stop('일시 중단');});
-  window.addEventListener('pagehide',()=>stop('',false));
+  const huntHoldMs = 1000;
+  const huntToggle = '.watch-start[data-watch="toggle"]';
+  let huntPress = null, suppressHuntClick = false;
+  function cancelHuntPress() {
+    if (!huntPress) return;
+    clearTimeout(huntPress.timer);
+    huntPress.button.removeAttribute('data-hunt-press');
+    huntPress = null;
+  }
+  function holdHunt(button, pointerId = null) {
+    const press = {button, pointerId, bounds:button.getBoundingClientRect()};
+    huntPress = press;
+    button.dataset.huntPress = '';
+    press.timer = setTimeout(() => {
+      cancelHuntPress();
+      if (button.isConnected && allowed() && !active) beginHunt(true);
+    }, huntHoldMs);
+  }
+  function insideHuntPress(event) {
+    const {left, right, top, bottom} = huntPress.bounds;
+    return event.clientX >= left && event.clientX <= right && event.clientY >= top && event.clientY <= bottom;
+  }
+  // Track the physical release so re-rendering the stop button cannot turn it into a second click.
+  document.addEventListener('pointerdown', event => {
+    if (!event.isPrimary || event.button !== 0) return;
+    suppressHuntClick = false;
+    cancelHuntPress();
+    const button = event.target.closest(huntToggle);
+    if (!button || !allowed()) return;
+    suppressHuntClick = true;
+    if (active) stop('일시 중단');
+    else holdHunt(button, event.pointerId);
+  }, true);
+  document.addEventListener('pointermove', event => {
+    if (huntPress?.pointerId === event.pointerId && !insideHuntPress(event)) cancelHuntPress();
+  }, true);
+  document.addEventListener('pointerup', event => {
+    if (huntPress?.pointerId !== event.pointerId) return;
+    const start = insideHuntPress(event);
+    cancelHuntPress();
+    if (start && allowed() && !active) beginHunt();
+  }, true);
+  document.addEventListener('pointercancel', event => {
+    if (huntPress?.pointerId === event.pointerId) cancelHuntPress();
+  }, true);
+  document.addEventListener('contextmenu', event => {
+    if (event.target.closest(huntToggle) || huntPress?.pointerId != null) event.preventDefault();
+  }, true);
+  document.addEventListener('keydown', event => {
+    if ((event.key !== ' ' && event.key !== 'Enter') || event.altKey || event.ctrlKey || event.metaKey ||
+        !event.target.matches(huntToggle) || !allowed()) return;
+    event.preventDefault();
+    if (event.repeat) return;
+    cancelHuntPress();
+    if (active) stop('일시 중단');
+    else if (event.key === 'Enter') beginHunt();
+    else holdHunt(event.target);
+  }, true);
+  document.addEventListener('keyup', event => {
+    if (event.key !== ' ' || !huntPress || huntPress.pointerId !== null) return;
+    event.preventDefault();
+    const start = huntPress.button === document.activeElement;
+    cancelHuntPress();
+    if (start && allowed() && !active) beginHunt();
+  }, true);
+  document.addEventListener('focusout', event => {
+    if (huntPress?.pointerId === null && huntPress.button === event.target) cancelHuntPress();
+  });
+  window.addEventListener('blur', cancelHuntPress);
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden){cancelHuntPress();stop('일시 중단');}
+  });
+  window.addEventListener('pagehide',()=>{cancelHuntPress();stop('',false);});
   window.addEventListener('hashchange',()=>{
+    cancelHuntPress();
     if(current()!=='forest'||phonePage('forest')!=='hunt'){stop('',false);reward=null;lastRound=null;}
     else if(location.hash==='#world' && active)stop('',false);
   });

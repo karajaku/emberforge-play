@@ -634,7 +634,9 @@ function render() {
       "</div>" +
       orderView(state));
   const screen = el("screen");
+  const huntButtonFocused = document.activeElement?.matches(".watch-start");
   screen.innerHTML = view;
+  if (huntButtonFocused) screen.querySelector(".watch-start")?.focus({ preventScroll: true });
   bindOutfitQuotes(screen);
   renderLesson();
   GameUI.shell();
@@ -687,7 +689,7 @@ function lessonMenu() {
   const tip = step >= 0 ? Apprentice.guidance(state, step) : null;
   const notes = [
     "대장간에서 검을 벼려 공격력을 올리세요.",
-    "사냥을 누르고 전투를 지켜보세요. 승리 보상 수령 후 다음 스테이지로 진행합니다.",
+    "짧게 누르면 이번 단계 자동사냥, 1초 꾹 누르면 연속 사냥이 시작됩니다. 다시 누르면 멈춥니다.",
     "모루를 초록 구간에서 두드려 골드를 받으세요. 일반 강화에는 확률 보너스도 붙습니다.",
     "대장간 의뢰에서 목표 강화 단계를 확인하고 골드와 별의 파편을 받으세요.",
     "+13 이상 보조 검을 보관함에 넣은 뒤 배치하세요.",
@@ -1060,6 +1062,7 @@ function modalData() {
       return ["사냥 구역", HuntWatch.planView(s)];
     case "huntRules":
       if (!s.hunt || s.hunt.diceVersion === 2) return ["숲 사냥",
+        desc("사냥 버튼을 짧게 누르면 이번 단계를 끝내고, 1초 꾹 누르면 다음 단계까지 이어서 사냥합니다. 사냥 중에 다시 누르면 멈춥니다.") +
         line("공격 d20", "1은 빗나감 · 20은 치명타") +
         desc("타격 순간에 공격 눈과 판정, 피해를 표시합니다. 공격 주사위와 기술 보정의 합이 방어 d6으로 정한 목표 이상이면 명중하며, 명중한 공격에는 무기의 치명타 확률이 적용됩니다. 예고된 적 기술에는 방어 보정이 붙고 반격 검술은 보정이 더 큽니다. 우두머리의 기술을 완전히 막으면 두 굴림을 중앙에 잠깐 표시합니다. 방어 눈과 목표는 사냥을 중단한 뒤 사냥 구역에서 확인할 수 있습니다.") +
         desc("사냥에 나갈 때 식량을 1개 씁니다. 진행 중인 사냥은 식량이 없어도 재개할 수 있습니다. 다섯 단계마다 우두머리를 만납니다. 무기와 방어구는 보관함에서 비교하고 장착합니다.") + openBtn("bladeStyles","검술과 능력 확인")];

@@ -93,7 +93,7 @@ const Apprentice = (() => {
       );
     }
     if (step === 1) {
-      return forest("사냥을 누르면 전투가 진행됩니다. 승리 보상을 받고 다음 스테이지로 나아가세요.", "huntStart", s.hunt ? "사냥 계속" : "사냥 시작");
+      return forest("짧게 누르면 이번 단계, 1초 꾹 누르면 연속 사냥을 시작합니다.", "huntStart", s.hunt ? "사냥 재개" : "사냥 시작");
     }
     if (step === 2)
       return target(
