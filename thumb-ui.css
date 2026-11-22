@@ -18,11 +18,21 @@
 
 body.ui-game {
   --control-plate:url("assets/thumb-plate.webp");
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.ui-game > header { position:relative; }
+.ui-game > header::before {
+  content:"";
+  position:absolute;
+  inset-inline:0;
+  bottom:100%;
+  height:env(safe-area-inset-top);
+  background:linear-gradient(#11191dc9,#11191d77 55%,transparent);
+  pointer-events:none;
 }
 .ui-game #mobileNav {
   gap:1px;
-  padding-inline:4px;
-  padding-top:3px;
+  padding:3px 4px;
   border:0 solid transparent;
   border-image:var(--control-plate) 28 fill / 8px stretch;
   border-radius:0;
@@ -31,11 +41,11 @@ body.ui-game {
 }
 .ui-game #mobileNav .navitem,
 .ui-game #mobileNav .navitem:not(.active) {
-  --art-size:37px;
-  min-height:54px;
+  --art-size:32px;
+  min-height:48px;
   justify-content:center;
   gap:0;
-  padding:1px 2px 2px;
+  padding:1px 2px;
   border:0;
   border-inline-start:1px solid #ba9d5b5c;
   border-radius:0;
@@ -44,6 +54,7 @@ body.ui-game {
   box-shadow:none;
   text-shadow:0 1px 2px #130d07;
   font-weight:700;
+  line-height:1.2;
 }
 .ui-game #mobileNav .navitem:first-child { border-inline-start:0; }
 .ui-game #mobileNav .navitem.active {
