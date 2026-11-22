@@ -4,7 +4,7 @@ const HuntWatch=(()=>{
   let mode = 'progress', fixedRank = 1, replayRank = 0, saveGeneration = null, nextStrikeAt = 0;
   const names={strike:'공격',block:'방어',heavyStrike:'강타'};
   const icons={strike:'sword',block:'shield',heavyStrike:'hammer'};
-  const allowed=()=>ready&&!storageError&&!restarting&&!document.hidden&&!modal&&current()==='forest'&&phonePage('forest')==='hunt';
+  const allowed=()=>ready&&!storageError&&!restarting&&!document.hidden&&(!modal || HuntLootView.isReader(modal))&&current()==='forest'&&phonePage('forest')==='hunt';
   const live = token => token === generation && active && allowed() && state._save?.generation === saveGeneration;
   const pending=()=>!state.hunt&&state.chests.find(c=>c.id===state.lastHunt?.chestId&&c.source==='forest');
   const cleared = s => Game.blades.state(s).cleared;
@@ -50,36 +50,16 @@ const HuntWatch=(()=>{
       '<button class="primary" data-hunt-plan-apply' + (chooseRank && !rank ? ' disabled' : '') + '>적용</button></div>' + mastery(s) +
       '<p class="desc" data-farm-hint>'+farmingHint(s,nextRank() || 60)+'</p>'+openBtn("bladeLoot-"+(nextRank() || Math.min(60,cleared(s)+1)), "단계별 장비 획득 확률");
   }
-  function legacyGearPrize(text) {
-    const receipt = /^([^·]+) · 옵션 ([0-6])줄 · (.+)$/.exec(text);
-    if (!receipt) return escapeHtml(text);
-    return GearGradeView.colored({lines:Number(receipt[2])},receipt[1]) +
-      " · 옵션 " + receipt[2] + "줄 · " + escapeHtml(receipt[3]);
-  }
-  function gearReceipt(s, result) {
-    if (!Array.isArray(result?.gearDrops)) {
-      return result?.bladePrize ? '<span class="blade-drop">'+icon('backpack')+legacyGearPrize(result.bladePrize)+'</span>' : '';
-    }
-    const b=Game.blades;
-    const rows=result.gearDrops.map(drop=>{
-      const armor=drop.type==='armor';
-      const owned=(armor ? b.armors(s) : b.state(s).items).some(it=>it.id===drop.id);
-      const content=BladeView.artwork(drop)+'<b>'+GearGradeView.colored(drop,b.name(drop))+'</b><small>'+b.baseGradeNames[drop.grade]+' · '+drop.lines+'줄</small>';
-      return owned ? openBtn((armor?'bladeArmorItem-':'bladeItem-')+drop.id,content,GearGradeView.lootClass(drop)) :
-        '<span class="loot-gear">'+content+'</span>';
-    }).join("") + OutfitView.receipt(s,result);
-    return (rows?'<div class="loot-gear-list">'+rows+'</div>':'')+
-      (result.materialPrize?'<span class="blade-drop">'+icon('gem')+escapeHtml(result.materialPrize)+'</span>':'');
-  }
   function firstReceipt(s) {
     const last = s.lastHunt;
     if (s.hunt || !last?.firstGearChoice || s.chests.some(c=>c.id===last.chestId)) return null;
     return {rank:last.rank,gold:last.reward};
   }
   function compareLoot(s) {
-    if (!firstReceipt(s)) return ['장비 비교', desc('첫 전리품은 보관함에서 확인할 수 있습니다.')];
+    const receipt = HuntLootView.reading;
+    if (!receipt?.result.firstGearChoice) return ['장비 비교', desc('첫 전리품은 보관함에서 확인할 수 있습니다.')];
     const b = Game.blades;
-    const rows = s.lastHunt.gearDrops.map(drop => {
+    const rows = (receipt.result.gearDrops || []).map(drop => {
       const armor = drop.type === 'armor';
       const item = (armor ? b.armors(s) : b.state(s).items).find(it => it.id === drop.id);
       if (!item) return '';
@@ -99,7 +79,7 @@ const HuntWatch=(()=>{
       return row(GearGradeView.colored(item,BladeView.label(item)), numbers+(mods.length ? '<br>'+mods.join(' · ') : ''),
         btn(armor ? 'bladeArmorEquip' : 'bladeEquip',equipped ? '장착 중' : '장착',item.id,'mini',equipped),'',BladeView.artwork(item));
     }).join('');
-    const drop = s.lastHunt.outfitDrop;
+    const drop = receipt.result.outfitDrop;
     let regional = '';
     if (drop) {
       const outfit = Game.outfit, data = outfit.state(s), item = data.items.find(it => it.id === drop.id);
@@ -107,16 +87,16 @@ const HuntWatch=(()=>{
         const slots = outfit.slots.filter(slot => slot.kind === item.kind);
         const current = slots.find(slot => data.equipped[slot.key] === item.id);
         const slot = current || slots.find(slot => !data.equipped[slot.key]);
-        const area = Game.trail.region(s.lastHunt.territoryRank || s.lastHunt.rank);
+        const area = Game.trail.region(receipt.result.territoryRank || receipt.chest.rank);
         const effect = outfit.effect(item), element = outfit.elements[item.element];
-        const diff = outfit.profile(s.lastHunt.territoryRank || s.lastHunt.rank)[item.element] < 0 ? ' · '+area.name+' 약점' : '';
+        const diff = outfit.profile(receipt.result.territoryRank || receipt.chest.rank)[item.element] < 0 ? ' · '+area.name+' 약점' : '';
         const action = slot ? btn('outfitEquip',current ? slot.name+' 착용 중' : slot.name+' 착용',slot.key+':'+item.id,'mini',!!current) :
           openBtn('outfit:item:'+item.id,'교체할 부위 선택','mini');
         regional = row(GearGradeView.colored(item,outfit.name(item)),(b.armorRating(item) ? '방어력 '+fmt(b.armorRating(item))+' · ' : '')+element+' 피해 전환 '+effect.conversion+'%'+
           (effect.exposure ? ' · 저항 −'+effect.exposure+'%p' : '')+diff,action,'',OutfitView.art(item.kind));
       }
-    } else if (s.lastHunt.outfitSalvaged) regional = OutfitView.receipt(s,s.lastHunt);
-    const supplies = s.lastHunt.materialPrize ? line("함께 획득",escapeHtml(s.lastHunt.materialPrize)) : '';
+    } else if (receipt.result.outfitSalvaged) regional = OutfitView.receipt(s,receipt.result);
+    const supplies = receipt.result.materialPrize ? line("함께 획득",escapeHtml(receipt.result.materialPrize)) : '';
     return ['장비 비교', rows+regional+supplies+'<button class="primary" data-watch="continue">계속 사냥</button>'];
   }
   function defeatSummary(last) {
@@ -208,11 +188,13 @@ const HuntWatch=(()=>{
   }
   function view(s) {
     const h=s.hunt;
+    const settled = HuntLootView.settled(s);
     const first = !active && firstReceipt(s);
     const receipt = reward || first;
     const defeated = !h && !active && (reason.startsWith('패배') || s.lastHunt?.strongestHit &&
       !s.lastHunt.chestId && nextRank()===s.lastHunt.rank);
     const result = !h && (receipt || pending() || defeated || lastRound) ? s.lastHunt : null;
+    const received = receipt && settled && result?.chestId === settled.chest.id;
     const targetRank=h?.rank || result?.rank || nextRank();
     const rank=targetRank || 60;
     const encounter = h || result;
@@ -271,14 +253,9 @@ const HuntWatch=(()=>{
       '<span class="watch-stage-name">'+(territory ? icon('crown')+'우두머리 영역' : icon('trees')+'사냥터')+'</span> · <b>'+rank+'단계'+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+'<small class="watch-version">v'+UpdateNotice.version()+'</small>'+(h?.ripostes>0 && !h.journeyBattle && !h.bladeCombat?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+
       (kit ? '<div class="outfit-enemy-line">' + OutfitView.encounterChip(terrain,enemy.kind,kit,!!h) + '</div>' : '') + '</div>' +
       '<div class="scene watch-arena combat-hud" data-region="'+area.id+'">'+fighter('player',blade.name,'+'+fmt(blade.level),sprite,128,hp,max)+fighter('enemy',enemy.name,'Lv.'+rank,enemy.sprite||'boar',144,enemyHp,total)+
+      (settled && !received ? openBtn('huntLoot',icon('backpack')+'최근 전리품','watch-recent-loot') : '')+
       '<div class="watch-report">'+
-      '<div class="watch-reward" role="status">'+(detail?'<div class="trail-detail">'+detail+'</div>':'')+(first?'<div class="watch-receipt"><div class="watch-receipt-head"><b>'+first.rank+'단계 클리어</b><strong>'+icon('coins')+' +'+fmt(first.gold)+' G</strong></div>'+openBtn('firstGearCompare',icon('backpack')+'장비 비교','action')+'</div>':reward?'<div class="watch-receipt"><div class="watch-receipt-head"><b>'+reward.rank+'단계 클리어</b><strong>'+icon('coins')+' +'+fmt(reward.gold)+' G</strong></div><div class="watch-loot">'+
-        gearReceipt(s,result)+
-        (reward.fiber ? '<span>'+icon('trees')+'숲결 섬유 +'+reward.fiber+'</span>' : '')+
-        (reward.goblinGold?'<span>'+icon('coins')+'고블린 +'+fmt(reward.goblinGold)+' G 포함</span>':'')+
-        (reward.counter>0?'<span class="watch-counter-reward">반격 +'+fmt(reward.counter)+' G 포함</span>':'')+
-        [[reward.shards,'sparkles','별의 파편'],[reward.scrolls,'scroll-text','주문서'],...[0,1,2].map(i=>[reward.charms[i],['trees','hammer','star'][i],Game.blessings[i]])].filter(([n])=>n).map(([n,ic,title])=>'<span aria-label="'+title+' '+n+'개" title="'+title+'">'+icon(ic)+' +'+n+'</span>').join('')+'</div>'+
-        (!active && reward.fiber ? '<button class="action lining-link" data-go="forge" data-gear="armor">'+icon('shield')+'안감 제작</button>' : '')+'</div>'
+      '<div class="watch-reward" role="status">'+(detail?'<div class="trail-detail">'+detail+'</div>':'')+(received ? HuntLootView.resultView(s,settled,active)
         :defeated?'<b class="watch-defeat">패배</b>'+defeatSummary(result)+go('forge','장비 강화','action')
         :reason&&!(h&&reason==='일시 중단')?'<b>'+reason+'</b>':'')+'</div>'+
       huntStatus(s, held)+'</div></div>'+controls+'</section>';
@@ -334,7 +311,6 @@ const HuntWatch=(()=>{
           if(token!==generation)return;
           if(pending()?.id===chest.id || state.lastChest?.id!==chest.id){stop('보물을 수령할 수 없습니다');return;}
           reward={...state.lastChest};
-          if(firstReceipt(state)){stop();return;}
           if(mode==='progress'&&cleared(state)>=60){replayRank=0;stop('모든 스테이지 완료');return;}
           render();
         } else {
@@ -399,6 +375,7 @@ const HuntWatch=(()=>{
     const button=event.target.closest('[data-watch]');if(!button)return;
     if(button.dataset.watch==='continue' && modal==='firstGearCompare') {
       closeModal(false);
+      if(active){event.preventDefault();event.stopImmediatePropagation();return;}
       const wallet=Game.huntingStatus(state);
       if(!wallet.free&&!wallet.purchased&&!Game.hasBossRetry(state,nextRank())){showModal('huntWallet');return;}
     }

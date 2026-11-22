@@ -32,6 +32,24 @@ const SaveStore = (() => {
     if (forge?.soul?.version===1) return 3;
     return forge?.version===1 ? 2 : 1;
   }
+  function validGearDrops(result) {
+    const drops = result.gearDrops;
+    return Array.isArray(drops) && drops.length <= 2 && typeof result.materialPrize === "string" &&
+      drops.every(d => d && ["weapon","armor"].includes(d.type) && typeof d.id === "string" &&
+        (d.weaponKind === undefined || (d.type === "weapon" && game.blades.weaponKinds.includes(d.weaponKind))) &&
+        (d.type === "armor" ? /^a[1-9]\d*$/ : /^b[1-9]\d*$/).test(d.id) && Number.isInteger(d.base) &&
+        d.base > 0 && d.base < game.blades.bases.length && [0,1,2,3].includes(d.grade) && Number.isInteger(d.lines) &&
+        d.lines >= game.blades.baseGradeRules[d.grade].min && d.lines <= game.blades.baseGradeRules[d.grade].max) &&
+      new Set(drops.map(d => d.type)).size === drops.length;
+  }
+  function validHuntLoot(chest, outfit) {
+    const loot = chest.huntLoot;
+    return chest.source === "forest" && object(loot) && validGearDrops(loot) && typeof loot.bladePrize === "string" &&
+      (loot.firstGearChoice === undefined || (chest.rank === 1 && loot.firstGearChoice === true)) &&
+      (loot.territoryRank === undefined || (chest.rank === 60 && [45,50,55,60].includes(loot.territoryRank))) &&
+      (loot.outfitDrop === undefined || (outfit && game.outfit.validItem(loot.outfitDrop,outfit.serial) && loot.outfitDrop.level === 0)) &&
+      (loot.outfitSalvaged === undefined || (loot.outfitSalvaged === true && !loot.outfitDrop));
+  }
   function decode(raw) {
     let data;
     try { data = JSON.parse(raw); } catch { throw fault("corrupt"); }
@@ -45,16 +63,9 @@ const SaveStore = (() => {
     if (outfit!==undefined && !game.outfit.valid(outfit)) throw fault("corrupt");
     if (data?.bladeForge!==undefined && (!game.blades.valid(data.bladeForge) || !game.endgame.valid(data.bladeForge))) throw fault("corrupt");
     if (data?.bladeForge?.extraDeployed && !data.bladeForge.soul?.learned?.land && !(data.imprints?.land > 0)) throw fault("corrupt");
-    const drops=data?.lastHunt?.gearDrops;
     const retry = data?.bladeForge?.firstBossRetry;
     if (retry !== undefined && !["ready", "used"].includes(retry)) throw fault("corrupt");
-    if (drops!==undefined && (!Array.isArray(drops) || drops.length>2 || typeof data.lastHunt.materialPrize!=="string" ||
-        !drops.every(d=>d && ["weapon","armor"].includes(d.type) && typeof d.id==="string" &&
-          (d.weaponKind === undefined || (d.type === "weapon" && game.blades.weaponKinds.includes(d.weaponKind))) &&
-          (d.type==="armor"?/^a[1-9]\d*$/:/^b[1-9]\d*$/).test(d.id) && Number.isInteger(d.base) && d.base>0 &&
-          d.base<game.blades.bases.length && [0,1,2,3].includes(d.grade) && Number.isInteger(d.lines) &&
-          d.lines>=game.blades.baseGradeRules[d.grade].min && d.lines<=game.blades.baseGradeRules[d.grade].max) ||
-        new Set(drops.map(d=>d.type)).size!==drops.length)) throw fault("corrupt");
+    if (data?.lastHunt?.gearDrops !== undefined && !validGearDrops(data.lastHunt)) throw fault("corrupt");
     for (const h of [data?.hunt, data?.lastHunt]) {
       if (h?.strongestHit !== undefined) {
         const hit = h.strongestHit;
@@ -206,6 +217,7 @@ const SaveStore = (() => {
     const entries = new Set(h?.materialRule ? [h.id] : []), ids = new Set();
     for (const c of [...(data.chests || []), ...(data.lastChest ? [data.lastChest] : [])]) {
       if (!object(c)) throw fault("corrupt");
+      if (c.huntLoot !== undefined && !validHuntLoot(c, outfit)) throw fault("corrupt");
       if (c.materialRule > 1) throw fault("future");
       if (c.id !== undefined) {
         if (ids.has(c.id)) throw fault("corrupt");

@@ -452,8 +452,10 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
       modal = "battle";
     }
     render();
-    if (modal) displayModal();
-    else closeModal(inventoryAction);
+    if (modal) {
+      // Keep the receipt, keyboard focus and expanded comparisons stable between automatic turns.
+      if (!(automaticGuard || repeatGuard) || !HuntLootView.isReader(modal)) displayModal();
+    } else closeModal(inventoryAction);
     const stagedHit = result.impact && beforeHuntHealth && HuntEffects.play(result.impact, beforeHuntHealth,
       beforeHuntHealth.diceVersion === 1 ? (state.hunt?.lastDice || state.lastHunt?.lastDice) : null);
     if (result.impact && !stagedHit) showHuntDamage(document.querySelector("#screen .combat-hud"), result.impact, motionEnabled());
@@ -731,6 +733,7 @@ function modalData() {
   if (modal.startsWith("forgeItem:")) return ForgeItemView.modalContent(modal);
   if (modal.startsWith("outfit:")) return OutfitView.modal(s, modal);
   if (modal.startsWith("soul:")) return SoulView.modal(s, modal);
+  if (modal === "huntLoot") return HuntLootView.detailView(s);
   if (modal === "firstGearCompare") return HuntWatch.compareLoot(s);
   if (modal.startsWith("blade")) return BladeView.modal(s, modal);
   if (!archiveBlade && (modal === "lessons" || modal === "help")) return BladeView.modal(s, "bladeGuide");
@@ -1134,8 +1137,9 @@ function updateSaleQuote(reset) {
   sell.disabled = !valid;
 }
 function showModal(key, trigger = document.activeElement) {
-  if (HuntWatch.active) HuntWatch.stop('일시 중단');
   if (!ready || storageError) return;
+  HuntLootView.open(state,key,modal);
+  if (HuntWatch.active && !HuntLootView.isReader(key)) HuntWatch.stop('일시 중단');
   if (!modal) {
     lastFocus = trigger?.closest(".ui-utilities")?.querySelector("summary") || trigger;
   }
@@ -1368,6 +1372,15 @@ document.addEventListener("click", (e) => {
     forgeOutfitSlot = "";
     if (d.go) archiveBlade = false;
     if (!archiveBlade) ForgeItemView.selectSlot(state,gear === "armor" ? "chest" : "weapon");
+  }
+  if (d.lootForge) {
+    if (restarting || current() !== "forest" || !HuntLootView.select(state,d.lootForge,modal)) {
+      notify("이 장비는 보관함에 없습니다.");
+      return;
+    }
+    HuntWatch.stop('',false);
+    archiveBlade = false;
+    return nav("forge");
   }
   if (d.go) return nav(d.go);
   if (d.open) return showModal(d.open, b);

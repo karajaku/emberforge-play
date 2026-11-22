@@ -1598,11 +1598,16 @@ const Game = (() => {
             bonus,
           };
           if (h.bladeCombat) {
-            if (h.rank === 1 && blades.state(s).cleared === 0) s.lastHunt.firstGearChoice = true;
-            const receipt=blades.rollReward(s,h,random);
-            receipt.materialPrize+=endgame.victory(s,h);
-            Object.assign(s.lastHunt,receipt,{bladePrize:blades.rewardText(receipt)});
-            if (h.fieldKit) Object.assign(s.lastHunt,outfit.reward(s,h,random));
+            const firstClear = h.rank === 1 && blades.state(s).cleared === 0;
+            const receipt = blades.rollReward(s,h,random);
+            receipt.materialPrize += endgame.victory(s,h);
+            receipt.bladePrize = blades.rewardText(receipt);
+            if (h.fieldKit) Object.assign(receipt, outfit.reward(s,h,random));
+            if (firstClear) receipt.firstGearChoice = true;
+            if (h.territoryRank) receipt.territoryRank = h.territoryRank;
+            Object.assign(s.lastHunt, receipt);
+            // Keep the item IDs with this chest even if another fight finishes before it opens.
+            chest.huntLoot = receipt;
           }
           s.huntBest = Math.max(s.huntBest, h.rank);
           const route = s.weapon.route;

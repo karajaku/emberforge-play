@@ -162,12 +162,11 @@ body[data-motion="on"] .watch-receipt :is(.watch-receipt-head > b, .watch-receip
 /* Frame the clearing under the fighters and carry its uninterrupted foreground
    behind the controls. The waterfall in the maple illustration rises higher. */
 body.ui-game:has(.watch-ground)::before {
-  position:fixed; inset:0;
-  background:var(--habitat) 64% bottom / auto max(100vw,var(--forest-height,146dvh)) no-repeat;
+  /* The square habitat covers the portrait game frame, including on wide displays. */
+  background:var(--habitat) 64% bottom / max(100%,var(--forest-height,146dvh)) auto no-repeat;
 }
 body:has(.watch-ground [data-region="maple"]) { --forest-height:183dvh; }
 body.ui-game:has(.watch-ground)::after {
-  position:fixed;
   background:linear-gradient(to bottom,#12221935,transparent 29%,transparent 56%,#12221970);
 }
 .ui-game:has(.watch-ground) #mobileNav .navitem:not(.active) { color:#f3e8cc; }
@@ -259,11 +258,6 @@ body.ui-game:has(.watch-ground)::after {
   .watch-readout { --action-width:35px; column-gap:3px; }
 }
 @container (max-height:335px) {
-  .watch-report:has(.lining-link) .watch-receipt {
-    grid-template-columns:minmax(0,1fr) auto; column-gap:6px; align-items:center;
-  }
-  .watch-report:has(.lining-link) .watch-loot { grid-column:1/-1; grid-row:2; }
-  .watch-report .lining-link { grid-column:2; grid-row:1; }
   .watch-fighter:has(.watch-skills) .watch-actor {
     max-width:clamp(40px,calc((84cqh - 111px) * .88),150px);
   }
@@ -313,6 +307,55 @@ body.ui-game:has(.watch-ground)::after {
 .watch-ground .watch-start-label { flex-direction:column; gap:2px; line-height:1.15; font-size:19px; }
 .watch-ground .watch-start-label svg { width:29px; height:29px; }
 .watch-ground .watch-ticket-bar { max-width:122px; font-size:10px; }
+.watch-ground .watch-recent-loot {
+  position:absolute; z-index:8; top:0; right:4px; display:flex; align-items:center; gap:4px;
+  min-height:44px; padding:4px 9px; border:1px solid #aa936c; border-radius:8px;
+  background:#24342deb; color:#f5e3c2; font:700 12px var(--sans);
+}
+.watch-recent-loot svg { width:17px; height:17px; }
+.watch-receipt .loot-gear-list, .loot-history .loot-gear-list { display:grid; justify-content:stretch; gap:4px; }
+.watch-receipt .watch-loot { width:100%; }
+.watch-loot .loot-gear, .loot-history .loot-gear {
+  display:grid; grid-template-columns:24px minmax(0,1fr) auto; align-items:center;
+  gap:7px; width:100%; text-align:left; font-size:13px;
+}
+.watch-loot button.loot-gear, .loot-history button.loot-gear {
+  min-height:44px; padding:4px 8px; border:1px solid #9d8965; border-radius:6px;
+  color:#fff3d9; background:#1d2924f5; text-shadow:none;
+}
+.loot-history button.loot-gear:is(.loot-magic,.loot-rare) { border:2px solid var(--rarity-ink); }
+.loot-history .loot-magic, .dialog .loot-history .gear-grade[data-rarity="magic"] { --rarity-ink:#a3dcff; }
+.loot-history .loot-rare, .dialog .loot-history .gear-grade[data-rarity="rare"] { --rarity-ink:#ffda79; }
+.watch-loot .loot-name, .loot-history .loot-name { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 6px; min-width:0; }
+.loot-name b { overflow-wrap:anywhere; }
+.loot-name > small { color:#e7d5b6; font-size:11px; }
+.loot-name > .loot-score { flex-basis:100%; }
+.loot-score em { font-style:normal; font-weight:700; }
+.loot-score [data-tone="up"] { color:#a4ecc4; }
+.loot-score [data-tone="down"] { color:#ffb5ac; }
+.watch-loot .loot-forge-label, .loot-history .loot-forge-label { display:inline-flex; align-items:center; gap:2px; font-size:12px; color:#ffdf9c; }
+.loot-forge-label svg, .loot-gold svg { width:16px; height:16px; }
+.loot-history .gear-portrait { width:22px; height:26px; }
+.loot-history .outfit-art { width:22px; height:22px; }
+.loot-history .loot-gear > svg { width:20px; height:20px; }
+.loot-history { display:grid; gap:12px; }
+.loot-gold { display:flex; align-items:center; gap:5px; margin:0; font-weight:700; }
+.loot-item-detail details { margin:2px 0 7px; }
+.loot-item-detail summary { cursor:pointer; padding:6px 2px; }
+.loot-materials { display:flex; flex-wrap:wrap; gap:3px 9px; justify-content:center; font-size:12px; }
+.loot-history .loot-materials { justify-content:start; }
+.loot-actions { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:4px; }
+.watch-report .loot-actions svg { width:16px; height:16px; }
+@container (max-height:335px) {
+  .watch-receipt-head { display:flex; flex-wrap:wrap; justify-content:center; gap:3px 9px; }
+  .watch-receipt .loot-gear-list { grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); gap:3px; }
+  .watch-receipt button.loot-gear { grid-template-columns:16px minmax(0,1fr); justify-items:center; align-content:start; gap:2px; padding:4px; text-align:center; }
+  .watch-receipt button.loot-gear > :first-child { width:16px; height:18px; }
+  .watch-receipt .loot-name { display:contents; }
+  .watch-receipt .loot-name b { justify-self:start; text-align:left; font-size:12px; }
+  .watch-receipt .loot-name > small, .watch-receipt .loot-forge-label { grid-column:1/-1; }
+  .watch-receipt .loot-name .loot-score { font-size:10px; }
+}
 @media (max-height:760px) {
   .ui-game .watch-home-actions .watch-start { height:88px; min-height:88px!important; }
   .watch-ground .watch-start-label { font-size:17px; }

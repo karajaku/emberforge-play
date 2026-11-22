@@ -21,6 +21,15 @@ const ForgeItemView = (() => {
     emptySlot = entry ? "" : slot;
     selectionVersion++;
   }
+  function selectItem(s, id) {
+    const entry = Game.forgeItems.list(s).find(item => item.id === id);
+    if (!entry) return false;
+    if (!matches(entry)) Object.assign(filter, defaults);
+    selected = entry.id;
+    emptySlot = "";
+    selectionVersion++;
+    return true;
+  }
   function view(s) {
     const all = Game.forgeItems.list(s);
     visible = all.filter(matches);
@@ -153,6 +162,6 @@ const ForgeItemView = (() => {
     return version === selectionVersion && current() === "forge" && phonePage("forge") === "work" && !archiveBlade &&
       modal === source && selected === id;
   }
-  return {view,selectSlot,step,detailKey,strike,decorate,disposalButtons,modalContent,filterChange,preview,request,guard,filtering,
+  return {view,selectSlot,selectItem,step,detailKey,strike,decorate,disposalButtons,modalContent,filterChange,preview,request,guard,filtering,
     get shown(){return shown;},get version(){return selectionVersion;},invalidate(){selectionVersion++;}};
 })();

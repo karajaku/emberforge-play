@@ -1,16 +1,16 @@
-:root { color-scheme: dark; font-family: "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif; background: #10191a; color: #f7eedc; }
+:root { color-scheme: dark; font-family: "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif; background: #263946; color: #f7eedc; }
 * { box-sizing: border-box; }
-body { margin: 0; background: radial-gradient(ellipse at top, #31332c 0%, transparent 65%); }
-main { width: min(100%, 650px); margin: auto; padding: 16px clamp(12px, 4vw, 28px) 36px; }
+body { width: min(100%, 480px); min-height: 100dvh; margin: 0 auto; container-type: inline-size; background: radial-gradient(ellipse at top, #31332c 0%, transparent 65%) #10191a; }
+main { padding: 16px clamp(12px, 4cqw, 28px) 36px; }
 nav { margin-bottom: 12px; }
 a { display: inline-block; color: #eac68e; padding: 10px 0; text-underline-offset: 4px; }
 article { border: 1px solid #68583e; background: #192526; box-shadow: 0 12px 42px #070c0c66; }
 header { padding: 24px; min-height: 148px; display: grid; align-content: end; background: linear-gradient(90deg, #10191bf5 0%, #10191beb 38%, #10191b50), url("assets/story/bridge.webp") center 48% / cover; }
 h1, h2, p { margin: 0; }
-h1 { font-family: "Batang", "AppleMyungjo", Georgia, serif; font-size: clamp(2rem, 7vw, 3rem); line-height: 1.25; }
+h1 { font-family: "Batang", "AppleMyungjo", Georgia, serif; font-size: clamp(2rem, 7cqw, 3rem); line-height: 1.25; }
 header p:last-child { margin-top: 6px; color: #e4dfd0; }
 #day-label { color: #f0c785; font-size: .85rem; }
-.panel { padding: clamp(14px, 4vw, 24px); }
+.panel { padding: clamp(14px, 4cqw, 24px); }
 #link-notice, #opponent { margin-bottom: 12px; line-height: 1.45; color: #f3d097; }
 .meters, .moves, .actions, #scoreboard { display: grid; gap: 8px; }
 .meters, .moves { grid-template-columns: repeat(3, minmax(0, 1fr)); }
