@@ -23,8 +23,10 @@ const OutfitView = (() => {
   function entries(s) {
     return api().state(s).items.map(item => {
       const worn = slotFor(s,item.id);
+      const comparison = Game.compareGear(s,item,"outfit");
+      const compareSlot = !worn && item.kind === "ring" && api().slots.find(slot => slot.key === comparison.slot);
       return {
-        key:"outfit-" + item.id, comparison:Game.compareGear(s,item,"outfit"), id:item.id, wornSlot:worn?.key, group:"gear", name:api().name(item), rarity:Game.blades.itemRarity(item), baseGrade:Game.blades.baseGradeNames[item.grade], mark:"+" + item.level,
+        key:"outfit-" + item.id, comparison, compareLabel:compareSlot ? compareSlot.name + " 기준" : "", id:item.id, wornSlot:worn?.key, group:"gear", name:api().name(item), rarity:Game.blades.itemRarity(item), baseGrade:Game.blades.baseGradeNames[item.grade], mark:"+" + item.level,
         art:art(item.kind), status:worn ? "착용" : "", open:"outfit:item:" + item.id,
       };
     });
@@ -125,12 +127,12 @@ const OutfitView = (() => {
     const q = api().quote(item);
     const comparison = Game.compareGear(s,item,"outfit",preferred);
     let body = '<div class="bag-detail-art">' + art(item.kind) + '</div>' + GearGradeView.detail(item);
-    if (current) body += GearCompareView.detail(comparison, "outfit");
+    if (current) body += GearCompareView.detail(comparison, "outfit", api().preview(s,item,current.key));
     else {
       const ordered = [...targets].sort((a,b) => Number(b.key === comparison.slot) - Number(a.key === comparison.slot));
       for (const slot of ordered) {
         const match = slot.key === comparison.slot ? comparison : Game.compareGear(s,item,"outfit",slot.key);
-        body += GearCompareView.detail(match,"outfit");
+        body += GearCompareView.detail(match,"outfit",api().preview(s,item,slot.key));
         const armor = match.rows.find(stat => stat.key === "armorRating");
         if (armor) body += line("착용 방어력 합계",fmt(Game.blades.armorStats(s).armorRating + armor.delta));
         body += btn("outfitEquip", slot.name + (match.current ? " 교체" : " 착용"), slot.key + ":" + item.id, "primary");

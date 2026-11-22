@@ -69,6 +69,26 @@ const RegionalGear = (() => {
     }
     return {conversion,exposure};
   }
+  function preview(s, item, slot) {
+    const kit = s.bladeForge.outfit;
+    const worn = kit.items.find(other => other.id === kit.equipped[slot]);
+    const offered = effect(item), removed = worn && effect(worn);
+    const before = build(s), after = build(s, {slot, id:item.id});
+    const rows = [];
+    for (const stat of ["conversion", "exposure"]) {
+      for (const element of elementKeys) {
+        const previous = before[stat][element], value = after[stat][element];
+        // Keep a directly affected stat at its cap visible even when the swap
+        // changes nothing. Other elements appear only if the cap redistributes them.
+        if (value === previous && !(item.element === element && offered[stat]) &&
+          !(worn?.element === element && removed[stat])) continue;
+        const conversion = stat === "conversion";
+        rows.push({key:stat + "-" + element, label:elements[element] + (conversion ? " 피해 전환" : " 저항 감소"),
+          value, before:previous, delta:value - previous, unit:conversion ? "%" : "%p", deltaUnit:"%p"});
+      }
+    }
+    return rows;
+  }
   function effective(resistances, kit) {
     return Object.fromEntries(elementKeys.map(k => [k,Math.max(-60,resistances[k]-kit.exposure[k])]));
   }
@@ -158,6 +178,6 @@ const RegionalGear = (() => {
     const vector=(o,max)=>record(o)&&Object.keys(o).length===3&&elementKeys.every(k=>between(o[k],0,max));
     return record(v)&&vector(v.conversion,80)&&vector(v.exposure,45)&&Object.values(v.conversion).reduce((a,b)=>a+b,0)<=80;
   }
-  return {slots,elements,capacity,state,name,effect,quote,profile,preferredElement,build,effective,multiplier,dropChance,reward,act,valid,validItem,validBuild};
+  return {slots,elements,capacity,state,name,effect,quote,profile,preferredElement,build,preview,effective,multiplier,dropChance,reward,act,valid,validItem,validBuild};
 })();
 if (typeof module !== "undefined") module.exports = RegionalGear;

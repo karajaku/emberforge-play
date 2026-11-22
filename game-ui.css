@@ -403,7 +403,12 @@ body:has(#shade:is([data-modal^="blade"],[data-modal^="outfit:"],[data-modal^="i
 .gear-comparison :is(th,td) { padding:4px 3px; text-align:right; }
 .gear-comparison th:first-child { text-align:left; font-weight:500; }
 .gear-comparison thead { font-size:11px; color:#6b5a46; border-bottom:1px solid #b9a382; }
-.gear-comparison tbody tr:first-child { background:#eee0c7; }
-.gear-comparison tbody tr:first-child :is(th,td) { font-weight:750; }
+.gear-item-stats tbody tr:first-child { background:#eee0c7; }
+.gear-item-stats tbody tr:first-child :is(th,td) { font-weight:750; }
 .gear-comparison td { white-space:nowrap; }
 .gear-equal { color:#786d5f; }
+
+.bag-compare-label { font-size:10px; line-height:1.2; color:#e3dac5; }
+.gear-worn-stats { margin-top:7px; }
+.gear-worn-stats thead { background:#e5e9dc; color:#374834; }
+.gear-worn-stats td { font-weight:600; }
