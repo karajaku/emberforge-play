@@ -4,7 +4,9 @@ const HuntEffects=(()=>{
   function cancel(){
     timers.forEach(clearTimeout);timers=[];timeScale=1;
     animations.forEach(a=>a.cancel());animations=[];nodes.forEach(n=>n.remove());nodes=[];
-    document.querySelector('.watch-arena')?.removeAttribute('data-phase');
+    const arena=document.querySelector('.watch-arena');
+    arena?.removeAttribute('data-phase');
+    arena?.removeAttribute('data-duel-animating');
     document.querySelectorAll('.watch-roll').forEach(n=>n.classList.remove('rolling','waiting','chosen'));
     document.querySelectorAll('.watch-actor').forEach(n=>{delete n.dataset.attackAt;delete n.dataset.attacking;});
     document.querySelector('.watch-counter-status')?.style.removeProperty('visibility');
@@ -13,7 +15,7 @@ const HuntEffects=(()=>{
   const later=(fn,ms)=>timers.push(setTimeout(fn,ms*timeScale));
   function animate(node,frames,options){if(node&&motionEnabled())animations.push(node.animate(frames,{...options,duration:options.duration*timeScale}));}
   // Times are authored at full duration and share the journey's half-duration scale.
-  const d20Timing={roll:800,reply:1800,defense:100,verdict:240,windup:500,contact:300,recover:3800,finish:3930};
+  const d20Timing={roll:760,reply:1840,defense:140,verdict:260,windup:660,contact:300,recover:3850,finish:3930};
   const names={strike:'공격',block:'방어',heavyStrike:'강타'},icons={strike:'sword',block:'shield',heavyStrike:'hammer'};
   function checkLabel(outcome,side){
     return {miss:'빗나감',blocked:side==='player'?'막힘':'방어',hit:'명중',critical:'치명타'}[outcome];
@@ -24,6 +26,21 @@ const HuntEffects=(()=>{
     if(damage>=1000000&&damage<100000000) return '−'+fmt(damage/10000)+'만';
     if(damage>=limit&&damage<1000000) return '−'+(Math.floor(damage/1000)/10).toLocaleString('ko-KR')+'만';
     return '−'+healthAmount(damage);
+  }
+  function showD20Spotlight(arena,side){
+    const node=document.createElement('div');
+    node.className='watch-spotlight';
+    node.dataset.spotlight=side;
+    node.dataset.step='roll';
+    node.setAttribute('aria-hidden','true');
+    const local=side==='player';
+    node.innerHTML='<div class="watch-spotlight-content"><div class="watch-spotlight-dice">'+
+      '<div class="watch-spotlight-attack"><b>'+(local?'내 공격':'적 공격')+'</b><div class="watch-spotlight-d20"><span></span></div></div>'+
+      '<div class="watch-spotlight-defense"><b>'+(local?'적 방어':'내 방어')+'</b><div class="watch-spotlight-d6"><span></span></div></div>'+
+      '</div><strong class="watch-spotlight-verdict"></strong></div>';
+    node.style.setProperty('--spotlight-roll',d20Timing.roll*timeScale+'ms');
+    arena.append(node);nodes.push(node);
+    return node;
   }
   function faceIcon(die,face){const action=DiceCombat.actions[face-1];die.innerHTML=icon(icons[action]);die.dataset.action=action;}
   function burst(actor,kind,damage,critical = false,showAmount = true){
@@ -66,6 +83,7 @@ const HuntEffects=(()=>{
     function d20RevealAt(side){return (side==='enemy'?d20Timing.reply:0)+d20Timing.roll;}
     const damageSlots={};
     if(d20){
+      arena.setAttribute('data-duel-animating','');
       for(const side of ['player','enemy']){
         const host=arena.querySelector('[data-die="'+side+'"]'),die=host.querySelector('.watch-die');
         const check=side==='player'?roll.attackCheck:roll.replyCheck;
@@ -80,34 +98,40 @@ const HuntEffects=(()=>{
         die.textContent='';die.setAttribute('aria-label',actorLabel+' 주사위 대기');
         if(!check)continue;
         const revealAt=d20RevealAt(side);
-        die.style.setProperty('--d20-roll-duration',d20Timing.roll*timeScale+'ms');
+        const face=roll[side+'Face'];
+        let spotlight;
         later(()=>{
           arena.dataset.phase=side+'-roll';host.classList.remove('waiting');host.classList.add('rolling');
           die.setAttribute('aria-label',actorLabel+' 주사위 굴리는 중');
+          spotlight=showD20Spotlight(arena,side);
           sound('dice');
         },revealAt-d20Timing.roll);
-        const face=roll[side+'Face'];
-        const automatic=face===1||face===20;
-        function revealVerdict(){
-          host.dataset.outcome=check.outcome;
-          verdict.textContent=checkLabel(check.outcome,side);
-        }
         later(()=>{
           arena.dataset.phase=side+'-reveal';
           host.classList.remove('rolling');host.classList.add('chosen');die.dataset.action='strike';
           die.textContent=face;die.setAttribute('aria-label',actorLabel+' d20 '+face);
-          if(automatic)revealVerdict();
+          spotlight.dataset.step='attack';
+          spotlight.querySelector('.watch-spotlight-d20 span').textContent=face;
         },revealAt);
         later(()=>{
           arena.dataset.phase=side+'-defense';
           defense.querySelector('b').textContent=check.defense;
           defense.setAttribute('aria-label',defender+' d6 '+check.defense+' · 목표 '+check.target);
           defense.hidden=false;
+          spotlight.dataset.step='defense';
+          spotlight.querySelector('.watch-spotlight-d6 span').textContent=check.defense;
         },revealAt+d20Timing.defense);
-        if(!automatic)later(()=>{
+        later(()=>{
           arena.dataset.phase=side+'-verdict';
-          revealVerdict();
+          const label=checkLabel(check.outcome,side);
+          host.dataset.outcome=check.outcome;
+          verdict.textContent=label;
+          spotlight.dataset.step='verdict';
+          spotlight.dataset.outcome=check.outcome;
+          spotlight.querySelector('.watch-spotlight-verdict').textContent=label;
         },revealAt+d20Timing.verdict);
+        later(()=>spotlight.classList.add('leaving'),revealAt+d20Timing.windup-132);
+        later(()=>spotlight.remove(),revealAt+d20Timing.windup-36);
       }
     }
     function diceTurn(side,at){
@@ -217,13 +241,14 @@ const HuntEffects=(()=>{
       arena.dataset.phase=end.enemy<=0?'victory':end.player<=0?'defeat':'recover';
       const dead=end.enemy<=0?'enemy':end.player<=0?'player':null;
       if(dead)animate(actors[dead],[{opacity:1,transform:'translateY(0)'},{opacity:.65,transform:'translateY(12px) rotate(14deg)',offset:.45},{opacity:0,transform:'translateY(36px) rotate(30deg) scale(.8)'}],{duration:430,fill:'forwards'});
-    },d20?(end.enemy<=0?1900:d20Timing.recover):lead+(end.enemy<=0?850:1460));
+    },d20?(end.enemy<=0?1980:d20Timing.recover):lead+(end.enemy<=0?850:1460));
     later(()=>{
       for(const side of ['player','enemy'])updateHealthMeter(meters[side],end[side],end[side],false);
       for(const side of ['player','enemy'])if(end[side]<=0)actors[side].dataset.defeated='true';
       arena.dataset.phase=end.enemy<=0?'victory':end.player<=0?'defeat':'rest';
+      arena.removeAttribute('data-duel-animating');
       if(resolve){const done=resolve;resolve=null;done();}
-    },d20?(end.enemy<=0?2350:d20Timing.finish):lead+(end.enemy<=0?1350:1900));
+    },d20?(end.enemy<=0?2440:d20Timing.finish):lead+(end.enemy<=0?1350:1900));
     return true;
   }
   return {play,cancel,checkLabel,damageLabel,finished:()=>completion};
