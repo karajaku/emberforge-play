@@ -53,39 +53,91 @@ body.ui-game[data-place="forge"] #noticeSlot:has(.forge-item-notice) { top:37%; 
 #toast.forge-item-notice #noticeTitle, #toast.forge-item-notice::after { display:none; }
 body:has(#shade:not([hidden])) #toast.forge-item-notice { visibility:hidden; }
 #shade[data-modal="forgeItem:filter"] {
-  align-items:end;
-  padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+  align-items:start;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  padding:max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
+    max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  background:#090e11a8;
+  backdrop-filter:none;
 }
 #shade[data-modal="forgeItem:filter"] .dialog {
-  display:grid; grid-template-rows:auto minmax(0,1fr); max-height:100%; overflow:hidden; padding:0;
+  position:relative;
+  width:min(396px, 100%); height:clamp(466px, 125vw, 512px); max-height:none;
+  margin-block:auto; padding:0; border:0; border-radius:0; overflow:visible;
+  background:transparent url("assets/forge-filter-armory.webp") center / 100% 100% no-repeat;
+  box-shadow:none; filter:drop-shadow(0 12px 12px #080607c7);
+  color:#fff0cf;
 }
-#shade[data-modal="forgeItem:filter"] .dialog-head { margin:0; padding:5px 12px; min-height:54px; }
+#shade[data-modal="forgeItem:filter"] .dialog-head {
+  position:absolute; inset:9.1% 0 auto; height:6.9%; min-height:0;
+  display:grid; place-content:center; margin:0; padding:0; border:0; background:none;
+}
+#shade[data-modal="forgeItem:filter"] #modalTitle {
+  margin:0; color:inherit; font:700 17px/1.08 var(--sans); letter-spacing:.06em;
+  text-shadow:0 2px 2px #100b08;
+}
 #shade[data-modal="forgeItem:filter"] .dialog-head [data-close] { display:none; }
-#shade[data-modal="forgeItem:filter"] #modalBody {
-  display:grid; grid-template-rows:minmax(0,1fr) auto; min-height:0;
+#shade[data-modal="forgeItem:filter"] #modalBody { position:absolute; inset:0; }
+.forge-filter-count {
+  position:absolute; top:12.55%; right:9.1%; transform:translateY(-50%);
+  font:600 12px/1.2 var(--sans); font-variant-numeric:tabular-nums;
+  color:#ffda89; text-shadow:0 2px 2px #100b08; white-space:nowrap;
 }
-.forge-item-filter { overflow:auto; overscroll-behavior:contain; padding:7px 10px 8px; }
-.forge-item-filter fieldset { min-width:0; margin:0 0 7px; padding:0; border:0; }
-.forge-item-filter fieldset:last-child { margin-bottom:0; }
-.forge-item-filter legend { padding:0 0 3px; color:#5c452d; font-size:13px; font-weight:700; }
-.forge-filter-choices { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px; }
-.forge-filter-choices button,
-.forge-filter-footer button {
-  min-height:44px; margin:0; padding:3px; border:1px solid #9c8056; border-radius:6px;
-  background:#fff8eb; color:#443021; font:700 13px var(--sans); box-shadow:none;
+.forge-filter-field {
+  position:absolute; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr));
 }
-.forge-filter-choices button {
-  display:flex; align-items:center; justify-content:center; gap:3px; word-break:keep-all;
+.forge-filter-field[data-filter-field="kind"] {
+  inset:20.6% 6.6% auto; height:40.1%; gap:2.9% 2.2%;
+  grid-template-rows:repeat(3, minmax(0, 1fr));
 }
-.forge-filter-check { display:none; }
-.forge-filter-choices button[aria-pressed="true"] { background:#30372d; color:#fff3d0; }
-.forge-filter-choices button[aria-pressed="true"] .forge-filter-check { display:inline; color:#f4d491; }
+.forge-filter-field:is([data-filter-field="rarity"],[data-filter-field="worn"]) {
+  inset:64.6% 7.4% auto; height:9.5%; column-gap:3%;
+}
+.forge-filter-field[data-filter-field="worn"] {
+  top:74.4%; grid-template-columns:repeat(2, minmax(0, 1fr));
+}
+.forge-filter-label {
+  position:absolute; top:-2px; left:50%; transform:translateX(-50%);
+  font:700 11px/1 var(--sans); color:#ffdfab; white-space:nowrap; pointer-events:none;
+  text-shadow:0 1px #100b08, 1px 0 #100b08, -1px 0 #100b08, 0 -1px #100b08;
+}
+#shade[data-modal="forgeItem:filter"] #modalBody button {
+  position:relative; display:flex; align-items:center; justify-content:center; gap:3px;
+  min-width:44px; min-height:44px; margin:0; padding:0; border:0; border-radius:0;
+  background:none; color:#fff0cf; font:650 13px/1.1 var(--sans);
+  text-shadow:0 2px 2px #100b08, 0 0 3px #100b08; box-shadow:none; word-break:keep-all;
+}
+#shade .forge-filter-field[data-filter-field="kind"] button { flex-direction:column; }
+.forge-filter-field :is(.outfit-art,.control-art) { --art-size:28px; width:28px; height:28px; }
+#shade[data-modal="forgeItem:filter"] #modalBody button:focus-visible {
+  outline:2px dashed #ffedb3; outline-offset:-4px;
+}
+#shade[data-modal="forgeItem:filter"] #modalBody button[aria-pressed="true"] {
+  background:radial-gradient(ellipse at center,#d2a24a6e 1%,#96652e38 48%,transparent 74%);
+  color:#ffda89;
+}
+#shade[data-modal="forgeItem:filter"] #modalBody button[data-filter-value="magic"] { color:#a8d7ff; }
+#shade[data-modal="forgeItem:filter"] #modalBody button[data-filter-value="rare"] { color:#ffe091; }
+.forge-filter-check {
+  display:none; position:absolute; top:.18em; right:.52em;
+  font-size:15px; line-height:1; color:#ffdf83; text-shadow:0 1px 3px #151009;
+}
+.forge-filter-field button[aria-pressed="true"] .forge-filter-check { display:block; }
+.forge-filter-field:not([data-filter-field="kind"]) .forge-filter-check { top:auto; }
 .forge-filter-footer {
-  display:grid; grid-template-columns:minmax(0,1fr) 1fr 1fr; align-items:center;
-  gap:6px; padding:6px 10px; border-top:1px solid #cdb991; color:#513b25;
+  position:absolute; inset:87.9% 9.1% auto 7.1%; height:9.6%; display:grid;
+  grid-template-columns:26% 1fr; gap:9.7%;
 }
-.forge-filter-footer output { font-size:13px; font-weight:700; }
-.forge-filter-footer button[data-close] { background:#30372d; color:#fff3d0; }
+#shade[data-modal="forgeItem:filter"] #modalBody .forge-filter-footer button[data-close] {
+  color:#ffe4ac; font-size:15px; font-weight:750; letter-spacing:.08em;
+}
+@media (max-width:365px) {
+  #shade[data-modal="forgeItem:filter"] #modalTitle { font-size:16px; }
+  #shade[data-modal="forgeItem:filter"] #modalBody button { font-size:12px; }
+  .forge-filter-count { right:8.9%; font-size:11px; }
+  .forge-filter-field :is(.outfit-art,.control-art) { --art-size:25px; width:25px; height:25px; }
+}
 .forge-dialog-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
 .forge-dialog-actions button { min-height:44px; }
 @media(max-height:660px) {

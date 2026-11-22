@@ -275,10 +275,15 @@ const ForgeItemView = (() => {
         '</span></button>').join("") + '</nav>';
   }
   function filterField(id,title,choices) {
-    return '<fieldset><legend>' + title + '</legend><div class="forge-filter-choices">' +
-      choices.map(([value,label]) => '<button type="button" data-forge-filter="' + id +
+    const parts = id === "kind";
+    return '<div class="forge-filter-field" data-filter-field="' + id + '" role="group" aria-label="' + title + '">' +
+      (parts ? "" : '<span class="forge-filter-label" aria-hidden="true">' + (id === "worn" ? "착용" : title) + '</span>') +
+      choices.map(([value,label]) => {
+        const art = !parts ? "" : value === "weapon" ? controlArt("hunt") : OutfitView.art(value === "chest" ? "armor" : value);
+        return '<button type="button" data-forge-filter="' + id +
         '" data-filter-value="' + value + '" aria-pressed="' + (value === filter[id]) + '">' +
-        '<span class="forge-filter-check" aria-hidden="true">✓</span>' + label + '</button>').join("") + '</div></fieldset>';
+        art + label + '<span class="forge-filter-check" aria-hidden="true">✓</span></button>';
+      }).join("") + '</div>';
   }
   function filterCount() {
     return '장비 ' + fmt(visible.length) + '개';
@@ -286,10 +291,11 @@ const ForgeItemView = (() => {
   function modalContent(key) {
     if (key === "forgeItem:filter") {
       const kinds = [["weapon","무기"],["chest","흉갑"],...Game.outfit.slots.filter(o=>o.kind!=="armor" && o.key!=="ring2").map(o=>[o.kind,o.kind === "ring" ? "반지" : o.name])];
-      return ["장비 필터", '<div class="forge-item-filter">' + filterField("kind","부위",kinds) +
+      return ["장비 필터", '<output class="forge-filter-count" aria-live="polite">' + filterCount() + '</output>' +
+        filterField("kind","부위",kinds) +
         filterField("rarity","등급",[["normal","일반"],["magic","매직"],["rare","레어"]]) +
-        filterField("worn","착용 상태",[["on","착용 중"],["off","미착용"]]) + '</div><div class="forge-filter-footer">' +
-        '<output aria-live="polite">' + filterCount() + '</output><button type="button" data-forge-reset>초기화</button>' +
+        filterField("worn","착용 상태",[["on","착용 중"],["off","미착용"]]) +
+        '<div class="forge-filter-footer"><button type="button" data-forge-reset>초기화</button>' +
         '<button type="button" data-close>닫기</button></div>'];
     }
     const q = pending;

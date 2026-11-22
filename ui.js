@@ -1170,6 +1170,7 @@ function showModal(key, trigger = document.activeElement) {
   }
   modal = key;
   displayModal();
+  if (key === "forgeItem:filter") el("shade").scrollTop = 0;
   const focus = key === "confirmNewGame" ? el("modalBody").querySelector("[data-open=settings]") :
     el("shade").querySelector(key === "forgeItem:filter" ? "[data-forge-filter]" : "button");
   focus.focus({ preventScroll: true });
