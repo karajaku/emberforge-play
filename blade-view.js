@@ -99,7 +99,7 @@ const BladeView = (() => {
   function collection(s) {
     const b = rules(), rack = b.state(s);
     return line("무기",rack.items.length+" / 120자루") + (Game.endgame.info(s).gift ? SoulView.open("lessons","첫 +20 선물 선택","primary") : "") + rack.items.slice().reverse().map(item => row(GearGradeView.colored(item,label(item)),
-      GearCompareView.score(Game.compareGear(s,item,"blade")) + " · 물리 " + damageRange(b.weaponStats(item)) + " · 치명타 " + pct(b.weaponStats(item).critChance) + (item.id === rack.equipped ? " · 장착 중" : [rack.deployed,rack.extraDeployed].includes(item.id) ? " · 배치 중" : ""),
+      GearCompareView.score(Game.compareGear(s,item,"blade")) + " · 물리 " + damageRange(b.weaponStats(item)) + " · 명중 시 치명타 " + pct(b.weaponStats(item).critChance) + (item.id === rack.equipped ? " · 장착 중" : [rack.deployed,rack.extraDeployed].includes(item.id) ? " · 배치 중" : ""),
       openBtn("bladeItem-"+item.id,"살펴보기","mini"),"",artwork(item))).join("") +
       '<button class="action" data-archive-blade>기록 검 대장간</button>';
   }
@@ -203,7 +203,7 @@ const BladeView = (() => {
     if (key === "bladeStyles") return ["검술 선택",styles(s)];
     if (key === "bladeCraft") return ["무기 제작",workshop(s)];
     if (key === "bladeCollection") return ["무기 보관함",collection(s)];
-    if (key === "bladeGuide") return ["무기 제작 수업", desc("숲에서는 한손검·도끼·철퇴·단검이 떨어집니다. 무기는 기본 피해 폭과 치명타 확률이 다르며, 치명타는 1.5배 피해를 줍니다. 흉갑·투구·어깨·다리·장갑·망토의 방어력은 합산됩니다.") + OutfitView.loadout() +
+    if (key === "bladeGuide") return ["무기 제작 수업", desc("숲에서는 한손검·도끼·철퇴·단검이 떨어집니다. 무기마다 기본 피해 범위와 명중 시 치명타 확률이 다릅니다. 공격 주사위의 20도 치명타이며, 치명타는 1.5배 피해를 줍니다. 흉갑·투구·어깨·다리·장갑·망토의 방어력은 합산됩니다.") + OutfitView.loadout() +
       line("강화", "공격력 증가 · 최고 +20") + line("각인", "접두·접미에 새 옵션") +
       desc("+7·+9·+11 제작 공정에서 특성을 고르면 +19에 마무리 공법이 열립니다. 각인석은 숲 승리와 여분 무기 분해로 모읍니다. 사냥 전에 검술을 고르면 주사위 전투에서 자동으로 발동합니다.") +
       openBtn("bladeLoot-1","단계별 장비 획득 확률") + openBtn("bladeStyles","검술 고르기") + go("forest","숲 사냥","primary")];

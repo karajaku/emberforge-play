@@ -1,4 +1,4 @@
-/* Pure D6 rules shared by the production combat resolver and tests. */
+/* Pure hunt rules shared by the production combat resolver and tests. */
 const DiceCombat=(()=>{
   const outfit = typeof module !== "undefined" ? require("./regional-gear.js") : RegionalGear;
   const actions=['strike','strike','strike','block','block','heavyStrike'];
@@ -24,15 +24,31 @@ const DiceCombat=(()=>{
     return {cooldown,condition,ready:cooldown===0&&condition};
   }
   const face=rng=>Math.max(1,Math.min(6,1+Math.floor(rng()*6)));
-  function bladeTurn(h, playerFace, enemyFace, rng) {
+  const face20 = rng => Math.max(1, Math.min(20, 1 + Math.floor(rng() * 20)));
+  function attackCheck(roll, defense, base, bonus = 0) {
+    const target = base + defense;
+    const outcome = roll === 1 ? "miss" : roll === 20 ? "critical" :
+      roll + bonus >= target ? "hit" : "blocked";
+    return { defense, target, bonus, outcome };
+  }
+  const hits = check => check.outcome === "hit" || check.outcome === "critical";
+  function replyDefenseBase(style, enemySkill) {
+    if (!enemySkill) return 4;
+    return style === "counter" ? 13 : 6;
+  }
+
+  function d20Turn(h, rng = Math.random) {
+    return bladeTurn(h, face20(rng), null, rng, true);
+  }
+  function bladeTurn(h, playerFace, enemyFace, rng, d20 = false) {
     const st = h.bladeCombat,
       mods = st.mods;
-    let player = actions[playerFace - 1];
-    const enemy = actions[enemyFace - 1];
+    let player = d20 ? "strike" : actions[playerFace - 1];
+    let enemy = d20 ? null : actions[enemyFace - 1];
     const ascended = st.ascension === st.style;
     // A counter smith converts an ordinary swing into a parry on a telegraphed enemy skill.
     if (
-      st.style === "counter" &&
+      !d20 && st.style === "counter" &&
       player === "strike" &&
       !h.counter &&
       enemy !== "block" &&
@@ -64,57 +80,90 @@ const DiceCombat=(()=>{
         skill = "rupture";
         raw = st.attack + st.rupture * wounds;
         if (ascended && !ruptured) raw *= .75;
-        ruptured = true;
-        wounds = ascended ? 1 : 0;
+        if (!d20) {
+          ruptured = true;
+          wounds = ascended ? 1 : 0;
+        }
         if (player === "heavyStrike") raw *= st.heavy / (2.1 * st.attack);
       } else if (st.style === "heavy" && momentum >= 2 && !cooldowns.heavyStrike) {
         skill = "heavyStrike";
+        if (d20) player = "heavyStrike";
         raw = st.heavy;
         cooldowns.heavyStrike = (proc("cooldown") ? 2 : 3) + Number(ascended);
       } else {
         raw = player === "heavyStrike" ? (st.heavy * 1.7) / 2.1 : st.strike;
-        if (st.style === "wound") wounds = Math.min(4, wounds + 1 + Number(proc("wounds")));
+        if (!d20 && st.style === "wound") wounds = Math.min(4, wounds + 1 + Number(proc("wounds")));
       }
       if (h.firstHit !== false) raw *= 1 + st.opening / 100;
       if (h.enemyHp <= h.enemyMax * 0.3) raw *= 1 + st.finish / 100;
-      momentum =
-        skill === "heavyStrike" ? 0 : Math.min(2, momentum + 1 + Number(player === "strike" && proc("momentum")));
+      if (!d20 || skill === "heavyStrike") {
+        momentum = skill === "heavyStrike" ? 0 :
+          Math.min(2, momentum + 1 + Number(player === "strike" && proc("momentum")));
+      }
     }
     // A rupture ignores a defensive face. Bleeding continues even during a block.
     const bleed = st.style === "wound" ? Math.round((h.wounds || 0) * st.rupture * 0.14) : 0;
     const pierces = skill==="rupture" || (ascended && skill==="heavyStrike");
     const elemental = h.fieldKit ? outfit.multiplier(outfit.profile(h.territoryRank || h.rank,h.enemyKind),h.fieldKit) : 1;
-    let critical = false;
+    const attack = d20 ? attackCheck(playerFace, face(rng), 2, pierces ? 2 : 0) : null;
+    const landed = d20 && hits(attack);
+    const partial = d20 && attack.outcome === "blocked" && st.blockedDamagePercent === 40;
+    if (d20) {
+      if (!landed && !partial) raw = 0;
+      if (landed) {
+        if (skill === "rupture") {
+          ruptured = true;
+          wounds = ascended ? 1 : 0;
+        } else if (st.style === "wound") {
+          wounds = Math.min(4, wounds + 1 + Number(proc("wounds")));
+        }
+        if (skill !== "heavyStrike") momentum = Math.min(2, momentum + 1 + Number(proc("momentum")));
+      }
+    }
+    let critical = d20 && attack.outcome === "critical";
     if (raw > 0 && st.minDamage !== undefined) {
       if (st.maxDamage > st.minDamage) {
         const rolled = st.minDamage + Math.min(st.maxDamage-st.minDamage, Math.floor(rng()*(st.maxDamage-st.minDamage+1)));
         raw *= rolled/st.attack;
       }
-      critical = rng()*100 < st.critChance;
-      if (critical) raw *= 1.5;
+      if (!d20 || attack.outcome === "hit") critical = rng()*100 < st.critChance;
     }
-    const blocked = enemyBlocks && !pierces ? (st.blockedDamagePercent ?? 25)/100 : 1;
+    if (critical) {
+      raw *= 1.5;
+      if (d20) attack.outcome = "critical";
+    }
+    const blocked = partial || (enemyBlocks && !pierces) ? (st.blockedDamagePercent ?? 25)/100 : 1;
     const damage = Math.min(h.enemyHp, Math.round(raw * elemental * blocked) + bleed);
     const enemySkillState = { ...h.enemySkillState, cooldown: Math.max(0, h.enemySkillState.cooldown - 1) };
     const key = enemySkillState.key;
     const fires = key === "escape" ? h.waveTurn >= 2 : !enemyBlocks && !enemySkillState.cooldown;
     const enemySkill = damage < h.enemyHp && fires ? key : null;
     if (enemySkill) enemySkillState.cooldown = enemySkillState.interval;
-    const guarded = block && !!enemySkill && enemySkill !== "escape";
+    let replyCheck = null;
+    if (d20 && damage < h.enemyHp && key !== "escape") {
+      enemyFace = face20(rng);
+      enemy = "strike";
+      replyCheck = attackCheck(enemyFace, face(rng), replyDefenseBase(st.style, enemySkill));
+    }
+    const guarded = d20 ? replyCheck?.outcome === "blocked" : block && !!enemySkill && enemySkill !== "escape";
     if (guarded) {
       counter = true;
       momentum = Math.min(2, momentum + 1);
     }
-    if (!block && enemySkill === "dust") momentum = Math.max(0, momentum - 1);
-    if (!block && enemySkill === "bind")
+    const enemyLanded = d20 ? replyCheck !== null && hits(replyCheck) : !block;
+    if (enemyLanded && enemySkill === "dust") momentum = Math.max(0, momentum - 1);
+    if (enemyLanded && enemySkill === "bind")
       cooldowns.heavyStrike = Math.min(4, Math.max(2, cooldowns.heavyStrike + 1));
     const amplified =
       (enemySkill === "fang" && h.hp <= h.maxHp / 2) || (enemySkill === "breath" && player === "heavyStrike");
-    const guard = block ? (enemySkill === "crush" ? 0.5 : 0.25) * (1 - (st.guardBonus || 0) / 100) : 1;
+    const guard = d20
+      ? enemyLanded ? 1 : guarded && enemySkill === "crush" ? 0.5 * (1 - (st.guardBonus || 0) / 100) : 0
+      : block ? (enemySkill === "crush" ? 0.5 : 0.25) * (1 - (st.guardBonus || 0) / 100) : 1;
     const incoming =
       enemyBlocks || key === "escape" || damage >= h.enemyHp
         ? 0
-        : h.enemyAttack * (enemySkill ? enemySkillState.power : power) * (amplified ? 1.5 : 1);
+        : h.enemyAttack * (enemySkill ? enemySkillState.power : power) * (amplified ? 1.5 : 1) *
+          (replyCheck?.outcome === "critical" ? 1.5 : 1);
     const ironCounter=ascended && st.style==="counter";
     const fortified = !!h.fortified || (skill === "counter" && (!!mods.fortify || ironCounter));
     const shield = fortified ? (1-(mods.fortify||0)/100)*(ironCounter ? 0.65 : 1) : 1;
@@ -144,7 +193,7 @@ const DiceCombat=(()=>{
       healed,
       wounds,
       ruptured,
-      firstHit: !!(block && h.firstHit !== false),
+      firstHit: h.firstHit !== false && (d20 ? !landed && !partial : block),
       fortified: fortified && !taken,
       skill,
       enemySkill,
@@ -152,6 +201,7 @@ const DiceCombat=(()=>{
       skillCooldowns: cooldowns,
       counter,
       momentum,
+      ...(d20 ? { attackCheck: attack, replyCheck } : {}),
     };
   }
   function journeyFactors(gear) {
@@ -204,6 +254,6 @@ const DiceCombat=(()=>{
     if (player !== 'block' && enemySkill === 'bind') cooldowns.heavyStrike = Math.max(2, cooldowns.heavyStrike + 1);
     return {playerFace,enemyFace,player,enemy,damage,taken,...(enabled?{skill,enemySkill,enemySkillState,skillCooldowns:cooldowns,counter:skill==='counter'?false:!!h.counter||guarded,momentum}: {})};
   }
-  return {actions,skills,enemySkills,skillStatus,face,turn,journeyFactors};
+  return {actions,skills,enemySkills,skillStatus,face,turn,d20Turn,replyDefenseBase,journeyFactors};
 })();
 if(typeof module!=='undefined') module.exports=DiceCombat;

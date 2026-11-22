@@ -369,7 +369,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     const strong = sparring && Swordcraft.heavy(workWeapon.work);
     const beforeHunt = state.hunt;
     const beforeHuntHealth = state.hunt && {...state.hunt};
-    if (action === "huntStart" && arg && typeof arg === "object" && !arg.combat) arg = { ...arg, combat: "blade-v1" };
+    if (action === "huntStart" && arg && typeof arg === "object" && !arg.combat) arg = { ...arg, combat: "blade-d20-v1" };
     const result = Game.perform(state, action, arg, undefined, undefined, pressedAt);
     if (!result.ok && (action === "openChest" || action === "craftHuntLining")) {
       if (repeatGuard && repeatHunting.active) repeatHunting.stop("보물 수령 실패");
@@ -457,7 +457,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
       if (!(automaticGuard || repeatGuard) || !HuntLootView.isReader(modal)) displayModal();
     } else closeModal(inventoryAction);
     const stagedHit = result.impact && beforeHuntHealth && HuntEffects.play(result.impact, beforeHuntHealth,
-      beforeHuntHealth.diceVersion === 1 ? (state.hunt?.lastDice || state.lastHunt?.lastDice) : null);
+      [1, 2].includes(beforeHuntHealth.diceVersion) ? (state.hunt?.lastDice || state.lastHunt?.lastDice) : null);
     if (result.impact && !stagedHit) showHuntDamage(document.querySelector("#screen .combat-hud"), result.impact, motionEnabled());
     if (result.ok && motionEnabled()) {
       const stage = document.querySelector("#screen .scene");
@@ -1054,7 +1054,11 @@ function modalData() {
     case "huntPlan":
       return ["사냥 구역", HuntWatch.planView(s)];
     case "huntRules":
-      if (!s.hunt || s.hunt.bladeCombat) return ["숲 사냥", line("주사위", "1~3 타격 · 4~5 방어 · 6 강타") +
+      if (!s.hunt || s.hunt.diceVersion === 2) return ["숲 사냥",
+        line("공격 d20", "1은 빗나감 · 20은 치명타") +
+        desc("공격 주사위와 기술 보정의 합이 숨은 방어 주사위로 정한 목표 이상이면 명중합니다. 명중한 공격에는 무기의 치명타 확률이 적용됩니다. 예고된 적 기술은 방어에 유리하며 반격 검술의 방어 보정이 더 큽니다. 사냥을 중단하면 사냥 구역에서 최근 판정을 볼 수 있습니다.") +
+        desc("다섯 단계마다 우두머리를 만납니다. 무기와 방어구는 보관함에서 비교하고 장착합니다.") + openBtn("bladeStyles","검술과 능력 확인")];
+      if (s.hunt.bladeCombat) return ["숲 사냥", line("주사위", "1~3 타격 · 4~5 방어 · 6 강타") +
         desc("강공 검술은 기세 2를 써서 일격, 반격 검술은 적 스킬 방어 뒤 반격, 상처 검술은 상처 3겹부터 파열을 발동합니다.") +
         desc("다섯 단계마다 우두머리를 만납니다. 무기와 방어구는 보관함에서 비교하고 장착합니다.") + openBtn("bladeLoot-"+(s.hunt?.rank || Math.min(60,Game.blades.state(s).cleared+1)),"장비 획득 확률") + openBtn("bladeStyles","검술과 능력 확인")];
       return ["주사위 사냥", line("1~3 공격 · 4~5 방어 · 6 강공", "양쪽이 매 턴 굴립니다") +

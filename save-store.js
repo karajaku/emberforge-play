@@ -4,6 +4,7 @@
 // nothing deletes the old current value before its replacement succeeds.
 const SaveStore = (() => {
   const game = typeof module !== "undefined" ? require("./game.js") : Game;
+  const dice = typeof module !== "undefined" ? require("./dice-combat.js") : DiceCombat;
   const apprentice = typeof module !== "undefined" ? require("./apprentice.js") : Apprentice;
   const story = typeof module !== "undefined" ? require("./charcoal-story.js") : CharcoalStory;
   const shop = typeof module !== "undefined" ? require("./relic-shop.js") : RelicShop;
@@ -15,6 +16,28 @@ const SaveStore = (() => {
   const fault = (code) => Object.assign(new Error(code), { code });
   const object = value => value !== null && typeof value === "object" && !Array.isArray(value);
   const validWork = w => Array.isArray(w) && w.length === 3 && w.every(v => v === null || v === 0 || v === 1);
+  const dieValue = (n, sides) => Number.isInteger(n) && n >= 1 && n <= sides;
+  function validAttackCheck(check, face, base, bonus, equipmentCrit = false) {
+    if (!object(check) || !dieValue(face, 20) || !dieValue(check.defense, 6) ||
+        check.target !== base + check.defense || check.bonus !== bonus) return false;
+    if (face === 1) return check.outcome === "miss";
+    if (face === 20) return check.outcome === "critical";
+    if (face + bonus < check.target) return check.outcome === "blocked";
+    return check.outcome === "hit" || (equipmentCrit && check.outcome === "critical");
+  }
+  function validD20Roll(h) {
+    const roll = h.lastDice;
+    const bonus = roll.attackCheck?.bonus;
+    const validBonus = roll.skill === "rupture" ? bonus === 2 :
+      bonus === 0 || (roll.skill === "heavyStrike" && bonus === 2);
+    const noReply = roll.enemyFace === null && roll.enemy === null && roll.replyCheck === null;
+    const replyExpected = h.enemyKind !== "goblin" && (h.health?.enemyHp ?? h.enemyHp) > 0;
+    const replyBase = dice.replyDefenseBase(h.bladeCombat.style, roll.enemySkill);
+    return validBonus && roll.player === (roll.skill === "heavyStrike" ? "heavyStrike" : "strike") &&
+      validAttackCheck(roll.attackCheck, roll.playerFace, 2, bonus, true) &&
+      roll.critical === (roll.attackCheck.outcome === "critical") &&
+      (replyExpected ? roll.enemy === "strike" && validAttackCheck(roll.replyCheck, roll.enemyFace, replyBase, 0) : noReply);
+  }
   function validEquipmentStats(stats) {
     const fields = ["minDamage","maxDamage","critChance","blockedDamagePercent","armorRating","outfitArmorRating"];
     if (fields.every(key => stats[key] === undefined)) return true;
@@ -90,10 +113,12 @@ const SaveStore = (() => {
           (h.journeyForce !== undefined && !(Number.isFinite(h.journeyForce) && h.journeyForce > 0)) ||
           (h.journeyTrait !== undefined && ![0,1,2,3].includes(h.journeyTrait)))) throw fault("corrupt");
       if (h?.trailVersion > 1) throw fault("future");
+      if (h?.diceVersion > 2) throw fault("future");
+      if (h?.diceVersion === 2 && (h.trailVersion !== 1 || !object(h.bladeCombat))) throw fault("corrupt");
       const skillVersion = h?.trailVersion === 1 ? 2 : 1;
       if (h?.skillVersion > skillVersion) throw fault("future");
       if (h?.trailVersion !== undefined) {
-        if (h.trailVersion !== 1 || h.diceVersion !== 1 || !Number.isInteger(h.rank) || h.rank < 1 || h.rank > 60 ||
+        if (h.trailVersion !== 1 || ![1,2].includes(h.diceVersion) || !Number.isInteger(h.rank) || h.rank < 1 || h.rank > 60 ||
             typeof h.bonusEncounter !== "boolean" || !Number.isInteger(h.wave)) throw fault("corrupt");
         if (h.territoryRank!==undefined && (!h.bladeCombat || h.rank!==60 || ![45,50,55,60].includes(h.territoryRank))) throw fault("corrupt");
         if (h.bladeCombat && (!data.bladeForge || !Object.hasOwn(game.blades.styles,h.bladeCombat.style) ||
@@ -113,14 +138,15 @@ const SaveStore = (() => {
               (game.trail.awaitingNext(h) && h.wave === pack.length - 1)) throw fault("corrupt");
         }
       }
-      if (h?.diceVersion > 1) throw fault("future");
       if (h?.skillVersion !== undefined && h.skillVersion !== skillVersion) throw fault("corrupt");
       const heavyMax = h?.trailVersion === 1 ? 4 : 3;
       if(h?.skillCooldowns!==undefined&&(!object(h.skillCooldowns)||Object.entries(h.skillCooldowns).some(([key,n])=>!['heavyStrike','counter'].includes(key)||!Number.isInteger(n)||n<0||n>(key==='counter'?2:heavyMax))))throw fault("corrupt");
       if(h?.enemySkillState!==undefined&&(!object(h.enemySkillState)||!Number.isInteger(h.enemySkillState.cooldown)||h.enemySkillState.cooldown<0||h.enemySkillState.cooldown>4||![2,3,4].includes(h.enemySkillState.interval)||![2,3,4].includes(h.enemySkillState.power)))throw fault("corrupt");
-      if (h?.diceVersion !== undefined && h.diceVersion !== 1) throw fault("corrupt");
-      if (h?.lastDice && (!object(h.lastDice) ||
-          ![h.lastDice.playerFace, h.lastDice.enemyFace].every(n => Number.isInteger(n) && n >= 1 && n <= 6))) throw fault("corrupt");
+      if (h?.diceVersion !== undefined && ![1,2].includes(h.diceVersion)) throw fault("corrupt");
+      if (h?.diceVersion === 2) {
+        if (h.lastDice !== undefined && (!object(h.lastDice) || !validD20Roll(h))) throw fault("corrupt");
+      } else if (h?.lastDice && (!object(h.lastDice) ||
+          ![h.lastDice.playerFace, h.lastDice.enemyFace].every(n => dieValue(n, 6)))) throw fault("corrupt");
     }
     const result=data?.lastHunt;
     if (result?.outfitDrop!==undefined && (!outfit || !result.fieldKit || !result.chestId ||

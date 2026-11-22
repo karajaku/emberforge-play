@@ -33,6 +33,19 @@ const HuntWatch=(()=>{
     const weak = Game.outfit.preferredElement(territory);
     return region.name+' · '+Game.outfit.elements[weak]+' 속성 장비 획득에 유리';
   }
+  function recentCheck(s) {
+    const roll = (s.hunt || s.lastHunt)?.lastDice;
+    if (!roll?.attackCheck) return '';
+    function row(label, face, check, side, damage) {
+      const total = face + check.bonus;
+      return line('<span class="hunt-check-side">' + label + '</span>', 'd20 ' + face + (check.bonus ? ' + ' + check.bonus + ' = ' + total : '') +
+        ' · 방어 d6 ' + check.defense + ' · 목표 ' + check.target + ' · ' +
+        HuntEffects.checkLabel(check.outcome, side) + ' · 피해 ' + fmt(damage));
+    }
+    return '<section class="hunt-recent-check"><h4>최근 판정</h4>' +
+      row('내 공격', roll.playerFace, roll.attackCheck, 'player', roll.damage) +
+      (roll.replyCheck ? row('적 공격', roll.enemyFace, roll.replyCheck, 'enemy', roll.taken) : '') + openBtn('huntRules','사냥 규칙') + '</section>';
+  }
   function planView(s) {
     const repeat = mode === 'repeat';
     const chooseRank = repeat || cleared(s) >= 60;
@@ -42,12 +55,12 @@ const HuntWatch=(()=>{
       return '<option value="' + n + '"' + (n === rank ? ' selected' : '') + '>' +
         n + '단계 · 섬유 ' + Game.forestYield(n) + '</option>';
     }).join('');
-    return '<div class="hunt-plan-fields"><label>사냥 방식<select class="watch-mode">' +
+    return recentCheck(s) + '<div class="hunt-plan-fields"><label>사냥 방식<select class="watch-mode">' +
       '<option value="progress">' + (cleared(s) >= 60 ? '1회 재도전' : '다음 단계 진행') + '</option>' +
       '<option value="repeat"' + (repeat ? ' selected' : '') + '>완료 구역 반복</option></select></label>' +
       '<label' + (chooseRank ? '' : ' hidden') + '>완료 구역<select class="trail-replay">' +
       '<option value="0" disabled' + (rank ? '' : ' selected') + '>단계 선택</option>' + choices + '</select></label>' +
-      '<button class="primary" data-hunt-plan-apply' + (chooseRank && !rank ? ' disabled' : '') + '>적용</button></div>' + mastery(s) +
+      '<button class="primary" data-hunt-plan-apply' + (!cleared(s) || chooseRank && !rank ? ' disabled' : '') + '>적용</button></div>' + mastery(s) +
       '<p class="desc" data-farm-hint>'+farmingHint(s,nextRank() || 60)+'</p>'+openBtn("bladeLoot-"+(nextRank() || Math.min(60,cleared(s)+1)), "단계별 장비 획득 확률");
   }
   function firstReceipt(s) {
@@ -140,11 +153,21 @@ const HuntWatch=(()=>{
     // Keep the final round's skill readouts while the saved result supplies HP and dice.
     else if(before&&state.lastHunt?.id===before.id)lastRound=before;
   }
+  function d20(side, face, check) {
+    const label = check ? HuntEffects.checkLabel(check.outcome, side) : '';
+    const description = (side === 'player' ? '내 공격' : '적 공격') +
+      (check ? ' d20 ' + face + ' · ' + label : ' 주사위 대기');
+    return '<div class="watch-roll" data-die="' + side + '" data-d20="true"' +
+      (check ? ' data-outcome="' + check.outcome + '"' : '') +
+      '><div class="watch-die" data-action="' + (check ? 'strike' : '') +
+      '" role="img" aria-label="' + description + '">' + (check ? face : '') +
+      '</div><span>' + label + '</span></div>';
+  }
   function die(face,action,side) {
     return '<div class="watch-roll" data-die="'+side+'"><div class="watch-die" data-action="'+(action||'')+'" role="img" aria-label="'+(face?names[action]+' 주사위':'주사위 대기')+'">'+icon(icons[action]||'sword')+'</div><span>'+(face?names[action]:'')+'</span></div>';
   }
   function skills(h){
-    if(!h||h.diceVersion!==1)return '';
+    if(!h || ![1,2].includes(h.diceVersion))return '';
     if (h.bladeCombat) {
       const style = h.bladeCombat.style, key = {heavy:"heavyStrike",counter:"counter",wound:"rupture"}[style];
       const cd = Math.max(0,(h.skillCooldowns?.[key] || 0) - 1);
@@ -173,8 +196,13 @@ const HuntWatch=(()=>{
   function enemySkill(h){
     if(!h?.enemySkillState)return '';
     const s=h.enemySkillState,def=DiceCombat.enemySkills[s.key || 'charge'],ready=s.cooldown<=1;
-    const status=s.key==='escape'?(h.waveTurn>=2?'이번 턴':'2턴째 도주'):ready?'다음 공격':s.cooldown+'턴';
-    return '<span class="watch-enemy-skill" data-ready="'+ready+'" title="'+def.hint+'" aria-label="적 '+def.name+' · '+status+'"><span>'+icon(def.icon)+'<b>'+def.name+'</b><em>'+status+'</em></span><span class="watch-skill-clock" aria-hidden="true">'+Array.from({length:s.interval},(_,i)=>'<i'+(i<(ready?s.interval:s.interval-s.cooldown)?' class="filled"':'')+'></i>').join('')+'</span></span>';
+    const status=h.diceVersion===2 && !motionEnabled() && h.lastDice?.enemySkill===s.key ? '발동' : s.key==='escape'?(h.waveTurn>=2?'이번 턴':'2턴째 도주'):ready?'다음 공격':s.cooldown+'턴';
+    const hint = h.diceVersion===2 ? {
+      breath:'일격을 시도한 턴에는 숨결 피해가 1.5배가 됩니다.',
+      dust:'적중하면 기세를 1 잃습니다.',
+      bind:'적중하면 일격의 대기시간이 늘어납니다.',
+    }[s.key] || def.hint : def.hint;
+    return '<span class="watch-enemy-skill" data-ready="'+ready+'" title="'+hint+'" aria-label="적 '+def.name+' · '+status+'"><span>'+icon(def.icon)+'<b>'+def.name+'</b><em>'+status+'</em></span><span class="watch-skill-clock" aria-hidden="true">'+Array.from({length:s.interval},(_,i)=>'<i'+(i<(ready?s.interval:s.interval-s.cooldown)?' class="filled"':'')+'></i>').join('')+'</span></span>';
   }
   function encounterHint(h, result, enemy, rank, pack) {
     if (Game.trail.awaitingNext(h)) {
@@ -208,7 +236,8 @@ const HuntWatch=(()=>{
     const territory = trail ? targetRank && rank % 5 === 0 && area.id : enemy.elite && 'moss';
     const st=encounter?.bladeCombat || (encounter && !encounter.blade ? Game.huntStats(s) : Game.blades.skills(s));
     const roll=encounter?.lastDice;
-    const useDice=encounter?encounter.diceVersion===1:true;
+    const useD20=!encounter || encounter.diceVersion===2;
+    const useDice=encounter?.diceVersion===1;
     const item=Game.blades.current(s);
     const blade=encounter ? Game.huntBlade(s,encounter) : {name:Game.blades.name(item),level:item.level,weaponKind:item.weaponKind,stage:Game.bladeStage({level:item.level,grade:0})};
     const fightingItem = encounter?.bladeId ? Game.blades.state(s).items.find(it => it.id === encounter.bladeId) :
@@ -226,7 +255,8 @@ const HuntWatch=(()=>{
       const actor = elite ? '<img class="trail-creature boss-creature" src="assets/hunt/boss-'+bossKind+'.webp" alt="">' : ['wolf','moth','tree','goblin'].includes(asset)
         ? '<img class="trail-creature" src="assets/hunt/'+asset+'.webp" alt="">'
         : '<canvas width="'+width+'" height="144" data-sprite="'+asset+'" aria-hidden="true"></canvas>';
-      const action = useDice ? die(roll?.[side+'Face'],roll?.[side],side) : '';
+      const action = useD20 ? d20(side,roll?.[side+'Face'],side==='player'?roll?.attackCheck:roll?.replyCheck) :
+        useDice ? die(roll?.[side+'Face'],roll?.[side],side) : '';
       return '<div class="watch-fighter '+side+'"'+(elite?' data-elite="true" data-boss="'+bossKind+'"':'')+' data-action="'+(roll?.[side]||'')+'">'+
         '<div class="watch-readout">'+healthMeter(side,label,current,maxHp,level,side==='player' ? fightingItem : null)+
         '<div class="watch-action">'+action+'</div>'+(side==='player'?skills(skillState):enemySkill(skillState))+'</div>'+
@@ -253,6 +283,7 @@ const HuntWatch=(()=>{
       '<span class="watch-stage-name">'+(territory ? icon('crown')+'우두머리 영역' : icon('trees')+'사냥터')+'</span> · <b>'+rank+'단계'+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+'<small class="watch-version">v'+UpdateNotice.version()+'</small>'+(h?.ripostes>0 && !h.journeyBattle && !h.bladeCombat?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+
       (kit ? '<div class="outfit-enemy-line">' + OutfitView.encounterChip(terrain,enemy.kind,kit,!!h) + '</div>' : '') + '</div>' +
       '<div class="scene watch-arena combat-hud" data-region="'+area.id+'">'+fighter('player',blade.name,'+'+fmt(blade.level),sprite,128,hp,max)+fighter('enemy',enemy.name,'Lv.'+rank,enemy.sprite||'boar',144,enemyHp,total)+
+      (!active && (s.hunt || s.lastHunt)?.lastDice?.attackCheck ? openBtn('huntPlan',icon('compass')+'사냥 구역','watch-recent-loot watch-plan-link') : '')+
       (settled && !received ? openBtn('huntLoot',icon('backpack')+'최근 전리품','watch-recent-loot') : '')+
       '<div class="watch-report">'+
       '<div class="watch-reward" role="status">'+(detail?'<div class="trail-detail">'+detail+'</div>':'')+(received ? HuntLootView.resultView(s,settled,active)
@@ -298,7 +329,7 @@ const HuntWatch=(()=>{
         const id=h.id,turn=h.turn,wave=h.wave;
         if (h.journeyBattle === 1 || h.bladeCombat) nextStrikeAt = performance.now() + 2000;
         await act(null,'',undefined,()=>live(token)&&state.hunt?.id===id&&state.hunt.turn===turn&&state.hunt.wave===wave?
-          (state.hunt.diceVersion===1?'strike':AutoCombat.choose(Game,state.hunt)):null);
+          ([1,2].includes(state.hunt.diceVersion)?'strike':AutoCombat.choose(Game,state.hunt)):null);
         if(storageError){stop('저장 상태를 확인해 주세요');return;}
         await HuntEffects.finished();
         if(token!==generation)return;
@@ -322,7 +353,7 @@ const HuntWatch=(()=>{
           await act(null,'',undefined,undefined,()=>live(token)&&!state.hunt&&!pending()&&
             mode===selectedMode&&validRank(rank)&&state.hunting.id===wallet&&state.hunting.serial===serial&&
             (state.hunting.free>0||state.hunting.purchased>0||Game.hasBossRetry(state,rank))?
-            {action:'huntStart',arg:{rank,request:serial+1,combat:"blade-v1"}}:null);
+            {action:'huntStart',arg:{rank,request:serial+1,combat:"blade-d20-v1"}}:null);
           // The legacy repeat runner is inactive; no second controller is armed.
           autoCombat.stop();
           if(storageError){stop('저장 상태를 확인해 주세요');return;}

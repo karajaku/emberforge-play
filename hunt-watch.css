@@ -222,7 +222,7 @@ body.ui-game:has(.watch-ground)::after {
 }
 .watch-ground .watch-roll > span { padding:0; color:#fff4da; font-weight:700; white-space:nowrap; }
 .watch-ground .watch-roll.waiting, .watch-ground .watch-roll:has(.watch-die[data-action=""]):not(.rolling),
-.watch-action:has(.watch-skill-flare) .watch-roll { visibility:hidden; }
+.watch-action:has(.watch-skill-flare) .watch-roll:not([data-d20]) { visibility:hidden; }
 .watch-ground .watch-action .watch-skill-flare {
   position:absolute; inset:0; padding:0; transform:none; animation:none; text-align:center; text-wrap:balance;
   color:#ffe5a2; font-weight:800; text-shadow:var(--readout-shadow);
@@ -385,3 +385,46 @@ body.ui-game:has(.watch-ground[data-boss-territory])::before {
     background-position:center bottom;
   }
 }
+
+/* Attack checks occupy the central slots. A skill replaces its own outer readout only while firing. */
+.watch-ground .watch-roll[data-d20] .watch-die {
+  font-size:23px;
+  line-height:1;
+  font-weight:900;
+  font-variant-numeric:tabular-nums;
+}
+.watch-ground .watch-roll[data-d20] > span { font-size:10px; }
+.watch-ground .watch-roll[data-outcome="critical"] :is(.watch-die,span) { color:#ffe297; }
+.watch-ground .watch-roll[data-outcome="miss"] :is(.watch-die,span) { color:#f1e6d4; }
+.watch-ground .watch-roll[data-outcome="blocked"] :is(.watch-die,span) { color:#c7eafa; }
+body[data-motion="on"] .watch-ground [data-d20].rolling .watch-die { animation:watch-d20-roll 140ms ease-in-out infinite alternate; }
+@keyframes watch-d20-roll { from { transform:translateY(1px) scale(.92); } to { transform:translateY(-2px) scale(1.08); } }
+.watch-ground .watch-arena:has([data-d20]) .hunt-burst b { white-space:nowrap; }
+.watch-ground .watch-readout :is(.watch-skills,.watch-enemy-skill):has(.watch-skill-flare) { position:relative; }
+.watch-ground .watch-readout :is(.watch-skills,.watch-enemy-skill):has(.watch-skill-flare) > :not(.watch-skill-flare) {
+  visibility:hidden;
+}
+.watch-ground .watch-readout :is(.watch-skills,.watch-enemy-skill) > .watch-skill-flare {
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:flex-start;
+  gap:3px;
+  padding:0;
+  font-size:12px;
+  line-height:1.2;
+  transform:none;
+  animation:none;
+  color:#ffe5a2;
+}
+.watch-ground .watch-skills > .watch-skill-flare { flex-direction:row-reverse; text-align:right; }
+.watch-ground .watch-enemy-skill > .watch-skill-flare { color:#ffc69d; }
+.watch-ground .watch-skills > .watch-skill-flare.counter { color:#a7ffde; }
+.watch-ground .watch-readout :is(.watch-skills,.watch-enemy-skill) > .watch-skill-flare svg {
+  flex:none;
+  width:13px;
+  height:13px;
+}
+.watch-ground .watch-plan-link { right:auto; left:4px; }
+.hunt-check-side { white-space:nowrap; }
+.hunt-recent-check .line strong { word-break:keep-all; }

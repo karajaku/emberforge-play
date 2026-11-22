@@ -1448,7 +1448,8 @@ const Game = (() => {
         if (!Number.isInteger(rank) || rank < 1 || rank > Math.min(60, s.huntBest + 1))
           return fail("먼저 이전 지역을 토벌하세요.");
         const journeyBattle = arg?.combat === "journey-v1";
-        const bladeBattle=arg?.combat==="blade-v1";
+        const d20Battle = arg?.combat === "blade-d20-v1";
+        const bladeBattle = d20Battle || arg?.combat === "blade-v1";
         const retry = bladeBattle && hasBossRetry(s, rank);
         if (!retry && w.free + w.purchased < 1) return fail("사냥권이 부족합니다. 10분 충전·오늘의 출석을 확인하거나 대장간과 배치 수익을 이용하세요.");
         if (bladeBattle && (blades.state(s).items.length>=120 || blades.armors(s).length>=120))
@@ -1492,7 +1493,7 @@ const Game = (() => {
         };
         // Explicit per-battle model: old saves and untagged legacy callers retain their rules.
         if (arg?.combat === "dice-v1" || trailBattle) {
-          s.hunt.diceVersion=1;s.hunt.skillVersion=1;s.hunt.skillCooldowns={heavyStrike:0,counter:0};
+          s.hunt.diceVersion=d20Battle ? 2 : 1;s.hunt.skillVersion=1;s.hunt.skillCooldowns={heavyStrike:0,counter:0};
           s.hunt.enemySkillState={cooldown:enemy.first,interval:enemy.interval,power:enemy.power};
         }
         if (trailBattle) {
@@ -1544,7 +1545,8 @@ const Game = (() => {
           h.skillVersion=h.trailVersion ? 2 : 1;
           if(!h.enemySkillState){const enemy=huntEnemy(h);h.enemySkillState={cooldown:Math.max(0,enemy.first-h.turn+1),interval:enemy.interval,power:enemy.power};}
         }
-        const roll = h.diceVersion === 1 ? dice.turn(h, dice.face(random), dice.face(random),random) : null;
+        const roll = h.diceVersion === 2 ? dice.d20Turn(h, random) :
+          h.diceVersion === 1 ? dice.turn(h, dice.face(random), dice.face(random), random) : null;
         const charge = !roll && huntCharge(h),
           block = roll ? roll.player === "block" : act === "block";
         const move = roll ? {...roll, available:true} : huntMove(h, act);
@@ -1585,7 +1587,7 @@ const Game = (() => {
           s.lastHunt = {
             ...trailResult,
             id: h.id, ticketSource: h.ticketSource,
-            ...(roll ? {diceVersion:1, lastDice:roll} : {}),
+            ...(roll ? {diceVersion:h.diceVersion, lastDice:roll} : {}),
             health: huntHealth(h),
             blade: huntBladeState(s, h),
             rank: h.rank,
@@ -1637,7 +1639,7 @@ const Game = (() => {
             ...trailResult,
             ...(h.strongestHit ? { strongestHit: h.strongestHit } : {}),
             id: h.id, ticketSource: h.ticketSource,
-            ...(roll ? {diceVersion:1, lastDice:roll} : {}),
+            ...(roll ? {diceVersion:h.diceVersion, lastDice:roll} : {}),
             health: huntHealth(h),
             blade: huntBladeState(s, h),
             rank: h.rank,
