@@ -83,11 +83,14 @@ const zones = {
   tower: ["도전의 탑", "TRIAL TOWER", "castle", "수문장의 회랑"],
   altar: ["별의 제단", "STAR ALTAR", "orbit", "별무리 고원"],
 };
+function controlArt(name) {
+  return '<i aria-hidden="true" class="control-art" data-art="' + name + '"></i>';
+}
 const navItems = [
   ["forge", "대장간", "anvil"],
   ["world", "모험", "compass"],
-  ["bag", "보관함", "backpack"],
-  ["growth", "성장", "sparkles"],
+  ["bag", "보관함", "bag"],
+  ["growth", "성장", "growth"],
 ];
 const GearGradeView = {
   emphasized(rarity) {

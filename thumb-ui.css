@@ -1,0 +1,150 @@
+/* Live labels and costs stay separate from the illustrated controls. */
+.control-art {
+  --art-x:0%;
+  --art-y:0%;
+  display:inline-block;
+  flex:none;
+  width:var(--art-size,32px);
+  height:var(--art-size,32px);
+  background:url("assets/thumb-ui.webp") var(--art-x) var(--art-y) / 400% 200% no-repeat;
+  image-rendering:pixelated;
+  filter:drop-shadow(0 2px 1px #080a09a6);
+  pointer-events:none;
+}
+.control-art:is([data-art="compass"],[data-art="hunt"]) { --art-x:33.33333%; }
+.control-art:is([data-art="bag"],[data-art="equip"]) { --art-x:66.66667%; }
+.control-art:is([data-art="growth"],[data-art="filter"]) { --art-x:100%; }
+.control-art:is([data-art="hammer"],[data-art="hunt"],[data-art="equip"],[data-art="filter"]) { --art-y:100%; }
+
+body.ui-game {
+  --control-plate:url("assets/thumb-plate.webp");
+}
+.ui-game #mobileNav {
+  gap:1px;
+  padding-inline:4px;
+  padding-top:3px;
+  border:0 solid transparent;
+  border-image:var(--control-plate) 28 fill / 8px stretch;
+  border-radius:0;
+  background-color:#25291f;
+  box-shadow:0 -2px 5px #0a0909b0;
+}
+.ui-game #mobileNav .navitem,
+.ui-game #mobileNav .navitem:not(.active) {
+  --art-size:37px;
+  min-height:54px;
+  justify-content:center;
+  gap:0;
+  padding:1px 2px 2px;
+  border:0;
+  border-inline-start:1px solid #ba9d5b5c;
+  border-radius:0;
+  color:#fff1d1;
+  background:#141916a1;
+  box-shadow:none;
+  text-shadow:0 1px 2px #130d07;
+  font-weight:700;
+}
+.ui-game #mobileNav .navitem:first-child { border-inline-start:0; }
+.ui-game #mobileNav .navitem.active {
+  color:#fff5c7;
+  background:linear-gradient(0deg,#956123d4,#48351d73 80%);
+  box-shadow:inset 0 -3px #efc77b;
+}
+.ui-game #mobileNav .active .control-art { filter:drop-shadow(0 0 2px #fec66e); }
+
+.ui-game .forge-actions .forge-strike,
+.ui-game .watch-home-actions .watch-start {
+  --art-size:52px;
+  border:2px solid #c49f5f;
+  border-radius:18px;
+  color:#fff0be;
+  background:linear-gradient(#50301933,#3d281363),var(--control-plate) center/100% 100% no-repeat,#543d26;
+  box-shadow:0 4px #2b2018,inset 0 0 0 2px #b78c4f80,0 4px 10px #161713b5;
+  text-shadow:0 1px 2px #000,0 0 4px #23180f;
+}
+.ui-game .forge-actions .forge-strike:disabled {
+  filter:saturate(.4);
+  color:#eee6cf;
+  border-color:#938775;
+}
+.ui-game .forge-actions .forge-strike:active:enabled,
+.ui-game .watch-home-actions .watch-start:active,
+.ui-game #mobileNav .navitem:active {
+  transform:translateY(2px);
+  filter:brightness(1.12);
+}
+.ui-game .watch-home-actions .watch-start { --art-size:38px; }
+.watch-home-actions .watch-active .control-art { position:relative; }
+.watch-active .control-art::after {
+  content:""; position:absolute; bottom:1px; right:0; width:9px; height:9px;
+  border:2px solid #e9cf99; background:#913f2b; box-shadow:0 1px 2px #19130e;
+}
+.forge-step-row [data-forge-step] {
+  color:#ffe5ad;
+  border:0 solid transparent;
+  border-image:var(--control-plate) 28 fill / 8px stretch;
+  background-color:#213029;
+  border-radius:7px;
+  box-shadow:0 2px 3px #0c110bb0;
+}
+.forge-step-row [data-forge-step]:active:enabled { transform:translateY(1px); }
+.forge-slot-switch .control-art { --art-size:24px; }
+.forge-actions > .action .control-art,.watch-home-actions > .action .control-art { --art-size:30px; }
+.ui-game .forge-actions .thumb-equip { gap:1px; }
+.forge-actions > .thumb-equip .control-art { --art-size:36px; }
+.ui-game .forge-actions .thumb-equip:disabled { opacity:.65; }
+.ui-game .forge-actions > .action,
+.ui-game .watch-home-actions > .action,
+.ui-game .ui-forge-rail button,
+.ui-game .ui-daily-duel {
+  background:linear-gradient(#1f2925ab,#141a17ba),var(--control-plate) center/100% 100% no-repeat,#34322a;
+  border:1px solid #a28c65;
+  border-radius:7px;
+  color:#fff0c9;
+}
+.ui-game .forge-actions .thumb-equip {
+  background:linear-gradient(#273d3170,#15251ad1),var(--control-plate) center/100% 100% no-repeat,#254033;
+  border-color:#ceb779;
+}
+.ui-game .forge-item-browser .forge-strike { min-height:140px; }
+.ui-game .forge-item-browser .forge-step-row { min-height:44px; }
+
+.bag-sheet-close[hidden] { display:none; }
+#shade.bag-item-sheet { align-items:end; }
+#shade.bag-item-sheet .dialog {
+  display:grid;
+  grid-template-rows:auto minmax(0,1fr) auto;
+  overflow:hidden;
+  max-height:100%;
+  padding:0;
+  background:#fff1d6;
+}
+#shade.bag-item-sheet .dialog-head {
+  grid-row:1; position:static; margin:0; padding:8px 12px;
+  background:#353327;
+  border:0 solid transparent;
+  border-image:var(--control-plate) 28 fill / 7px stretch;
+}
+#shade.bag-item-sheet .dialog-head h2 { color:#fff1c8; text-shadow:0 1px 3px #0d0e0b; }
+#shade.bag-item-sheet #modalBody { grid-row:2; overflow:auto; overscroll-behavior:contain; padding:10px 14px; min-height:0; }
+#shade.bag-item-sheet .bag-sheet-close {
+  grid-row:3; width:100%; min-height:48px; margin:0; border-radius:0;
+  background:#352d24;
+  border:0 solid transparent; border-image:var(--control-plate) 28 fill / 7px stretch; color:#fff3d7; box-shadow:none;
+  font:700 15px var(--sans); display:flex; justify-content:center; align-items:center; gap:6px;
+}
+#shade.bag-item-sheet .bag-sheet-close::before {
+  content:""; width:26px; height:26px;
+  background:url("assets/thumb-ui.webp") 66.66667% 0/400% 200% no-repeat;
+  image-rendering:pixelated;
+}
+#shade .lining-card { background:#283328; color:#f9eccf; }
+@media(max-height:760px) {
+  .ui-game .forge-item-browser .forge-strike { min-height:118px; --art-size:44px; }
+}
+@media(max-height:660px) {
+  .ui-game .forge-item-browser .forge-strike { min-height:98px; --art-size:36px; padding-block:5px; }
+  .ui-game .watch-home-actions .watch-start { --art-size:32px; }
+  .ui-game #mobileNav .navitem,.ui-game #mobileNav .navitem:not(.active) { --art-size:30px; }
+}

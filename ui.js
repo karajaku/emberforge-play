@@ -567,7 +567,7 @@ function render() {
         ' data-go="' +
         key +
         '">' +
-        icon(ic) +
+        controlArt(ic) +
         label +
         "</button>",
     )
@@ -1096,6 +1096,9 @@ function displayModal() {
   const [title, html, rarity] = modalData();
   document.body.dataset.storyMotion = motionEnabled() ? "on" : "off";
   el("shade").dataset.modal = modal;
+  const bagItem = current() === "bag" && (modal.startsWith("inventory-") || modal.startsWith("outfit:item:"));
+  el("shade").classList.toggle("bag-item-sheet", bagItem);
+  el("shade").querySelector(".bag-sheet-close").hidden = !bagItem;
   const titleNode = el("modalTitle");
   titleNode.textContent = title;
   if (GearGradeView.emphasized(rarity)) titleNode.dataset.rarity = rarity.key;

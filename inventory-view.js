@@ -140,7 +140,7 @@ const InventoryView = (() => {
     stack("tanks", "산소통", s.tanks, icon("waves"), "심해 광산 탐사에 사용합니다.", go("mine", "광산으로", "action"));
     stack("shards", "별의 파편", s.shards, icon("sparkles"), "별의 제단에서 장비를 각성하거나 대표 유물을 강화합니다.",
       go("altar", "별의 제단으로", "action") + openBtn("relicWorkshop", "유물 강화"));
-    stack("fiber", "숲결 섬유", s.forestFiber, icon("trees"), "방어구의 숲 방호 안감을 제작하고 보강합니다.", forgeButton("armor", "방어구로"));
+    stack("fiber", "숲결 섬유", s.forestFiber, icon("trees"), "방어구의 숲 방호 안감을 제작하고 보강합니다.", openBtn("bladeArmorLining","안감 제작"));
     stack("tickets", "탑 입장권", s.tickets, icon("ticket"), "도전의 탑 등반에 사용합니다.", go("tower", "도전의 탑으로", "action"));
     stack("stones", "전설 제련석", s.stones, icon("gem"), "베이스 IV 무기의 초월 합성에 사용합니다.", openBtn("fusion", "합성 재료 보기"));
     stack("marks", "길드 징표", s.marks, icon("castle"), "개인 길드 창설에 사용합니다.", openBtn("guild", "길드 열기"));

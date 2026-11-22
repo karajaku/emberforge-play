@@ -27,7 +27,7 @@ const GameUI = (() => {
     support.className = 'forge-actions';
     if (primary) {
       primary.className = 'forge-strike';
-      const symbol = primary.querySelector('svg');
+      const symbol = primary.querySelector("svg,.control-art");
       const cost = primary.querySelector('small');
       symbol?.remove(); cost?.remove();
       const label = document.createElement('b');
@@ -64,7 +64,11 @@ const GameUI = (() => {
         const q = ForgeItemView.shown;
         const collection = q.type === "outfit" ? openBtn("outfit:slots",icon("shield") + "<span>착용 장비</span>") :
           openBtn(armor ? "bladeArmorCollection" : "bladeCollection",icon(armor ? "shield" : "sword") + "<span>" + (armor ? "방어구함" : "무기함") + "</span>");
-        rail.innerHTML = ForgeItemView.equipButton(q) + collection + go("forge/orders",icon("scroll-text") + "<span>의뢰</span>");
+        const styles = stage.parentElement.querySelector('.forge-actions [data-open="bladeStyles"]');
+        styles.insertAdjacentHTML("beforebegin",ForgeItemView.equipButton(q));
+        styles.innerHTML = icon("swords") + "<span>검술</span>";
+        rail.append(styles);
+        rail.insertAdjacentHTML("beforeend",collection + go("forge/orders",icon("scroll-text") + "<span>의뢰</span>"));
       } else if (forgeOutfitSlot) {
         rail.innerHTML = openBtn('outfit:forgeEquip:' + forgeOutfitSlot,icon('backpack')+'<span>장비 선택</span>') +
           go('forge/orders',icon('scroll-text')+'<span>의뢰</span>');

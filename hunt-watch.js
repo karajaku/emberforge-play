@@ -243,12 +243,12 @@ const HuntWatch=(()=>{
     const kit = h ? h.fieldKit : !result && targetRank ? Game.outfit.build(s) : null;
     const home = !active && (!encounter || location.hash === '#world');
     const control = finished ? 'data-open="huntPlan"' : empty && !active ? 'data-open="huntWallet"' : 'data-watch="toggle"';
-    const start = '<button class="primary watch-start" ' + control + '><span class="watch-start-label">' +
-      icon(active ? 'shield' : finished ? 'compass' : 'sword') + label + '</span>' +
+    const start = '<button class="primary watch-start' + (active ? ' watch-active' : '') + '" ' + control + '><span class="watch-start-label">' +
+      controlArt(finished ? "compass" : "hunt") + label + '</span>' +
       (retry && !active ? '<small>사냥권 소모 없음</small>' : ticketBar(w)) + '</button>';
     const controls = '<div class="watch-home-actions">' +
       go('forest/field', icon('hand-coins') + '<span>배치 수익</span>', 'action') + start +
-      go('world/map', icon('compass') + '<span>모험 지도</span>', 'action') + '</div>';
+      go('world/map', controlArt('compass') + '<span>모험 지도</span>', 'action') + '</div>';
     return '<section class="watch-view watch-ground' + (home ? ' watch-home' : '') + '"' + (territory ? ' data-boss-territory="'+territory+'"' : '') + '><div class="watch-stage">' +
       '<span class="watch-stage-name">'+(territory ? icon('crown')+'우두머리 영역' : icon('trees')+'사냥터')+'</span> · <b>'+rank+'단계'+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+'<small class="watch-version">v'+UpdateNotice.version()+'</small>'+(h?.ripostes>0 && !h.journeyBattle && !h.bladeCombat?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+
       (kit ? '<div class="outfit-enemy-line">' + OutfitView.encounterChip(terrain,enemy.kind,kit,!!h) + '</div>' : '') + '</div>' +

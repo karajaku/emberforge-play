@@ -19,11 +19,11 @@ const BladeView = (() => {
   }
   const artwork = item => '<span class="gear-portrait" aria-hidden="true" style="background-image:url(assets/' + sprite(item) + '-sheet.png)"></span>';
   function switches(type) {
-    const quick = [["weapon","sword","무기"],["armor","shield","흉갑"]].map(([id,ic,label]) =>
-      '<button data-gear="' + id + '" aria-pressed="' + (type === id) + '">' + icon(ic) + label + "</button>");
+    const quick = [["weapon","hunt","무기"],["armor","equip","흉갑"]].map(([id,ic,label]) =>
+      '<button data-gear="' + id + '" aria-pressed="' + (type === id) + '">' + controlArt(ic) + label + "</button>");
     return '<div class="segment gear-switch forge-slot-switch">' + quick.join("") +
       '<button data-open="outfit:forge" aria-haspopup="dialog" class="' + (type === "outfit" ? "sel" : "") + '">' +
-      icon("layers") + '부위 선택</button>' + openBtn("forgeItem:filter",icon("layers") + "필터", ForgeItemView.filtering() ? "sel" : "") + '</div>';
+      icon("layers") + '부위 선택</button>' + openBtn("forgeItem:filter",controlArt("filter") + "필터", ForgeItemView.filtering() ? "sel" : "") + '</div>';
   }
   function forge(s, quote) {
     const b = rules(), item = quote.item, style = b.state(s).style;
@@ -36,7 +36,7 @@ const BladeView = (() => {
     return '<div class="columns forge-layout blade-layout"><div class="stage-side">' + switches("weapon") +
       scene("forge", label(item), "", b.baseGradeNames[item.grade] + " · " + b.styles[style] + " 검술", sprite(item), 0, null, "", item) + '</div><section class="panel"><div class="stats">' +
       line("공격력", fmt(b.attack(item)) + next) + '<div class="forge-odds journey-odds">' + odds + "</div></div>" + main +
-      '<div class="actions forge-support">' + openBtn("bladeStyles", icon("swords")+"검술") + go("forest", icon("trees")+"숲 사냥", "action") +
+      '<div class="actions forge-support">' + openBtn("bladeStyles", icon("swords")+"검술") + go("forest", controlArt("hunt")+"숲 사냥", "action") +
       '<button class="round" data-open="' + ForgeItemView.detailKey(quote) + '" aria-label="무기 능력과 강화 조건">' + icon("circle-help") + "</button></div></section></div>";
   }
   function armor(s,quote) {
@@ -51,8 +51,8 @@ const BladeView = (() => {
     return '<div class="columns forge-layout blade-layout"><div class="stage-side">'+switches("armor")+
       scene("forge",label(item),"",b.baseGradeNames[item.grade]+" · 착용 방어력 "+fmt(stats.armorRating),"cuirass",0,null,"",item)+'</div><section class="panel"><div class="stats">'+
       readout+'<div class="forge-odds journey-odds">'+meter+'</div></div>'+button+'<div class="actions forge-support">'+
-      openBtn("bladeStyles",icon("swords")+"검술")+go("forest",icon("trees")+"숲 사냥","action")+
-      '<button class="round" data-open="'+ForgeItemView.detailKey(quote)+'" aria-label="방어구 능력">'+icon("circle-help")+'</button></div>'+(quote.wornSlot ? liningCard(s, true) : "")+'</section></div>';
+      openBtn("bladeStyles",icon("swords")+"검술")+go("forest",controlArt("hunt")+"숲 사냥","action")+
+      '<button class="round" data-open="'+ForgeItemView.detailKey(quote)+'" aria-label="방어구 능력">'+icon("circle-help")+'</button></div></section></div>';
   }
   function slots(item, polish = false, ore = 0) {
     const b = rules(), caps = b.itemCaps(item);
@@ -141,7 +141,8 @@ const BladeView = (() => {
   }
   function armorModal(s, key) {
     const b=rules(), item=b.currentArmor(s), list=b.armors(s);
-    if (key==="bladeArmorCraft") return ["방어구 제작",workshop(s,true)];
+    if (key==="bladeArmorLining") return ["숲 방호 안감",liningCard(s,true)];
+    if (key==="bladeArmorCraft") return ["방어구 제작",openBtn("bladeArmorLining",icon("shield")+"숲 방호 안감") + workshop(s,true)];
     if (key==="bladeArmorWork") return craftWorkshop({...s,weapon:item},"armor");
     if (key==="bladeArmorFinal") return finalWorkshop({...s,weapon:item},"armor");
     if (key==="bladeArmorInfo") return [label(item),armorDetail(s,item),b.itemRarity(item)];

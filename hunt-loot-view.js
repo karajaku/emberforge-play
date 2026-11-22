@@ -84,7 +84,7 @@ const HuntLootView = (() => {
       icon("coins")+' +'+fmt(chest.gold)+' G</strong></div><div class="watch-loot">'+rewards(s,receipt)+'</div>'+
       '<div class="loot-actions">'+openBtn("huntLoot",icon("backpack")+"최근 전리품","action")+
       (receipt.result.firstGearChoice ? openBtn("firstGearCompare","장비 비교","action") : "")+
-      (!active && chest.fiber ? '<button class="action lining-link" data-go="forge" data-gear="armor">'+icon('shield')+'안감 제작</button>' : '')+
+      (!active && chest.fiber ? openBtn("bladeArmorLining",icon("shield")+"안감 제작","action lining-link") : '')+
       '</div></div>';
   }
 

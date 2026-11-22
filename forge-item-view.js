@@ -80,7 +80,7 @@ const ForgeItemView = (() => {
       return openBtn(chest ? "bladeArmorCollection" : "bladeCollection",icon("check")+"강화 완료<small>+20 · 교체</small>","primary");
     const fee = q.enhanceBlocked ? escapeHtml(q.enhanceBlocked) : fmt(q.cost) + " G" + (s.gold < q.cost ? " · 부족 " + fmt(q.cost - s.gold) + " G" : "");
     return '<button class="primary" data-forge-action="forgeItemEnhance"' + (q.enhanceBlocked || s.gold < q.cost ? " disabled" : "") +
-      '>' + icon("hammer") + '강화<small>' + fee + '</small></button>';
+      '>' + controlArt("hammer") + '강화<small>' + fee + '</small></button>';
   }
   function decorate(s,layout) {
     if (archiveBlade || !layout.querySelector(".forge-slot-switch")) return;
@@ -121,7 +121,7 @@ const ForgeItemView = (() => {
     const attr = ring ? 'data-forge-preview="equip" aria-haspopup="dialog"' :
       'data-forge-action="forgeItemEquip" data-equip-slot="' + q.equipTargets[0].slot + '"';
     const blocked = q.equipBlocked ? ' disabled title="' + escapeHtml(q.equipBlocked) + '" aria-label="착용 · ' + escapeHtml(q.equipBlocked) + '"' : "";
-    return '<button ' + attr + blocked + '>' + icon("shield") + '<span>착용</span></button>';
+    return '<button class="action thumb-equip" ' + attr + blocked + '>' + controlArt("equip") + '<span>착용</span></button>';
   }
   function disposalButtons() {
     if (!shown) return "";

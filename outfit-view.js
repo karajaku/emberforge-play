@@ -81,7 +81,7 @@ const OutfitView = (() => {
     return '<div class="columns forge-layout outfit-layout" data-empty="' + !item + '"><div class="stage-side">' +
       BladeView.switches("outfit") + scene("forge",heading,"",item ? Game.blades.baseGradeNames[item.grade] + " · " + slot.name : slot.name,"",0,null,art(slot.kind),item) +
       '</div><section class="panel"><div class="stats">' + readout + '<div class="forge-odds journey-odds">' + odds + '</div></div>' +
-      strike + '<div class="actions forge-support">' + openBtn("bladeStyles",icon("swords")+"검술") + go("forest",icon("trees")+"숲 사냥","action") +
+      strike + '<div class="actions forge-support">' + openBtn("bladeStyles",icon("swords")+"검술") + go("forest",controlArt("hunt")+"숲 사냥","action") +
       '<button class="round" data-open="' + detail + '" aria-label="' + slot.name + ' 상세">' + icon("circle-help") + '</button></div></section></div>';
   }
   function slots(s) {
