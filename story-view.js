@@ -50,12 +50,12 @@ function phoneStoryButton(s, place) {
 }
 function storyBook(s) {
   const requirements = { bridge: "이끼숲 첫 토벌 후", home: "첫 토벌과 배치 수익 수령 후",
-    bundle: "첫 토벌과 배치 수익 수령 후", light: "첫 길삯과 +20 검 달성 후", lesson: "첫 길삯과 첫 환생 후" };
+    bundle: "첫 토벌과 배치 수익 수령 후", light: "첫 토벌·배치 수익 수령과 +20 달성 후", lesson: "첫 토벌·배치 수익 수령과 첫 환생 후" };
   function leaf(id) {
     const chapter = CharcoalStory.chapters[id];
     const open = CharcoalStory.unlocked(s, id);
     const seen = s.story[id] >= chapter.pages;
-    const note = open ? (seen ? "다시 보기" : "이야기 듣기") : requirements[id];
+    const note = open ? (seen ? "다시 읽기" : s.story[id] ? "이어서 읽기" : "이야기 듣기") : requirements[id];
     return '<button class="story-leaf" data-story="' + id + '" ' + (open ? "" : "disabled") +
       '><img src="' + storyPath(chapter.cover) + '" alt=""><span><b>' + chapter.title +
       "</b><small>" + note + "</small></span></button>";
@@ -72,7 +72,7 @@ function storyPage() {
   const volume = CharcoalStory.volumes.find(v => v.scenes.includes(id));
   const next = page < chapter.pages - 1 ? "계속 듣기" : replay ? "이야기 목록" :
     id === "intro" && !state.best ? "모루 앞으로" :
-    id === "light" && !state.rebirths && state.weapon.level === 20 ? "지금은 검 간직하기" : "돌아가기";
+    id === "light" && !state.rebirths && (state.bladeForge ? state.best >= 20 : state.weapon.level === 20) ? "지금은 검 간직하기" : "돌아가기";
   const playerReply = id === "intro" && page === 0;
   let buttons = playerReply ?
     Object.entries(CharcoalStory.questions).map(([key, question]) => storyButton(key, question, "action")).join("") :
@@ -80,7 +80,7 @@ function storyPage() {
   if (!replay && page === chapter.pages - 1) {
     if (id === "home" && !state.story.bundle && !state.rebirths)
       buttons += storyButton("unpack", "단이의 꾸러미 보기", "action");
-    if (id === "light" && state.weapon.level === 20 && !state.rebirths)
+    if (id === "light" && (state.bladeForge ? state.best >= 20 : state.weapon.level === 20) && !state.rebirths)
       buttons += storyButton("ritual", "환생 조건 살펴보기", "action");
   }
   return [chapter.title, '<div class="story-art"><img alt="' + storyArt[art] + '" src="' + storyPath(art) +
@@ -94,6 +94,8 @@ function storyPage() {
 }
 function startStory(id, fromBook = false) {
   if (!CharcoalStory.unlocked(state, id)) return;
+  automaticStoryShown = true;
+  pendingStories.clear();
   const page = state.story[id];
   const replay = page >= CharcoalStory.chapters[id].pages;
   storyScene = { id, fromBook, replay, page: replay ? 0 : page, answer: state.story.answer };
@@ -104,19 +106,34 @@ function startStory(id, fromBook = false) {
 function focusStoryPage() {
   el("modalBody").querySelector(".story-actions button")?.focus({ preventScroll: true });
 }
+// Session-only eligibility: old unread scenes remain available in the book.
+let storyEligibility = null;
+let automaticStoryShown = false;
+const pendingStories = new Set();
 function autoStory() {
-  if (!ready || storageError || modal || state.story.quiet) return;
-  for (const id of Object.keys(CharcoalStory.chapters)) {
-    if ((id === "bridge" || id === "bundle") && !state.story[id]) continue;
-    if (id === "light" && !state.story.light &&
-        (state.rebirths || state.weapon.level !== 20 || state.story.bundle < CharcoalStory.chapters.bundle.pages)) continue;
-    if (id === "lesson" && !state.story.lesson && !state.story.firstGift) continue;
-    if (CharcoalStory.unlocked(state, id) && state.story[id] < CharcoalStory.chapters[id].pages) {
-      const book = document.querySelector('[data-open="storyBook"]');
-      if (book) { book.classList.add("story-ready"); book.setAttribute("aria-label", "이야기 · 새로운 장면"); }
-      return;
-    }
+  if (!ready || storageError) return;
+  const ids = Object.keys(CharcoalStory.chapters);
+  const eligible = ids.filter(id => CharcoalStory.unlocked(state, id));
+  if (!storyEligibility) {
+    storyEligibility = new Set(eligible);
+    if (!state.best && !state.attempts && !state.huntBest && !state.rebirths && !state.order && !state.day && !state.apprentice.tempered &&
+        !state.apprentice.deployed && !state.apprentice.collected && !state.story.intro && !state.story.introPresented)
+      pendingStories.add("intro");
+  } else {
+    for (const id of eligible) if (!storyEligibility.has(id) && !state.story.quiet) pendingStories.add(id);
+    storyEligibility = new Set(eligible);
   }
+  const unread = !state.story.quiet && eligible.some(id => state.story[id] < CharcoalStory.chapters[id].pages);
+  for (const node of [document.querySelector('[data-open="storyBook"]'), document.querySelector('.ui-utilities summary')]) {
+    if (!node) continue;
+    node.classList.toggle("story-ready", unread);
+    node.setAttribute("aria-label", node.matches('summary') ? (unread ? "메뉴 · 읽지 않은 이야기" : "메뉴") : (unread ? "이야기 · 읽지 않은 장면" : "이야기"));
+  }
+  if (state.story.quiet) { pendingStories.clear(); return; }
+  if (automaticStoryShown || modal || current() !== "forge" || state.hunt ||
+      HuntWatch.active || repeatHunting.active || repeatHunting.summary?.unconfirmed || autoCombat.active) return;
+  const id = eligible.find(id => pendingStories.has(id) && state.story[id] < CharcoalStory.chapters[id].pages);
+  if (id) { automaticStoryShown = true; pendingStories.clear(); startStory(id); }
 }
 function storyInput(action) {
   if (Object.keys(CharcoalStory.chapters).includes(action)) return startStory(action, modal === "storyBook");
@@ -140,6 +157,16 @@ function storyInput(action) {
       render();
       return;
     }
+    if (action === "close") {
+      if (!session.replay && id === "intro" && !state.story.introPresented) {
+        state.story.introPresented = true;
+        save();
+      }
+      closeModal();
+      render();
+      if (session.fromBook) showModal("storyBook");
+      return;
+    }
     if (Object.keys(CharcoalStory.questions).includes(action)) {
       session.answer = action;
       sound("bell");
@@ -158,10 +185,10 @@ function storyInput(action) {
     closeModal();
     render();
     if (action === "unpack") return startStory("bundle", session.fromBook);
-    if (action === "ritual" && !state.rebirths && state.weapon.level === 20) return showModal("rebirth");
+    if (action === "ritual" && !state.rebirths && (state.bladeForge ? state.best >= 20 : state.weapon.level === 20)) return state.bladeForge ? nav("growth/rebirth") : showModal("rebirth");
     if (session.fromBook) return showModal("storyBook");
-    if (id === "intro" && action !== "skip" && !state.best) return focusLesson();
+
     autoStory();
-    if (!modal) el("title").querySelector("[data-open=storyBook]")?.focus({ preventScroll: true });
+    if (!modal) document.querySelector(".ui-utilities summary")?.focus({ preventScroll: true });
   });
 }

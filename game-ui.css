@@ -575,3 +575,11 @@ body:has(#shade:is([data-modal^="blade"],[data-modal^="outfit:"],[data-modal^="i
 .gear-worn-stats { margin-top:7px; }
 .gear-worn-stats thead { background:#e5e9dc; color:#374834; }
 .gear-worn-stats td { font-weight:600; }
+
+/* Explicitly located guidance floats over unused upper scene space; controls stay put. */
+.ui-game #apprentice:not([hidden]) {
+  position:fixed; grid-row:auto; top:112px; left:78px; right:78px; width:auto;
+  margin:0; z-index:6; max-height:100px; overflow:auto;
+}
+#modalBody > details { margin-top:16px; }
+#modalBody > details > summary { min-height:44px; display:flex; align-items:center; cursor:pointer; }

@@ -27,7 +27,8 @@ const Apprentice = (() => {
       s.huntBest > 0,
       s.apprentice.tempered,
       s.order > 0,
-      s.apprentice.deployed || s.field.length > 0,
+      s.apprentice.deployed || s.apprentice.collected || s.field.length > 0 ||
+        !!(s.bladeForge && (s.bladeForge.deployed || s.bladeForge.extraDeployed)),
       s.apprentice.collected,
     ];
   }
@@ -38,6 +39,7 @@ const Apprentice = (() => {
 
   function guidance(s, step) {
     const target = (text, route, selector, button) => ({ text, route, selector, button });
+    if (s.bladeForge) return currentGuidance(s, step, target);
     const plan = Game.journeyForge(s, "weapon");
     const deployable = g => g.level >= 13 && !Game.isJourneyGear(s, g);
     const forge = (text) =>
@@ -161,6 +163,28 @@ const Apprentice = (() => {
             s.weapon.level +
             " / +13. +12부터 실패하면 하락할 수 있습니다. 정령의 가호로 보호할 수 있어요.",
     );
+  }
+  function currentGuidance(s, step, target) {
+    const b = s.bladeForge;
+    const forge = text => target(text, "forge", ".forge-strike", "망치 찾기");
+    const hunt = text => target(text, "forest", ".watch-start", "사냥 버튼 찾기");
+    const temper = text => ({ ...target(text, "forge", '[data-open="temper"]', "담금질 찾기"), open: "temperGuide" });
+    if (s.hunt) return hunt("진행 중인 사냥을 먼저 확인하세요. 찾기는 전투를 시작하거나 정산하지 않습니다.");
+    if (step === 1) return hunt("짧게 누르면 이번 단계, 1초 꾹 누르면 연속 사냥을 시작합니다.");
+    if (step === 2) return temper("흰 바늘이 초록 구간에 닿을 때 모루를 두드리세요. 빗나가도 골드를 얻습니다.");
+    if (step === 3 && s.best >= 3) return target("달성한 첫 의뢰의 보상을 받으세요.", "forge", '[data-act="order"]', "의뢰 찾기");
+    if (step === 5 && (b.deployed || b.extraDeployed || s.unclaimed >= 1))
+      return target(s.unclaimed >= 1 ? "모인 배치 수익을 수령하세요." : "배치한 무기가 골드를 모으고 있습니다. 1 G 이상 모이면 수령할 수 있습니다.", "forest", '[data-act="collect"]', "배치 수익 찾기");
+    if (step >= 4) {
+      const spare = b.items.find(g => g.id !== b.equipped && g.id !== s.hunt?.bladeId && !g.soulChoice && g.level >= 13);
+      if (spare) return { ...target("보관한 +13 이상 무기의 상세에서 사냥터 배치를 고르세요.", "forge", '[data-act="bladeDeploy"]', "배치 찾기"), open: "bladeItem-" + spare.id };
+      const growing = b.items.find(g => g.id !== b.equipped && !g.soulChoice);
+      return target(growing ? "여분 무기를 장착해 +13까지 강화한 뒤 다른 무기로 바꾸면 배치할 수 있습니다." : "숲에서 여분 무기를 얻으세요. +13까지 강화한 여분 무기를 배치할 수 있습니다.", growing ? "forge" : "forest", growing ? '[data-open="bladeCollection"]' : '.watch-start', growing ? "무기함 찾기" : "사냥 버튼 찾기");
+    }
+    const item = Game.blades.current(s);
+    if (s.gold < Game.blades.cost(item))
+      return temper("강화비가 부족합니다. 무료 담금질로 골드를 마련하세요.");
+    return forge(step === 3 ? "현재 무기를 +3까지 강화해 첫 의뢰를 달성하세요." : "현재 무기의 망치를 눌러 첫 강화를 시도하세요.");
   }
   return { lessons, restore, completed, next, guidance };
 })();

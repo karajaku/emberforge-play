@@ -640,6 +640,7 @@ function render() {
   bindOutfitQuotes(screen);
   renderLesson();
   GameUI.shell();
+  autoStory();
   bindForgeRequests(screen);
   syncMusic();
 }
@@ -666,11 +667,12 @@ function lessonButton(action, label) {
 }
 let pendingLessonFocus = false;
 function focusLesson() {
+  if (state.hunt || HuntWatch.active || repeatHunting.active) return;
   closeModal(false);
   const n = Apprentice.next(state);
   if (n < 0) return;
   const tip = Apprentice.guidance(state, n);
-  if (tip.route === "forge") { gear = "weapon"; forgeOutfitSlot = ""; ForgeItemView.selectSlot(state,"weapon"); }
+  if (tip.route === "forge") { archiveBlade = false; gear = "weapon"; forgeOutfitSlot = ""; ForgeItemView.selectSlot(state,"weapon"); }
   const destination = phoneLessonDestination(tip);
   if ((location.hash.slice(1) || "forge") !== destination) {
     pendingLessonFocus = true;
@@ -679,7 +681,9 @@ function focusLesson() {
   }
   guidedLesson = n;
   render();
-  const target = el("screen").querySelector(tip.selector);
+  if (tip.open) showModal(tip.open);
+  const target = (tip.open ? el("modalBody") : el("screen")).querySelector(tip.selector);
+  target?.classList.add("lesson-target");
   target?.scrollIntoView({ block: "center" });
   target?.focus({ preventScroll: true });
 }
@@ -692,15 +696,17 @@ function lessonMenu() {
     "짧게 누르면 이번 단계 자동사냥, 1초 꾹 누르면 연속 사냥이 시작됩니다. 다시 누르면 멈춥니다.",
     "모루를 초록 구간에서 두드려 골드를 받으세요. 일반 강화에는 확률 보너스도 붙습니다.",
     "대장간 의뢰에서 목표 강화 단계를 확인하고 골드와 별의 파편을 받으세요.",
-    "+13 이상 보조 검을 보관함에 넣은 뒤 배치하세요.",
+    "+13 이상 여분 무기를 다른 무기로 교체한 뒤 무기함에서 배치하세요.",
     "사냥터에서 모인 골드를 수령하세요. 회수한 검은 보관함에 있습니다.",
   ];
   return [
     "튜토리얼",
-    Apprentice.lessons.map((lesson, i) =>
+    (tip ? row("다음 목표 · " + Apprentice.lessons[step][1], tip.text, "") +
+      (state.hunt || HuntWatch.active ? desc("사냥을 마친 뒤 목표를 찾을 수 있습니다.") : lessonButton("locate", tip.button)) : desc("모든 수업을 마쳤습니다. 아래에서 다시 읽을 수 있습니다.")) +
+    "<details><summary>수업 다시 읽기</summary>" + Apprentice.lessons.map((lesson, i) =>
       row(lesson[1], i === step ? tip.text : notes[i], done[i] ? icon("check") : "")
-    ).join("") +
-      (tip ? lessonButton("locate", tip.button) : "") +
+    ).join("") + "</details>" +
+      (!archiveBlade ? "<details><summary>제작 설명</summary>" + BladeView.modal(state, "bladeGuide")[1] + "</details>" : "") +
       (guidedLesson >= 0 ? lessonButton("hide", "목표 안내 닫기") : ""),
   ];
 }
@@ -739,7 +745,7 @@ function modalData() {
   if (modal === "huntLoot") return HuntLootView.detailView(s);
   if (modal === "firstGearCompare") return HuntWatch.compareLoot(s);
   if (modal.startsWith("blade")) return BladeView.modal(s, modal);
-  if (!archiveBlade && (modal === "lessons" || modal === "help")) return BladeView.modal(s, "bladeGuide");
+  if (!archiveBlade && modal === "help") return BladeView.modal(s, "bladeGuide");
   if (modal.startsWith("inventory-")) return InventoryView.menu(s, modal.slice("inventory-".length));
   if (modal === "companion") return ["동료 대화", storyChat(s, current())];
   if (modal === "storyScene") return storyPage();
@@ -828,6 +834,12 @@ function modalData() {
               !s.scrolls,
             ),
           ),
+      ];
+    case "temperGuide":
+      return [
+        "담금질 준비",
+        desc("골드 소모 없이 시작합니다. 시작한 뒤 흰 바늘이 초록 구간에 들어오면 모루를 두드리세요. 빗나가도 골드를 얻습니다.") +
+          openBtn("temper", icon("hammer") + "담금질 시작", "primary"),
       ];
     case "temper":
       return [
@@ -1203,7 +1215,7 @@ function dismissModal() {
   Feedback.clear();
   GameSound.stop();
   if (modal === "confirmNewGame") showModal("settings");
-  else if (modal === "storyScene") storyInput("skip");
+  else if (modal === "storyScene") storyInput("close");
   else closeModal();
 }
 function back() {
