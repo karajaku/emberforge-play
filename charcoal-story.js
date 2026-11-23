@@ -25,6 +25,33 @@ const CharcoalStory = (() => {
     if (id === "light") return s.best >= 20 || s.weapon.level === 20 || s.rebirths > 0;
     return id === "lesson" && s.rebirths > 0;
   }
+  function lessonsDone(s) {
+    const lessons = typeof Apprentice !== "undefined" ? Apprentice : require("./apprentice.js");
+    return lessons.completed(s);
+  }
+  // Read-only: the one scene that may open automatically now, or null.
+  // A scene qualifies only inside its gameplay window and while 0 <= page < pages,
+  // so a partly read scene resumes after reload but stale or finished scenes stay in the book.
+  function autoScene(s, shown = new Set()) {
+    const open = id => unlocked(s, id) && s.story[id] >= 0 && s.story[id] < chapters[id].pages && !shown.has(id);
+    const a = s.apprentice || {};
+    const untouched = !s.best && !s.attempts && !s.huntBest && !s.rebirths && !s.order && !s.day &&
+      !a.tempered && !a.deployed && !a.collected;
+    if (untouched && !s.story.introPresented && open("intro")) return "intro";
+    if (!s.rebirths) {
+      const done = lessonsDone(s);
+      if (s.huntBest > 0 && !done[4] && open("bridge")) return "bridge";
+      if (done[5] && open("home")) return "home";
+      // Plan A: light waits until home is fully read or already shown in this session.
+      if ((s.story.home >= chapters.home.pages || shown.has("home")) && open("light")) return "light";
+      return null;
+    }
+    // First rebirth cycle only. Current blade rebirth adds 1; legacy rebirth adds points / 20 (1/3/10/30).
+    // Old saves without a first gift and without the blade forge are excluded.
+    const gift = s.story.firstGift;
+    const first = (!!s.bladeForge && s.rebirths === 1) || (!!gift && s.rebirths === gift.points / 20);
+    return first && open("lesson") ? "lesson" : null;
+  }
   function restore(s) {
     if (s.story) return { ...fresh(), ...s.story };
     const story = fresh();
@@ -114,6 +141,6 @@ const CharcoalStory = (() => {
       ? "자루를 쥐어 봐. 내 손에 맞는 검하고 네 손에 맞는 검은 달라. 칼날을 어떻게 마무리할지는 네가 정해."
       : "저 빈 칼걸이가 보이지? 초소 사람이 내일 그걸 가지러 온단다. 오늘은 검 한 자루에 손 좀 들여 보자."];
   }
-  return { names, chapters, volumes, questions, fresh, unlocked, restore, frame, dialogue };
+  return { names, chapters, volumes, questions, fresh, unlocked, autoScene, restore, frame, dialogue };
 })();
 if (typeof module !== "undefined") module.exports = CharcoalStory;

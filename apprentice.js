@@ -186,6 +186,21 @@ const Apprentice = (() => {
       return temper("강화비가 부족합니다. 무료 담금질로 골드를 마련하세요.");
     return forge(step === 3 ? "현재 무기를 +3까지 강화해 첫 의뢰를 달성하세요." : "현재 무기의 망치를 눌러 첫 강화를 시도하세요.");
   }
-  return { lessons, restore, completed, next, guidance };
+  // Read-only next-goal target. A saved but stopped hunt is resumed from the forest
+  // hunt button; locating it never starts or settles the hunt.
+  function target(s, step = next(s)) {
+    if (step < 0) return null;
+    if (s.hunt) return { text: "저장된 사냥이 남아 있습니다. 숲의 사냥 버튼으로 이어 가세요. 찾기는 사냥을 시작하지 않습니다.",
+      route: "forest", selector: ".watch-start", button: "사냥 재개" };
+    return guidance(s, step);
+  }
+  // The automatic prompt follows the persisted tutorial flag; missing means on.
+  function prompt(s) {
+    const step = next(s);
+    if (step < 0 || s.apprentice.auto === false) return null;
+    const tip = target(s, step);
+    return { step, title: lessons[step][1], ...tip };
+  }
+  return { lessons, restore, completed, next, guidance, target, prompt };
 })();
 if (typeof module !== "undefined") module.exports = Apprentice;

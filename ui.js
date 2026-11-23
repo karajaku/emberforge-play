@@ -4,6 +4,8 @@ const saveKey = SaveStore.keys.current,
 const store = SaveStore.create(() => localStorage);
 const saveLock = SaveStore.createLock({ get locks() { return navigator.locks; }, get indexedDB() { return window.indexedDB; } });
 let state = null, storageError = null, ready = false;
+// Synchronous count of act() bodies running inside the save lock; blocks automatic stories.
+let actInFlight = 0;
 function readState() { return store.load(); }
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const motionEnabled = () => prefs.motion && (prefs.motionOverride || !reducedMotion.matches);
@@ -169,8 +171,10 @@ function resumeSaved() {
   for (const node of document.querySelectorAll("[inert]")) node.inert = false;
   closeModal(false);
   render();
-  autoStory();
+  autoStory(true); // session start or save recovery is a safe point
 }
+// An animation that ends by itself re-checks the story it deferred, once.
+Feedback.onIdle(() => autoStory());
 function storageAction(action) {
   if (action === "reload") {
     if (!store.pending || confirm("이 탭의 미저장 진행을 포기하고 기기의 최신 저장을 읽을까요?")) location.reload();
@@ -192,7 +196,7 @@ function dismissToast() {
   clearTimeout(toastTimer);
   toast.classList.remove("on");
   el("noticeSlot").hidden = true;
-  requestAnimationFrame(fitNoticeRails);
+  requestAnimationFrame(() => { fitNoticeRails(); placeLesson(); });
   document.querySelectorAll(".has-notice").forEach(node => node.classList.remove("has-notice"));
 }
 // Bound side actions by the measured caption, including wrapped names and summaries.
@@ -254,7 +258,7 @@ function revealNoticeRailButton(button) {
 }
 function observeNoticeRails() {
   forgeRailObserver?.disconnect();
-  forgeRailObserver = new ResizeObserver(fitNoticeRails);
+  forgeRailObserver = new ResizeObserver(() => { fitNoticeRails(); placeLesson(); });
   for (const node of document.querySelectorAll('#screen > .forge-layout .stage-side, #screen > .forge-layout .caption')) forgeRailObserver.observe(node);
   fitNoticeRails();
 }
@@ -272,7 +276,7 @@ function placeToast() {
   host.prepend(slot);
   host.classList.add("has-notice");
   slot.hidden = false;
-  requestAnimationFrame(() => { fitNoticeRails(); scheduleToastDismissal(); });
+  requestAnimationFrame(() => { fitNoticeRails(); placeLesson(); scheduleToastDismissal(); });
 }
 function scheduleToastDismissal() {
   clearTimeout(toastTimer);
@@ -385,7 +389,18 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
   if (action === "huntStart" && typeof arg !== "object" && state)
     arg = { rank: arg, request: state.hunting.serial + 1 };
   const heldEnhance = action === "enhance" && !!automaticGuard;
+  let settled = false;
   return locked(() => {
+    actInFlight++;
+    try { return perform(); }
+    finally {
+      actInFlight--;
+      // One automatic-story check per successful action, after Feedback has started.
+      // If an animation is still on screen, Feedback.onIdle re-checks when it ends.
+      if (settled) autoStory(true);
+    }
+  });
+  function perform() {
     if (forgeItemAction && !ForgeItemView.guard(action,arg.id,forgeVersion)) return;
     if (action === "huntStart" && !repeatGuard && repeatHunting.active) return;
     if (!repeatGuard && action === "openChest" && repeatHunting.active) {
@@ -594,11 +609,11 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
         sound("ascend");
       } else if (!stagedHit) sound(result.impact?.kind || (sparring ? (arg === "parry" ? "parry" : "slash") : action === "mine" ? "mine" : result.kind));
     }
-    if (result.ok && CharcoalStory.unlocked(state, "home")) autoStory();
+    settled = result.ok;
     autoCombat.refresh();
     repeatHunting.refresh();
     return repeatStrike;
-  });
+  }
 }
 function renderHuntMode() {
   const repeatHost = document.querySelector("[data-repeat-panel]");
@@ -618,6 +633,7 @@ function nav(id) {
   closeModal(false);
   if (location.hash.slice(1) === id) {
     if (id === "world" && HuntWatch.active) HuntWatch.stop("", false);
+    releaseStoryHold(); // a page transition is a safe point for the next automatic story
     render();
     document.querySelector("main").scrollTop = 0;
     scrollTo(0, 0);
@@ -723,38 +739,119 @@ function render() {
   GameUI.shell();
   observeNoticeRails();
   placeToast();
+  placeLesson(); // after rails and notice settle; toast frames re-place it below
   autoStory();
   bindForgeRequests(screen);
   syncMusic();
 }
-// Only the lesson explicitly located from the tutorial can appear during play.
-let guidedLesson = -1;
-function renderLesson() {
+// Automatic next-goal prompt: one button naming the next action. Pressing it locates
+// the control; it never performs the action. Hidden while anything else owns the screen.
+function lessonBusy() {
+  return HuntWatch.active || repeatHunting.active || autoCombat.active || !!repeatHunting.summary?.unconfirmed;
+}
+function lessonHidden() {
+  // AT2-R1: visible in normal play, including the idle/result/paused forest hunt page; hidden only
+  // during active combat, a modal, a storage error or before the save is ready.
+  return !ready || !!storageError || !!modal || lessonBusy();
+}
+function syncLesson() {
   const host = el("apprentice");
-  const step = Apprentice.next(state);
-  const tip = guidedLesson === step && step >= 0 ? Apprentice.guidance(state, step) : null;
-  const target = tip && current() === tip.route && el("screen").querySelector(tip.selector);
-  host.hidden = !target;
-  if (!target) {
-    guidedLesson = -1;
-    host.replaceChildren();
-    return;
+  const hide = !host.firstElementChild || lessonHidden();
+  if (host.hidden !== hide) host.hidden = hide;
+  host.inert = hide;
+  placeLesson();
+}
+// AT2-R1 measured anchor. Only the coach moves; the hammer, hunt button and rails keep their places.
+// Forge: centred just under the slot pager (or filter row) between the side rails, below any notice.
+// Forest hunt page: centred just above the hunt button. Other pages keep the CSS corner placement.
+function placeLesson() {
+  const lessonAvoid = ".watch-arena :is(.hp-meter,.watch-action,.watch-skills,.watch-enemy-skill,.watch-upper-dice," +
+    ".watch-impact-number,.watch-report,.watch-reward,.watch-loot,.watch-recent-loot,.watch-status)";
+  const host = el("apprentice");
+  const box = node => {
+    const r = node?.getClientRects().length ? node.getBoundingClientRect() : null;
+    return r && r.width > 0 && r.height > 0 ? r : null;
+  };
+  const set = (place, x, max) => {
+    host.dataset.place = place;
+    host.style.setProperty("--lesson-x", Math.round(x) + "px");
+    host.style.setProperty("--lesson-max", Math.max(44, Math.floor(max)) + "px");
+  };
+  delete host.dataset.place;
+  delete host.dataset.tight;
+  if (host.hidden) return;
+  const screen = el("screen");
+  const start = box(screen.querySelector(".watch-start"));
+  const pager = box(screen.querySelector(".forge-layout .forge-item-pager")) ||
+    box(screen.querySelector(".forge-layout .forge-slot-switch"));
+  if (start) {
+    set("forest", start.left + start.width / 2, Math.min(260, innerWidth - 24));
+    const h = host.offsetHeight, w = host.offsetWidth, floor = start.top - 6, top = floor - h;
+    host.style.setProperty("--lesson-y", Math.round(top) + "px");
+    // Report (not hide) a crowded viewport: the player must still see the next action after a hunt.
+    const left = start.left + start.width / 2 - w / 2, right = left + w;
+    const tight = [...screen.querySelectorAll(lessonAvoid)].map(box)
+      .some(r => r && r.left < right && r.right > left && r.top < floor && r.bottom > top);
+    if (tight) host.dataset.tight = "true";
+  } else if (pager) {
+    const stage = box(screen.querySelector(".forge-layout .stage-side")) || box(screen);
+    let low = stage.left, high = stage.right;
+    for (const rail of screen.querySelectorAll(".forge-layout .ui-forge-rail")) {
+      const r = box(rail);
+      if (!r) continue;
+      if (r.left + r.width / 2 < stage.left + stage.width / 2) low = Math.max(low, r.right);
+      else high = Math.min(high, r.left);
+    }
+    const switcher = box(screen.querySelector(".forge-layout .forge-slot-switch"));
+    const notice = !el("noticeSlot").hidden && el("noticeSlot").closest("#screen") ? box(el("noticeSlot")) : null;
+    const top = Math.max(pager.bottom, switcher?.bottom || 0, notice?.bottom || 0) + 4;
+    set("forge", (low + high) / 2, high - low - 8);
+    // Floor, not round: rounding up can push the coach's bottom into the caption by a subpixel.
+    host.style.setProperty("--lesson-y", Math.floor(top) + "px");
   }
-  host.innerHTML = '<button class="lesson-copy" data-open="lessons" aria-label="튜토리얼 열기">' +
-    '<span id="lesson-action-hint">' + tip.text + '</span></button>';
-  target.classList.add("lesson-target");
-  target.setAttribute("aria-describedby", "lesson-action-hint");
+}
+new ResizeObserver(() => placeLesson()).observe(el("screen"));
+addEventListener("resize", () => placeLesson());
+let lessonScrollFrame = 0; // the coach is fixed; follow its anchor if the play area scrolls
+addEventListener("scroll", () => {
+  if (!lessonScrollFrame && el("apprentice").dataset.place)
+    lessonScrollFrame = requestAnimationFrame(() => { lessonScrollFrame = 0; placeLesson(); });
+}, { passive: true, capture: true });
+function clearLessonTarget() {
+  for (const node of document.querySelectorAll(".lesson-target")) node.classList.remove("lesson-target");
+  for (const node of document.querySelectorAll('[aria-describedby="lesson-action-hint"]'))
+    if (!node.closest("#apprentice")) node.removeAttribute("aria-describedby");
+}
+function renderLesson() {
+  clearLessonTarget();
+  const host = el("apprentice");
+  let goal = null;
+  try { goal = Apprentice.prompt(state); } // the prompt must never break the play screen
+  catch (error) { console.error(error); }
+  document.body.dataset.lesson = goal ? "on" : "off";
+  if (!goal) host.replaceChildren();
+  else {
+    const count = (goal.step + 1) + "/" + Apprentice.lessons.length;
+    host.innerHTML = '<button class="lesson-locate" data-lesson="locate" aria-label="다음 목표 ' + count + " · " +
+      goal.title + " · " + goal.button + '" aria-describedby="lesson-action-hint"><small>다음 목표 ' + count +
+      "</small><b>" + goal.button + '</b></button><span id="lesson-action-hint">' + goal.text + "</span>";
+    const top = document.querySelector("main")?.getBoundingClientRect().top;
+    if (top >= 0) document.body.style.setProperty("--lesson-top", Math.round(top) + "px");
+  }
+  syncLesson();
 }
 function lessonButton(action, label) {
   return '<button class="mini" data-lesson="' + action + '">' + label + "</button>";
 }
 let pendingLessonFocus = false;
 function focusLesson() {
-  if (state.hunt || HuntWatch.active || repeatHunting.active) return;
+  if (!ready || storageError || lessonBusy()) return;
+  // Never close a story to locate a goal; run the locate once the story closes normally.
+  if (modal === "storyScene") { pendingLocate = true; return; }
   closeModal(false);
   const n = Apprentice.next(state);
   if (n < 0) return;
-  const tip = Apprentice.guidance(state, n);
+  const tip = Apprentice.target(state, n);
   if (tip.route === "forge") { archiveBlade = false; gear = "weapon"; forgeOutfitSlot = ""; ForgeItemView.selectSlot(state,"weapon"); }
   const destination = phoneLessonDestination(tip);
   if ((location.hash.slice(1) || "forge") !== destination) {
@@ -762,18 +859,20 @@ function focusLesson() {
     nav(destination);
     return;
   }
-  guidedLesson = n;
   render();
+  if (modal === "storyScene") { pendingLocate = true; return; }
   if (tip.open) showModal(tip.open);
   const target = (tip.open ? el("modalBody") : el("screen")).querySelector(tip.selector);
   target?.classList.add("lesson-target");
+  target?.setAttribute("aria-describedby", "lesson-action-hint");
   target?.scrollIntoView({ block: "center" });
   target?.focus({ preventScroll: true });
 }
 function lessonMenu() {
   const done = Apprentice.completed(state);
   const step = Apprentice.next(state);
-  const tip = step >= 0 ? Apprentice.guidance(state, step) : null;
+  const tip = step >= 0 ? Apprentice.target(state, step) : null;
+  const automatic = state.apprentice.auto !== false;
   const notes = [
     "대장간에서 검을 벼려 공격력을 올리세요.",
     "짧게 누르면 이번 단계 자동사냥, 1초 꾹 누르면 연속 사냥이 시작됩니다. 다시 누르면 멈춥니다.",
@@ -785,12 +884,13 @@ function lessonMenu() {
   return [
     "튜토리얼",
     (tip ? row("다음 목표 · " + Apprentice.lessons[step][1], tip.text, "") +
-      (state.hunt || HuntWatch.active ? desc("사냥을 마친 뒤 목표를 찾을 수 있습니다.") : lessonButton("locate", tip.button)) : desc("모든 수업을 마쳤습니다. 아래에서 다시 읽을 수 있습니다.")) +
+      (lessonBusy() ? desc("사냥을 마친 뒤 목표를 찾을 수 있습니다.") : lessonButton("locate", tip.button)) +
+      desc(automatic ? "다음 목표 버튼이 게임 화면에 자동으로 나옵니다." : "자동 안내를 껐습니다. 이 메뉴에서 목표를 찾을 수 있습니다.") +
+      lessonButton("auto", automatic ? "자동 안내 끄기" : "자동 안내 켜기") : desc("모든 수업을 마쳤습니다. 아래에서 다시 읽을 수 있습니다.")) +
     "<details><summary>수업 다시 읽기</summary>" + Apprentice.lessons.map((lesson, i) =>
       row(lesson[1], i === step ? tip.text : notes[i], done[i] ? icon("check") : "")
     ).join("") + "</details>" +
-      (!archiveBlade ? "<details><summary>제작 설명</summary>" + BladeView.modal(state, "bladeGuide")[1] + "</details>" : "") +
-      (guidedLesson >= 0 ? lessonButton("hide", "목표 안내 닫기") : ""),
+      (!archiveBlade ? "<details><summary>제작 설명</summary>" + BladeView.modal(state, "bladeGuide")[1] + "</details>" : ""),
   ];
 }
 const guardLabels = [
@@ -1231,6 +1331,7 @@ function displayModal() {
   el("shade").hidden = false;
   placeToast();
   document.body.style.overflow = "hidden";
+  syncLesson();
   syncMusic();
 }
 function updateSaleQuote(reset) {
@@ -1279,8 +1380,10 @@ function closeModal(focus = true) {
   storyScene = null;
   battle = null;
   el("shade").hidden = true;
+  clearLessonTarget(); // a located goal ends when its dialog closes; no leftover outline or description
   placeToast();
   document.body.style.overflow = "";
+  syncLesson();
   syncMusic();
   if (provisionDialog) HuntWatch.refreshWallet();
   if (!focus) return;
@@ -1302,7 +1405,10 @@ function dismissModal() {
   GameSound.stop();
   if (modal === "confirmNewGame") showModal("settings");
   else if (modal === "storyScene") storyInput("close");
-  else closeModal();
+  else {
+    closeModal();
+    autoStory(); // the closed dialog was the only blocker; check once
+  }
 }
 function back() {
   if (modal) {
@@ -1348,14 +1454,25 @@ document.addEventListener("keydown", (e) => {
   }
 });
 // The forge button is replaced on each render. Capture a long press on its stable host.
-let forgePress = null, consumedForgePress = false;
+// `forgePress` is the pending/striking loop; cancelForgePress() stops only the loop. A long press
+// that struck keeps its identity in `heldForgePress` until the finger actually lifts (U4): the loop
+// may stop on its own (success, gold exhausted) while the finger is still down, and autoStory()
+// must stay blocked until that real release, which then runs exactly one check.
+let forgePress = null, consumedForgePress = false, heldForgePress = null;
 function cancelForgePress() {
   clearTimeout(forgePress?.timer);
   forgePress = null;
 }
+function releaseForgePress(event) {
+  const held = heldForgePress;
+  if (!held || (event && held.id !== event.pointerId)) return false;
+  heldForgePress = null;
+  return true;
+}
 function beginForgePress(event) {
   if (!event.isPrimary || event.button !== 0) return;
   cancelForgePress();
+  releaseForgePress(); // a new primary press means any earlier one has already lifted
   consumedForgePress = false;
   const button = event.target.closest('button[data-act="enhance"]:enabled');
   if (!button || !ready || storageError || modal) return;
@@ -1371,8 +1488,10 @@ function beginForgePress(event) {
   }
   press.timer = setTimeout(() => {
     if (!valid()) return;
+    try { el("screen").setPointerCapture(press.id); }
+    catch { cancelForgePress(); return; } // the pointer already lifted; treat as a tap
     consumedForgePress = true;
-    el("screen").setPointerCapture(press.id);
+    heldForgePress = { id: press.id };
     strike();
   }, 420);
 }
@@ -1384,10 +1503,17 @@ document.addEventListener("pointermove", event => {
 });
 for (const type of ["pointerup", "pointercancel", "lostpointercapture"])
   document.addEventListener(type, event => {
-    if (forgePress?.id === event.pointerId && (type !== "lostpointercapture" || event.target === el("screen")))
-      cancelForgePress();
+    if (type === "lostpointercapture" && event.target !== el("screen")) return;
+    if (forgePress?.id === event.pointerId) cancelForgePress();
+    // Releasing a held hammer is a safe point, checked once (up, cancel and lost capture all
+    // arrive for one release). A short tap is followed by its own act() check.
+    if (releaseForgePress(event)) autoStory();
   });
-addEventListener("blur", cancelForgePress);
+addEventListener("blur", () => {
+  cancelForgePress();
+  // Window focus lost: no pointerup may follow, so release the hold instead of leaving it stuck.
+  if (releaseForgePress()) autoStory();
+});
 document.addEventListener("contextmenu", event => {
   if (forgePress || event.target.closest('[data-act="enhance"]')) event.preventDefault();
 });
@@ -1444,12 +1570,15 @@ document.addEventListener("click", (e) => {
   if ("newGame" in d) return startNewGame();
   if (d.story) return storyInput(d.story);
   if (d.lesson === "locate") return focusLesson();
-  if (d.lesson === "hide") {
-    guidedLesson = -1;
-    closeModal(false);
+  if (d.lesson === "auto") return locked(() => {
+    if (modal !== "lessons") return;
+    sync();
+    state.apprentice.auto = state.apprentice.auto === false; // persisted; missing means on
+    save();
     render();
-    return;
-  }
+    displayModal();
+    el("modalBody").querySelector('[data-lesson="auto"]')?.focus({ preventScroll: true });
+  });
   if ("archiveBlade" in d) { archiveBlade = true; forgeOutfitSlot = ""; gear = d.archiveBlade === "armor" ? "armor" : "weapon"; return nav("forge"); }
   if ("bladeTarget" in d) return act(d.bladeTarget, el("bladeTarget").value);
   if ("bladeHome" in d) { archiveBlade = false; ForgeItemView.selectSlot(state,d.bladeHome === "armor" ? "chest" : "weapon"); return nav("forge"); }
@@ -1576,7 +1705,9 @@ addEventListener("hashchange", () => {
   Impacts.clear();
   Feedback.clear();
   GameSound.stop();
-  closeModal(false);
+  // A route change never closes an open story; a deferred locate runs when it closes.
+  if (modal !== "storyScene") closeModal(false);
+  releaseStoryHold();
   render();
   el("screen").scrollTop = 0;
   document.querySelector("main").scrollTop = 0;
@@ -1646,6 +1777,7 @@ addEventListener("pageshow", () => syncMusic());
 setInterval(() => {
   if (document.hidden || !ready || storageError) return;
   accrue();
+  syncLesson(); // hunt watch and repeat hunting can start or stop without a full render
   const wallet = Game.huntingStatus(state);
   el("huntTickets").textContent = brief(wallet.free + wallet.purchased);
   const autoStart = document.querySelector('[data-repeat="start"]');

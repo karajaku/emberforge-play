@@ -637,10 +637,35 @@ body.ui-game:has(#shade:not([hidden])) #modalBody #toast { visibility:visible; }
   .ui-game .forge-layout .notice-bounded > button { min-height:44px; height:44px; }
 }
 .ui-game .forge-layout .notice-bounded button:focus-visible { outline-offset:-3px; }
-/* Explicitly located guidance floats over unused upper scene space; controls stay put. */
+/* Automatic next-goal prompt (AT2). One 44px fixed button, so showing or hiding it never moves a
+   primary control. Default: upper-right corner for pages with a title row (which reserve a 44px
+   row for it). The forge work page and forest hunt page use the measured [data-place] rule below;
+   the corner covered the forge filter row there (AT2-R1 correction). */
 .ui-game #apprentice:not([hidden]) {
-  position:fixed; grid-row:auto; top:112px; left:78px; right:78px; width:auto;
-  margin:0; z-index:6; max-height:100px; overflow:auto;
+  position:fixed; grid-row:auto; z-index:6;
+  top:calc(var(--lesson-top, 60px) + 2px); right:calc(12px + env(safe-area-inset-right, 0px)); left:auto;
+  width:max-content; max-width:calc(50% - 44px); min-height:0; max-height:none; overflow:visible;
+  margin:0; padding:0; gap:0; background:none; border:0; border-image:none; box-shadow:none;
 }
+/* AT2-R1: placeLesson() measures the forge pager/rails and the forest hunt button and centres the
+   coach there (forge: below the "1 / 2" pager between the rails; forest: just above the hunt button). */
+.ui-game #apprentice[data-place]:not([hidden]) {
+  top:var(--lesson-y); left:var(--lesson-x); right:auto; transform:translateX(-50%); max-width:var(--lesson-max);
+}
+.ui-game #apprentice[data-place] .lesson-locate { justify-items:center; text-align:center; }
+.ui-game #apprentice .lesson-locate {
+  display:grid; justify-items:start; align-content:center; gap:1px;
+  min-width:44px; min-height:44px; max-width:100%; padding:3px 10px;
+  border:1px solid #c9a45e; border-radius:10px; background:#26332fef; color:#f4ead4;
+  text-align:left; line-height:1.15; box-shadow:0 2px 6px #0008; text-shadow:none;
+}
+.ui-game #apprentice .lesson-locate small { font-size:11px; color:#d3c196; white-space:nowrap; }
+.ui-game #apprentice .lesson-locate b { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; color:#ffe1a0; }
+.ui-game #apprentice .lesson-locate:focus-visible { outline:2px solid #ffe1a0; outline-offset:2px; }
+/* The long description is for assistive technology and the tutorial menu, not the play screen. */
+.ui-game #apprentice #lesson-action-hint {
+  position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap;
+}
+.ui-game[data-lesson="on"] .titlebar { min-height:44px; }
 #modalBody > details { margin-top:16px; }
 #modalBody > details > summary { min-height:44px; display:flex; align-items:center; cursor:pointer; }

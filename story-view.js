@@ -94,10 +94,10 @@ function storyPage() {
 }
 function startStory(id, fromBook = false) {
   if (!CharcoalStory.unlocked(state, id)) return;
-  automaticStoryShown = true;
-  pendingStories.clear();
   const page = state.story[id];
   const replay = page >= CharcoalStory.chapters[id].pages;
+  // Any non-replay open, automatic or from the book, is not offered again this session.
+  if (!replay) storyShown.add(id);
   storyScene = { id, fromBook, replay, page: replay ? 0 : page, answer: state.story.answer };
   showModal("storyScene");
   if (id === "home" && storyScene.page === 0) sound("bell");
@@ -106,34 +106,57 @@ function startStory(id, fromBook = false) {
 function focusStoryPage() {
   el("modalBody").querySelector(".story-actions button")?.focus({ preventScroll: true });
 }
-// Session-only eligibility: old unread scenes remain available in the book.
-let storyEligibility = null;
-let automaticStoryShown = false;
-const pendingStories = new Set();
-function autoStory() {
-  if (!ready || storageError) return;
-  const ids = Object.keys(CharcoalStory.chapters);
-  const eligible = ids.filter(id => CharcoalStory.unlocked(state, id));
-  if (!storyEligibility) {
-    storyEligibility = new Set(eligible);
-    if (!state.best && !state.attempts && !state.huntBest && !state.rebirths && !state.order && !state.day && !state.apprentice.tempered &&
-        !state.apprentice.deployed && !state.apprentice.collected && !state.story.intro && !state.story.introPresented)
-      pendingStories.add("intro");
-  } else {
-    for (const id of eligible) if (!storyEligibility.has(id) && !state.story.quiet) pendingStories.add(id);
-    storyEligibility = new Set(eligible);
-  }
+// Session-only automatic story state. Windows and pages come from CharcoalStory.autoScene.
+const storyShown = new Set(); // scenes opened (not replayed) in this session
+let storyHold = false;        // set when a scene closes; released by the next transition or action success
+let pendingLocate = false;    // a next-goal locate deferred while a story is open
+function releaseStoryHold() { storyHold = false; }
+function storyBadge() {
+  const eligible = Object.keys(CharcoalStory.chapters).filter(id => CharcoalStory.unlocked(state, id));
   const unread = !state.story.quiet && eligible.some(id => state.story[id] < CharcoalStory.chapters[id].pages);
   for (const node of [document.querySelector('[data-open="storyBook"]'), document.querySelector('.ui-utilities summary')]) {
     if (!node) continue;
     node.classList.toggle("story-ready", unread);
     node.setAttribute("aria-label", node.matches('summary') ? (unread ? "메뉴 · 읽지 않은 이야기" : "메뉴") : (unread ? "이야기 · 읽지 않은 장면" : "이야기"));
   }
-  if (state.story.quiet) { pendingStories.clear(); return; }
-  if (automaticStoryShown || modal || current() !== "forge" || state.hunt ||
-      HuntWatch.active || repeatHunting.active || repeatHunting.summary?.unconfirmed || autoCombat.active) return;
-  const id = eligible.find(id => pendingStories.has(id) && state.story[id] < CharcoalStory.chapters[id].pages);
-  if (id) { automaticStoryShown = true; pendingStories.clear(); startStory(id); }
+}
+// Safe places: forge, inventory, growth and the forest deployment page; never the forest hunt page.
+function storySafePlace() {
+  const place = current();
+  if (["forge", "bag", "growth"].includes(place)) return true;
+  return place === "forest" && typeof phonePage === "function" && phonePage("forest") === "field";
+}
+function storyBlocked() {
+  if (!ready || storageError || !state || state.story.quiet || modal || storyHold || !storySafePlace()) return true;
+  return !!(state.hunt || HuntWatch.active || repeatHunting.active || repeatHunting.summary?.unconfirmed || autoCombat.active ||
+    (typeof forgePress !== "undefined" && forgePress) ||
+    (typeof heldForgePress !== "undefined" && heldForgePress) || // finger still down after a long-press strike
+    (typeof actInFlight !== "undefined" && actInFlight > 0) ||
+    (typeof Feedback !== "undefined" && Feedback.busy?.()));
+}
+// Opens at most one scene per safe point. `release` marks a transition or action success.
+function autoStory(release = false) {
+  if (!ready || storageError || !state) return;
+  if (release) releaseStoryHold();
+  storyBadge();
+  if (storyBlocked()) return;
+  const id = CharcoalStory.autoScene(state, storyShown);
+  if (id) startStory(id);
+}
+function finishStory(session, action) {
+  storyHold = true;
+  closeModal(false);
+  render();
+  if (action === "unpack") return startStory("bundle", session.fromBook);
+  if (action === "ritual" && !state.rebirths && (state.bladeForge ? state.best >= 20 : state.weapon.level === 20)) return state.bladeForge ? nav("growth/rebirth") : showModal("rebirth");
+  if (session.fromBook) return showModal("storyBook");
+  if (pendingLocate) {
+    pendingLocate = false;
+    return focusLesson();
+  }
+  const prompt = el("apprentice");
+  (prompt && !prompt.hidden && prompt.querySelector("button") || document.querySelector(".ui-utilities summary"))
+    ?.focus({ preventScroll: true });
 }
 function storyInput(action) {
   if (Object.keys(CharcoalStory.chapters).includes(action)) return startStory(action, modal === "storyBook");
@@ -153,6 +176,8 @@ function storyInput(action) {
     if (storyScene !== session || modal !== "storyScene" || session.page !== page) return;
     sync();
     if (!session.replay && state.story[id] !== page) {
+      // Another tab moved this scene. Close it without reopening a stale page.
+      storyHold = true;
       closeModal(false);
       render();
       return;
@@ -162,10 +187,7 @@ function storyInput(action) {
         state.story.introPresented = true;
         save();
       }
-      closeModal();
-      render();
-      if (session.fromBook) showModal("storyBook");
-      return;
+      return finishStory(session, action);
     }
     if (Object.keys(CharcoalStory.questions).includes(action)) {
       session.answer = action;
@@ -182,13 +204,6 @@ function storyInput(action) {
       focusStoryPage();
       return;
     }
-    closeModal();
-    render();
-    if (action === "unpack") return startStory("bundle", session.fromBook);
-    if (action === "ritual" && !state.rebirths && (state.bladeForge ? state.best >= 20 : state.weapon.level === 20)) return state.bladeForge ? nav("growth/rebirth") : showModal("rebirth");
-    if (session.fromBook) return showModal("storyBook");
-
-    autoStory();
-    if (!modal) document.querySelector(".ui-utilities summary")?.focus({ preventScroll: true });
+    return finishStory(session, action);
   });
 }

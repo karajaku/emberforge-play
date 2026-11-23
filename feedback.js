@@ -1,8 +1,13 @@
 "use strict";
 const Feedback = (() => {
   const strikeMs = 180, chestMs = 360;
-  let node, timer;
+  let node, timer, idle = null;
   function clear() { clearTimeout(timer); node?.remove(); node = null; }
+  // Read-only: an animation is on screen. The idle listener runs only when the
+  // animation timer ends by itself; an external clear() or a restart never calls it.
+  function busy() { return !!node; }
+  function onIdle(fn) { idle = typeof fn === "function" ? fn : null; }
+  function finish() { clear(); idle?.(); }
   // Resolve the applied result, including protection, rather than the generic win/loss tone.
   function forgeOutcome(before, after, destroyed, kind) {
     if (destroyed) return "destroy";
@@ -47,7 +52,7 @@ const Feedback = (() => {
     }
     if (label) { const text = document.createElement("b"); text.textContent = label; node.append(text); }
     document.body.append(node);
-    timer = setTimeout(clear, 1550);
+    timer = setTimeout(finish, 1550);
   }
-  return { play, clear, forgeOutcome, strikeMs, chestMs };
+  return { play, clear, busy, onIdle, forgeOutcome, strikeMs, chestMs };
 })();
