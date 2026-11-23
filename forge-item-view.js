@@ -92,6 +92,10 @@ const ForgeItemView = (() => {
     const stage = layout.querySelector(".stage-side");
     const scene = stage.querySelector(".scene");
     const q = shown;
+    if(s.artisanCache?.status==='claimed'){
+      const help=layout.querySelector('.forge-help');
+      if(help){help.textContent='보증';help.dataset.artisanHeld='';help.setAttribute('aria-label','장비 능력과 장인의 보증 사용 조건');}
+    }
     function arrow(direction,label) {
       return '<button type="button" data-forge-step="' + direction + '" aria-label="' + label + '"' +
         (canStep() ? "" : " disabled") + '>' + icon("arrow-left") + '</button>';
@@ -299,6 +303,19 @@ const ForgeItemView = (() => {
         '<button type="button" data-close>닫기</button></div>'];
     }
     const q = pending;
+    if(key==='forgeItem:permit'&&q){
+      const eligible=q.permitApplies&&q.permitId;
+      const enough=state.gold>=q.cost;
+      if(!eligible)return ['장인의 보증 사용 조건',line('선택 장비',GearGradeView.colored(q.item,itemName(q)))+
+        desc(q.enhanceBlocked||'일반 +3~+18 무기·흉갑 중 성공률 100% 미만인 적격 장비만 사용할 수 있습니다. 공정·마지막 돌파는 제외됩니다.')+
+        desc('보증은 소모되지 않습니다. 대장간에서 다른 적격 장비를 선택해 상세를 확인하세요.')+'<button class="action" data-close>닫기</button>'];
+      return ['장인의 보증 사용',line('선택 장비',GearGradeView.colored(q.item,itemName(q)))+
+        line('강화 결과','+'+q.item.level+' → +'+(q.item.level+1)+' · 성공 보장')+
+        line('정상 강화비',fmt(q.cost)+' G'+(!enough?' · 골드 부족':''))+
+        desc('장인의 보증 1회를 사용합니다. 일반 강화의 골드 비용은 그대로 냅니다.')+
+        '<div class="forge-dialog-actions"><button class="action" data-close>취소</button><button class="primary" data-forge-action="forgeItemEnhance" data-forge-permit'+
+        (!eligible||!enough?' disabled':'')+'>성공 보장 사용<small>'+fmt(q.cost)+' G · 보증 1회 소모</small></button></div>'];
+    }
     if (key === "forgeItem:equip" && q) {
       const baseline = Game.compareGear(state,q.item,"outfit").slot;
       const choices = q.equipTargets.map(({slot}) => {
@@ -337,23 +354,32 @@ const ForgeItemView = (() => {
     }
   }
   function preview(mode,button) {
-    if (!shown || !["sell","salvage","equip"].includes(mode)) return;
+    if (!shown || !["sell","salvage","equip","permit"].includes(mode)) return;
     pending = structuredClone(shown);
     showModal("forgeItem:" + mode, button);
   }
-  function request(action,slot,fromScreen) {
+  function request(action,slot,fromScreen,usePermit=false) {
     const quote = fromScreen ? shown : pending;
     if (!quote) return null;
     const base = {id:quote.id, token:quote.token};
+    if(usePermit) return action==='forgeItemEnhance'&&quote.permitApplies&&quote.permitId?{...base,permitId:quote.permitId}:null;
     if (action !== "forgeItemEquip") return base;
     const target = quote.equipTargets.find(option => option.slot === slot);
     return target && {...base,...target};
   }
-  function guard(action,id,version) {
+  function guard(action,id,version,permitId) {
     const source = {forgeItemEnhance:"", forgeItemEquip:shown?.kind === "ring" ? "forgeItem:equip" : "", forgeItemSell:"forgeItem:sell",forgeItemSalvage:"forgeItem:salvage"}[action];
+    const permit=action==='forgeItemEnhance'&&permitId;
     return version === selectionVersion && current() === "forge" && phonePage("forge") === "work" && !archiveBlade &&
-      modal === source && selected === id;
+      modal === (permit?'forgeItem:permit':source) && selected === id && (!permit||pending?.permitId===permitId);
   }
-  return {view,selectSlot,selectItem,step,detailKey,strike,decorate,equipButton,disposalButtons,modalContent,filterChange,preview,request,guard,filtering,cancelSwipe,
+  function permitDetail(s,key,content) {
+    if(s.artisanCache?.status!=='claimed'||!shown||key!==detailKey(shown)||current()!=='forge'||phonePage('forge')!=='work')return content;
+    const q=Game.forgeItems.quote(s,shown.id);
+    if(!q)return content;
+    return [content[0],content[1]+'<section class="artisan-permit-detail"><b>장인의 보증 1회 보유</b><p>정상 골드 비용을 내고 적격 일반 강화 한 번의 성공을 보장합니다.</p>'+
+      '<button class="action" data-forge-preview="permit">'+(q.permitApplies?'성공 보장 사용 · '+fmt(q.cost)+' G':'보증 사용 조건')+'</button></section>',...content.slice(2)];
+  }
+  return {view,selectSlot,selectItem,step,detailKey,strike,decorate,equipButton,disposalButtons,modalContent,filterChange,preview,request,guard,permitDetail,filtering,cancelSwipe,
     get shown(){return shown;},get version(){return selectionVersion;},invalidate(){selectionVersion++;}};
 })();

@@ -2,7 +2,7 @@
 const HuntWatch=(()=>{
   let active=false,generation=0,timer=null,busy=false,reward=null,reason='',lastRound=null;
   let mode = 'progress', fixedRank = 1, replayRank = 0, saveGeneration = null, nextStrikeAt = 0;
-  let run = null, endgameRepeatSelected = false;
+  let run = null, endgameRepeatSelected = false, revealEntry = '', revealUntil = 0;
   const names={strike:'공격',block:'방어',heavyStrike:'강타'};
   const icons={strike:'sword',block:'shield',heavyStrike:'hammer'};
   const allowed=()=>ready&&!storageError&&!restarting&&!document.hidden&&(!modal || HuntLootView.isReader(modal))&&current()==='forest'&&phonePage('forest')==='hunt';
@@ -18,34 +18,26 @@ const HuntWatch=(()=>{
   }
   function explorationFind(s) {
     const h = s.hunt;
+    const cache = s.artisanCache;
+    if (cache?.status === 'pending') return {kind:'artisan',rank:cache.rank,entry:s.lastHunt?.id===cache.id?s.lastHunt:{id:cache.id,rank:cache.rank},event:cache,pending:true};
+    if (!h&&cache?.status==='claimed'&&(!s.lastHunt||s.lastHunt.id===cache.id)) return {kind:'artisan',rank:cache.rank,entry:s.lastHunt||{id:cache.id,rank:cache.rank},event:cache,pending:false,restored:!s.lastHunt};
     if (h?.exploration) return {kind:h.exploration.kind, rank:h.rank, entry:h, event:h.exploration, pending:true};
     const last = s.lastHunt;
     if (h || !reward?.entryId || !last?.exploration || last.id !== reward.entryId) return null;
     return {kind:last.exploration.kind, rank:last.rank, entry:last, event:last.exploration, pending:false};
   }
-  const findNames = {treasure:'보물함', food:'식량 꾸러미', cart:'짐수레'};
-  function findActor(find) {
-    const art = find.kind === 'treasure' ? '<i class="explore-art explore-chest"></i>' :
-      '<img class="explore-art" src="assets/hunt/exploration-' + (find.kind === 'food' ? 'supply' : 'cart') + '.png" width="56" height="56" alt="">';
-    return '<div class="watch-fighter enemy" data-find="' + find.kind + '"><div class="watch-readout" aria-hidden="true"></div>' +
-      '<div class="watch-actor watch-find" role="img" aria-label="' + findNames[find.kind] + '">' + art + '</div></div>';
-  }
-  function findDetail(find) {
-    const e = find.event, name = escapeHtml(e.name || Game.exploration.findName(find.kind, find.rank) || findNames[find.kind]);
-    if (find.pending) return name + ' 발견 · 하나만 고르기';
-    if (find.kind === 'cart') return name + ' · ' + (e.choice === 'gold' ? '금속 팔기' : '장비 챙기기');
-    return name + ' 발견';
-  }
+  const findNames = {treasure:'보물함', food:'식량 꾸러미', cart:'짐수레',artisan:'봉인된 장인의 보물함'};
   function planLabel(plan) {
     const parts = (plan?.gear || []).map(type => type === 'armor' ? '방어구' : '무기');
     if (plan?.outfit === 'outfit') parts.push('착용 장비');
     if (plan?.outfit === 'outfitSalvaged') parts.push('착용 분해');
     return parts.join(' · ') || '장비';
   }
-  function cartChoices(h) {
+  function cartChoices(h, summaryOnly = false) {
     const e = h.exploration, o = e.offer;
     const shared = ['각인석 +1', o.fiber && '섬유 +' + fmt(o.fiber), o.shards && '별의 파편 +' + fmt(o.shards),
       o.scrolls && '주문서 +' + fmt(o.scrolls), ...(o.charms || []).map((n, i) => n && Game.blessings[i] + ' +' + fmt(n))].filter(Boolean);
+    if (summaryOnly) return shared.join(' · ');
     const choice = (key, art, title, sub, gold) =>
       '<button type="button" class="explore-choice" data-explore-choice="' + key + '" data-hunt-id="' + escapeHtml(h.id) +
       '" aria-label="' + escapeHtml(title + ' · ' + sub + ' · ' + fmt(gold) + ' G') + '"><span class="explore-choice-title">' + (key === 'gear' ? controlArt('bag') : icon('coins')) +
@@ -54,12 +46,6 @@ const HuntWatch=(()=>{
       '<div class="explore-choices" role="group" aria-label="수레 보상 고르기">' +
       choice('gear', 'backpack', '장비 챙기기', planLabel(e.plan), o.gold) +
       choice('gold', 'coins', '금속 팔기', '장비 대신 골드', o.gold + e.saleGold) + '</div></div>';
-  }
-  function foodReceipt(s, last) {
-    const w = Game.huntingStatus(s);
-    return '<div class="watch-receipt explore-food"><div class="watch-receipt-head"><b>' + last.rank + '단계 탐험 완료</b><strong>' +
-      '<img class="hunt-food-icon" src="assets/hunt-food.png" alt="">+1 식량</strong></div>' +
-      '<div class="watch-loot"><span>보유 ' + fmt(w.free + w.purchased) + '</span></div></div>';
   }
   // Detail-only odds from the rules helper: the same phase, food-cap and cart-rest table the next start would use.
   function exploreOdds(s, rank) {
@@ -70,7 +56,7 @@ const HuntWatch=(()=>{
       '전투 ' + o.combat + ' · 보물 ' + o.treasure + ' · 식량 ' + o.food + ' · 수레 ' + o.cart + '%';
     const notes = p.eligible ? [p.phase === 'first' ? '첫 진행' : '반복', !p.foodPossible && '식량 한도', /ooldown/.test(p.table) && '수레 쉬는 중'].filter(Boolean) : [];
     return '<div class="explore-odds" data-explore-odds>' + line(rank + '단계 탐험' + (notes.length ? ' · ' + notes.join(' · ') : ''), odds) +
-      line('전투가 나올 때의 상대', escapeHtml(enemy)) + '</div>';
+      line('전투가 나올 때의 상대', escapeHtml(enemy)) + line('장인의 보물함','적격 보물 발견 중 '+fmt(Game.exploration.artisanChance*100)+'%') + desc('출발 시 보증과 미해결 상자가 없고, 성공률 100% 미만인 일반 +3~+18 무기·흉갑이 있어야 합니다. 공정·마지막 돌파는 제외합니다.') + '</div>';
   }
   function exploreRules(s) {
     const rank = s.hunt?.rank || nextRank() || Math.min(60, cleared(s) + 1);
@@ -78,7 +64,56 @@ const HuntWatch=(()=>{
       exploreOdds(s, rank);
   }
   function focusChoice() {
-    document.querySelector('[data-explore-choice]')?.focus({preventScroll:true});
+    document.querySelector('[data-artisan-choice]:not(:disabled),[data-explore-choice]:not(:disabled)')?.focus({preventScroll:true});
+  }
+  function discoveryView(s,find) {
+    const cache=s.artisanCache, choosing=find.pending, artisan=find.kind==='artisan';
+    const settled=HuntLootView.settled(s), receipt=settled&&find.entry.receiptId===settled.chest.id?settled:null;
+    const w=Game.huntingStatus(s), ore=Game.blades.state(s).ore;
+    const count=receipt?(receipt.result.gearDrops?.length||0)+(receipt.result.outfitDrop?1:0):0;
+    const base=receipt?'기본 보상 수령 · +'+fmt(receipt.chest.gold)+' G'+(count?' · 장비 '+count:''):'기본 보상은 이미 수령했습니다';
+    let title=findNames[find.kind], summary='', decisions='';
+    if(artisan&&choosing){
+      summary=base;
+      const cost=Game.exploration.artisanCost;
+      decisions='<div class="discovery-choice-group" id="exploreChoices" role="group" aria-label="장인의 보물함 선택">'+
+        '<button class="explore-choice" data-artisan-choice="open" data-artisan-id="'+escapeHtml(cache.id)+'"'+(ore<cost?' disabled':'')+'>'+controlArt('hammer')+
+        '<b>봉인 풀기</b><small>각인석 '+cost+' · 보유 '+fmt(ore)+(ore<cost?' · 부족':'')+'</small></button>'+
+        '<button class="explore-choice" data-artisan-choice="pass" data-artisan-id="'+escapeHtml(cache.id)+'">'+controlArt('bag')+'<b>기본 보상만</b><small>추가 소모 없음</small></button></div>';
+    }else if(artisan){
+      title=find.restored?'장인의 보증 1회 보유':'장인의 보증 1회 획득'; summary='정상 강화비를 내고 적격 강화 성공 보장';
+      decisions='<div class="discovery-choice-group"><button class="explore-choice" data-artisan-forge>'+controlArt('hammer')+'<b>대장간에서 사용</b></button>'+
+        (receipt?openBtn('huntLoot',icon('backpack')+'최근 전리품','explore-choice'):'')+'</div>';
+    }else if(find.kind==='cart'&&choosing){
+      title=find.event.name||'짐수레 발견';
+      summary='둘 다 · '+cartChoices(s.hunt,true);
+      decisions=cartChoices(s.hunt);
+    }else if(find.kind==='food'){
+      title='식량 발견 · 탐험 완료'; summary='+1 식량 · 보유 '+fmt(w.free+w.purchased);
+    }else{
+      title=find.kind==='cart'?(find.event.choice==='gold'?'금속 판매 · 탐험 완료':'장비 수령 · 탐험 완료'):'보물 발견 · 탐험 완료';
+      summary=receipt?'+'+fmt(receipt.chest.gold)+' G'+(count?' · 장비 '+count:''):'';
+      if(receipt) decisions='<div class="discovery-choice-group">'+openBtn('huntLoot',icon('backpack')+'최근 전리품','explore-choice')+
+        (receipt.chest.fiber?openBtn('bladeArmorLining',icon('shield')+'안감 제작','explore-choice'):'')+'</div>';
+    }
+    const art=artisan?(choosing?'chest-sealed':'chest-open'):find.kind==='treasure'?'chest-open':find.kind==='food'?'supply':'cart';
+    const finished=!validRank(nextRank()), empty=!w.free&&!w.purchased;
+    const toggle=!choosing&&!finished&&!empty;
+    const label=choosing?'보상 선택':active?'탐험 중지':finished?'구역 선택':empty?'식량 부족':'탐험 계속';
+    const control=choosing?'data-explore-focus aria-describedby="exploreChoices"':toggle?'data-watch="toggle"':finished?'data-open="huntPlan"':'data-open="huntWallet"';
+    const note=choosing?'위에서 하나 선택':active?'연속 탐험 중':toggle?'1초 누르면 연속 탐험':'';
+    const rank=find.rank, area=Game.trail.region(bossTerritory(s,rank));
+    return '<section class="watch-view watch-ground" data-discovery><div class="watch-stage"><b>'+rank+'단계</b> '+area.name+' · 발견 <small class="watch-version">v'+UpdateNotice.version()+'</small></div>'+
+      '<div class="scene watch-arena discovery-arena" data-region="'+area.id+'" data-find="'+find.kind+'">'+
+      '<div class="discovery-head" role="status"><b>'+escapeHtml(title)+'</b><span>'+escapeHtml(summary)+'</span>'+
+      (artisan&&choosing?'<small>정상 강화비 별도 · 일반 강화 1회 성공 보장</small>':'')+'</div>'+
+      '<div class="discovery-object"><div class="watch-find" role="img" aria-label="'+findNames[find.kind]+'"><img class="explore-art" src="assets/hunt/exploration-'+art+'.png" width="56" height="56" alt="">'+
+      (find.kind==='treasure'&&motionEnabled()&&revealEntry===find.entry.id&&performance.now()<revealUntil?'<img class="discovery-opening" src="assets/hunt/exploration-chest-closed.png" alt="" aria-hidden="true">':'')+'</div></div>'+
+      '<div class="discovery-decisions">'+decisions+'</div></div><div class="watch-home-actions">'+
+      go('forest/field',icon('hand-coins')+'<span>배치 수익</span>','action')+
+      '<button class="primary watch-start'+(active?' watch-active':'')+'" '+control+'><span class="watch-start-label">'+controlArt(choosing?'bag':'compass')+label+'</span>'+
+      (note?'<span class="watch-start-mode">'+note+'</span>':'')+(choosing?'':foodBar(w,toggle&&!active?'hunt':''))+'</button>'+
+      go('world/map',controlArt('compass')+'<span>모험 지도</span>','action')+'</div></section>';
   }
   const powerFor = s => typeof Game.huntPower === 'function' ? Game.huntPower(s) : null;
   function powerReadout(s, power) {
@@ -255,7 +290,7 @@ const HuntWatch=(()=>{
     const started=action==='huntStart'&&!!result.exploration&&result.receipt?.id===last.id;
     const chosen=action==='huntChoose'&&before?.exploration&&before.id===last.id;
     const receipt=(started||chosen)&&explorationReceipt(state);
-    if(receipt){reward=receipt;lastRound=null;reason='';}
+    if(receipt){reward=receipt;lastRound=null;reason='';if(started){revealEntry=last.id;revealUntil=performance.now()+450;}}
   }
   function d20(side, face, check) {
     const label = check ? HuntEffects.checkLabel(check.outcome, side) : '';
@@ -332,20 +367,20 @@ const HuntWatch=(()=>{
   function view(s) {
     const h=s.hunt;
     const power=powerFor(s), powerHeld=!!h?.powerHeld;
-    // A find stands where the enemy would: no enemy HP, name, level, element chip or skills.
+    // Discovery has its own noncombat composition; combat rendering below stays unchanged.
     const find = explorationFind(s);
-    const choosing = !!find?.pending;
+    if (find) return discoveryView(s,find);
     const settled = HuntLootView.settled(s);
     const first = !active && firstReceipt(s);
     const receipt = reward || first;
-    const defeated = !find && !h && !active && Game.huntOutcome(s.lastHunt) !== 'explored' && (reason.startsWith('패배') || s.lastHunt?.strongestHit &&
+    const defeated = !h && !active && Game.huntOutcome(s.lastHunt) !== 'explored' && (reason.startsWith('패배') || s.lastHunt?.strongestHit &&
       !s.lastHunt.chestId && nextRank()===s.lastHunt.rank);
-    const result = find ? (choosing ? null : find.entry) : !h && (receipt || pending() || defeated || lastRound) ? s.lastHunt : null;
+    const result = !h && (receipt || pending() || defeated || lastRound) ? s.lastHunt : null;
     const resultChest = result?.chestId || result?.receiptId;
     const received = receipt && settled && !!resultChest && resultChest === settled.chest.id;
     const targetRank=h?.rank || result?.rank || nextRank();
     const rank=targetRank || 60;
-    const encounter = find ? null : h || result;
+    const encounter = h || result;
     const terrain = encounter ? encounter.territoryRank || rank : bossTerritory(s, rank);
     const pack = Game.trail.lineup(terrain,encounter?.bonusEncounter);
     const trail = !encounter || encounter.trailVersion === 1;
@@ -359,9 +394,8 @@ const HuntWatch=(()=>{
     const useD20=!encounter || encounter.diceVersion===2;
     const useDice=encounter?.diceVersion===1;
     const item=Game.blades.current(s);
-    const blade=encounter || find ? Game.huntBlade(s,encounter || find.entry) : {name:Game.blades.name(item),level:item.level,weaponKind:item.weaponKind,stage:Game.bladeStage({level:item.level,grade:0})};
+    const blade=encounter ? Game.huntBlade(s,encounter) : {name:Game.blades.name(item),level:item.level,weaponKind:item.weaponKind,stage:Game.bladeStage({level:item.level,grade:0})};
     const fightingItem = encounter?.bladeId ? Game.blades.state(s).items.find(it => it.id === encounter.bladeId) :
-      find ? (blade.name === Game.blades.name(item) && blade.level === item.level ? item : null) :
       encounter ? null : item;
     const sprite=BladeView.sprite(blade,blade.stage || 0);
     const resultHealth=result?.health;
@@ -372,7 +406,6 @@ const HuntWatch=(()=>{
     const hp=h?.hp??resultHealth?.hp??st.hp,max=h?.maxHp??resultHealth?.maxHp??st.hp,enemyHp=h?.enemyHp??resultHealth?.enemyHp??Game.blades.area(rank).enemyHp;
     const total=h?.enemyMax??resultHealth?.enemyMax??enemyHp;
     function fighter(side,label,level,asset,width,current,maxHp) {
-      if (side === 'enemy' && find) return findActor(find);
       const elite = side === 'enemy' && enemy.elite;
       const actor = elite ? '<img class="trail-creature boss-creature" src="assets/hunt/boss-'+bossKind+'.webp" alt="">' : ['wolf','moth','tree','goblin'].includes(asset)
         ? '<img class="trail-creature" src="assets/hunt/'+asset+'.webp" alt="">'
@@ -384,43 +417,41 @@ const HuntWatch=(()=>{
         '<div class="watch-actor'+(asset==='moth'?' airborne':'')+'"'+(current<=0?' data-defeated="true"':'')+'>'+
         actor+'<div class="watch-ward" aria-hidden="true">'+icon('shield')+'</div></div></div>';
     }
-    const w = Game.huntingStatus(s), held = !choosing && (h || pending());
-    const finished = !choosing && !held && !validRank(nextRank());
-    const empty = !choosing && !held && !w.free && !w.purchased;
-    const retry = !choosing && !held && Game.hasBossRetry(s,nextRank());
-    const departure = active || held || finished || choosing ? '' : retry ? 'retry' : 'hunt';
+    const w = Game.huntingStatus(s), held = h || pending();
+    const finished = !held && !validRank(nextRank());
+    const empty = !held && !w.free && !w.purchased;
+    const retry = !held && Game.hasBossRetry(s,nextRank());
+    const departure = active || held || finished ? '' : retry ? 'retry' : 'hunt';
     const stageLabel = result && nextRank() !== result.rank ? nextRank() + '단계 사냥' : '사냥';
-    const label = powerHeld ? power?.blocked !== false ? '대장간 준비' : '전투 시작' : active ? '사냥 중지' : choosing ? '보상 선택' : finished ? '구역 선택' :
+    const label = powerHeld ? power?.blocked !== false ? '대장간 준비' : '전투 시작' : active ? '사냥 중지' : finished ? '구역 선택' :
       held ? '진행 재개' :
       empty ? '식량 부족' : retry ? '지원 재도전' : cleared(s) >= 60 && mode !== 'repeat' ? '1회 재도전' : stageLabel;
-    const detail = find ? findDetail(find) : encounterHint(h,result,enemy,rank,pack);
-    const kit = find ? null : h ? h.fieldKit : !result && targetRank ? Game.outfit.build(s) : null;
+    const detail = encounterHint(h,result,enemy,rank,pack);
+    const kit = h ? h.fieldKit : !result && targetRank ? Game.outfit.build(s) : null;
     const home = !active && (!encounter || location.hash === '#world');
-    const canToggle = !powerHeld && !choosing && (active || (!finished && !empty));
-    // While the cart waits, the hunt button is not a toggle: a stray stop tap only moves focus to the choices.
-    const control = powerHeld ? (power?.blocked === false ? 'data-power-resume' : 'data-power-prepare')+' data-hunt-id="'+escapeHtml(h.id)+'" data-hunt-wave="'+h.wave+'"' : choosing ? 'data-explore-focus aria-describedby="exploreChoices"' : canToggle ? 'data-watch="toggle"' : finished ? 'data-open="huntPlan"' : 'data-open="huntWallet"';
-    const modeNote = powerHeld ? '<span class="watch-start-mode">'+(power?.blocked === false ? '준비 완료 · 직접 시작' : '같은 상대 보존')+'</span>' : choosing ? '<span class="watch-start-mode">위에서 하나 선택</span>' :
+    const canToggle = !powerHeld && (active || (!finished && !empty));
+    // A power hold never accepts the ordinary start/long-press gesture.
+    const control = powerHeld ? (power?.blocked === false ? 'data-power-resume' : 'data-power-prepare')+' data-hunt-id="'+escapeHtml(h.id)+'" data-hunt-wave="'+h.wave+'"' : canToggle ? 'data-watch="toggle"' : finished ? 'data-open="huntPlan"' : 'data-open="huntWallet"';
+    const modeNote = powerHeld ? '<span class="watch-start-mode">'+(power?.blocked === false ? '준비 완료 · 직접 시작' : '같은 상대 보존')+'</span>' :
       canToggle && (active || cleared(s) < 60 || endgameRepeatSelected) ? '<span class="watch-start-mode">' +
       (active ? (run.continuous ? '연속 사냥 중' : '이번 단계 자동사냥') : '1초 누르면 연속 사냥') + '</span>' : '';
     const start = '<button class="primary watch-start' + (active ? ' watch-active' : '') + '" ' + control + '><span class="watch-start-label">' +
-      controlArt(choosing ? "bag" : powerHeld && power?.blocked !== false ? "hammer" : !active && finished ? "compass" : "hunt") + label + '</span>' +
-      modeNote + (choosing ? '' : foodBar(w, departure)) + '</button>';
+      controlArt(powerHeld && power?.blocked !== false ? "hammer" : !active && finished ? "compass" : "hunt") + label + '</span>' +
+      modeNote + foodBar(w, departure) + '</button>';
     const controls = '<div class="watch-home-actions">' +
       (powerHeld ? '<button type="button" class="action" data-power-flee data-hunt-id="'+escapeHtml(h.id)+'" data-hunt-wave="'+h.wave+'">'+icon('arrow-left')+'<span>퇴각</span></button>' : go('forest/field', icon('hand-coins') + '<span>배치 수익</span>', 'action')) + start +
       go('world/map', controlArt('compass') + '<span>모험 지도</span>', 'action') + '</div>';
     return '<section class="watch-view watch-ground' + (home ? ' watch-home' : '') + '"' + (territory ? ' data-boss-territory="'+territory+'"' : '') + '><div class="watch-stage">' +
-      '<span class="watch-stage-name">'+(territory ? icon('crown')+'우두머리 영역' : icon('trees')+'사냥터')+'</span> · <b>'+rank+'단계'+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(find?'<span class="trail-wave">탐험 · 발견</span>':trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+'<small class="watch-version">v'+UpdateNotice.version()+'</small>'+(h?.ripostes>0 && !h.journeyBattle && !h.bladeCombat?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+
+      '<span class="watch-stage-name">'+(territory ? icon('crown')+'우두머리 영역' : icon('trees')+'사냥터')+'</span> · <b>'+rank+'단계'+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+'<small class="watch-version">v'+UpdateNotice.version()+'</small>'+(h?.ripostes>0 && !h.journeyBattle && !h.bladeCombat?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+
       (kit ? '<div class="outfit-enemy-line">' + OutfitView.encounterChip(terrain,enemy.kind,kit,!!h) + '</div>' : '') + '</div>' +
-      '<div class="scene watch-arena combat-hud" data-region="'+area.id+'"'+(powerHeld?' data-power-held':'')+(power?' data-power-check':'')+(find?' data-find="'+find.kind+'"':'')+'>'+fighter('player',blade.name,'+'+fmt(blade.level),sprite,128,hp,max)+fighter('enemy',enemy.name,'Lv.'+rank,enemy.sprite||'boar',144,enemyHp,total)+
+      '<div class="scene watch-arena combat-hud" data-region="'+area.id+'"'+(powerHeld?' data-power-held':'')+(power?' data-power-check':'')+'>'+fighter('player',blade.name,'+'+fmt(blade.level),sprite,128,hp,max)+fighter('enemy',enemy.name,'Lv.'+rank,enemy.sprite||'boar',144,enemyHp,total)+
       powerReadout(s,power)+
       (useD20 ? '<div class="watch-upper-dice">' + d20('player',roll?.playerFace,roll?.attackCheck) +
         d20('enemy',roll?.enemyFace,roll?.replyCheck) + '</div>' + impactNumber('player',roll) + impactNumber('enemy',roll) : '')+
       (!active && (s.hunt || s.lastHunt)?.lastDice?.attackCheck ? openBtn('huntPlan',icon('compass')+'사냥 구역','watch-recent-loot watch-plan-link') : '')+
       (settled && !received ? openBtn('huntLoot',icon('backpack')+'최근 전리품','watch-recent-loot') : '')+
       '<div class="watch-report">'+
-      '<div class="watch-reward" role="status">'+(!powerHeld&&detail?'<div class="trail-detail">'+detail+'</div>':'')+(choosing ? cartChoices(h)
-        :find?.kind === 'food' ? foodReceipt(s,result)
-        :received ? HuntLootView.resultView(s,settled,active)
+      '<div class="watch-reward" role="status">'+(!powerHeld&&detail?'<div class="trail-detail">'+detail+'</div>':'')+(received ? HuntLootView.resultView(s,settled,active)
         :defeated?'<b class="watch-defeat">패배</b>'+defeatSummary(result)+go('forge','장비 강화','action')
         :!powerHeld&&reason&&!(h&&reason==='일시 중단')?'<b>'+reason+'</b>':'')+'</div>'+
       (powerHeld ? '' : huntStatus(s, held))+'</div></div>'+controls+'</section>';
@@ -428,10 +459,12 @@ const HuntWatch=(()=>{
   function beforeRender() {
     cancelHuntPress();
     if (active && state.hunt?.powerHeld) stop('',false);
+    if (active && state.artisanCache?.status === 'pending') stop('',false);
     if (active && !allowed()) stop('', false);
   }
   function refreshWallet() {
     if(!allowed())return;
+    if(state.artisanCache?.status==='pending')return;
     const button=document.querySelector('.watch-start'),w=Game.huntingStatus(state);
     if(!button)return;
     if(!active&&!state.hunt&&!pending()&&validRank(nextRank())&&(button.dataset.open==='huntWallet') !== (!w.free&&!w.purchased)){render();return;}
@@ -443,6 +476,7 @@ const HuntWatch=(()=>{
   }
   function beginHunt(continuous = false) {
     if (active || !allowed()) return;
+    if (state.artisanCache?.status==='pending') {focusChoice();return;}
     if (state.hunt?.powerHeld) return;
     if (state.hunt?.exploration) {focusChoice();return;}
     if (!state.hunt && !pending()) {
@@ -492,6 +526,7 @@ const HuntWatch=(()=>{
     busy=true;
     try {
       const h=state.hunt;
+      if(state.artisanCache?.status==='pending'){stop('');return;}
       if(h?.powerHeld){stop('');return;}
       // A saved cart never resumes automatically; it waits for one explicit choice.
       if(h?.exploration){stop('');return;}
@@ -536,11 +571,12 @@ const HuntWatch=(()=>{
           await act(null,'',undefined,undefined,()=>live(token)&&!state.hunt&&!pending()&&
             mode===selectedMode&&validRank(rank)&&state.hunting.id===wallet&&state.hunting.serial===serial&&
             (state.hunting.free>0||state.hunting.purchased>0)?
-            {action:'huntStart',arg:{rank,request:serial+1,combat:Game.exploration.combat,explore:Game.exploration.version,power:1}}:null);
+            {action:'huntStart',arg:{rank,request:serial+1,combat:Game.exploration.combat,explore:Game.exploration.version,power:1,artisan:1}}:null);
           // The legacy repeat runner is inactive; no second controller is armed.
           autoCombat.stop();
           if(storageError){stop('저장 상태를 확인해 주세요');return;}
           if(token!==generation)return;
+          if(state.artisanCache?.status==='pending'){stop('');return;}
           if(state.hunt?.powerHeld){stop('');return;}
           // The cart stops even a continuous run; nothing departs again until a new press.
           if(state.hunt?.exploration){stop('');return;}
@@ -563,6 +599,22 @@ const HuntWatch=(()=>{
   }
   // One explicit cart choice; the rules make a repeated identical request idempotent.
   let choosingCart = false;
+  let choosingArtisan = false;
+  async function chooseArtisan(choice,id) {
+    if(choosingArtisan||active||busy||!allowed()||!['open','pass'].includes(choice)||state.artisanCache?.id!==id||state.artisanCache.status!=='pending')return;
+    choosingArtisan=true;
+    try{await act('artisanChoose',{id,choice});}
+    finally{choosingArtisan=false;}
+  }
+  function visitArtisanForge() {
+    if(state.artisanCache?.status!=='claimed'||!allowed())return;
+    const quotes=Game.forgeItems.list(state).map(item=>Game.forgeItems.quote(state,item.id));
+    const target=quotes.find(q=>q?.permitApplies)||quotes.find(q=>q?.type==='blade'||q?.type==='chest');
+    if(!target)return;
+    ForgeItemView.selectItem(state,target.id);
+    addEventListener('hashchange',()=>{if(current()==='forge'&&!modal&&state.artisanCache?.status==='claimed')ForgeItemView.preview('permit');},{once:true});
+    nav('forge');
+  }
   let choosingPower = false;
   function boundPower(button) {
     return allowed() && state.hunt?.powerHeld && state.hunt.id === button.dataset.huntId && state.hunt.wave === Number(button.dataset.huntWave);
@@ -643,6 +695,9 @@ const HuntWatch=(()=>{
     }
     const choice=event.target.closest('[data-explore-choice]');
     if(choice){event.preventDefault();event.stopImmediatePropagation();chooseCart(choice.dataset.exploreChoice,choice.dataset.huntId);return;}
+    const artisanChoice=event.target.closest('[data-artisan-choice]');
+    if(artisanChoice){event.preventDefault();event.stopImmediatePropagation();if(!artisanChoice.disabled)chooseArtisan(artisanChoice.dataset.artisanChoice,artisanChoice.dataset.artisanId);return;}
+    if(event.target.closest('[data-artisan-forge]')){event.preventDefault();event.stopImmediatePropagation();visitArtisanForge();return;}
     if(event.target.closest('[data-explore-focus]')){event.preventDefault();event.stopImmediatePropagation();focusChoice();return;}
     const button=event.target.closest('[data-watch]');if(!button)return;
     if(button.dataset.watch==='continue' && modal==='firstGearCompare') {

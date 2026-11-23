@@ -5,6 +5,9 @@ const ExplorationRules = (() => {
   const trail = typeof module !== "undefined" ? require("./hunt-trail.js") : HuntTrail;
   const version = "explore-v1";
   const combat = "blade-d20-v1";
+  const artisanChance = 0.10;
+  const artisanCost = 2;
+  const artisanName = "봉인된 장인의 보물함";
   const kinds = Object.freeze(["combat", "treasure", "food", "cart"]);
   const row = (combat, treasure, food, cart) => Object.freeze({ combat, treasure, food, cart });
   // Repeat stages keep the approved E2 table. First progress moves 15%p of food to treasure.
@@ -119,7 +122,7 @@ const ExplorationRules = (() => {
   }
 
   return {
-    version, combat, kinds, tables, cartTables, names, cartName, cartCooldownStarts, sources, choices, recordLimit,
+    version, combat, artisanChance, artisanCost, artisanName, kinds, tables, cartTables, names, cartName, cartCooldownStarts, sources, choices, recordLimit,
     phase, protectedStage, eligible, tableKey, ranges, pick, cooldownAfter,
     freshLedger, validLedger, foodPossible, region, findName, validPlan, validRecord,
   };

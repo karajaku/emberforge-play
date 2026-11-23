@@ -354,7 +354,7 @@ function outfitQuote(s, action, arg) {
 }
 function bindForgeRequests(container) {
   for (const button of container.querySelectorAll("[data-forge-action]"))
-    button.forgeRequest = ForgeItemView.request(button.dataset.forgeAction,button.dataset.equipSlot,container === el("screen"));
+    button.forgeRequest = ForgeItemView.request(button.dataset.forgeAction,button.dataset.equipSlot,container === el("screen"),button.hasAttribute('data-forge-permit'));
 }
 function bindOutfitQuotes(container) {
   for (const button of container.querySelectorAll('[data-act^="outfit"]'))
@@ -401,7 +401,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     }
   });
   function perform() {
-    if (forgeItemAction && !ForgeItemView.guard(action,arg.id,forgeVersion)) return;
+    if (forgeItemAction && !ForgeItemView.guard(action,arg.id,forgeVersion,arg.permitId)) return;
     if (action === "huntStart" && !repeatGuard && repeatHunting.active) return;
     if (!repeatGuard && action === "openChest" && repeatHunting.active) {
       repeatHunting.stop("수동 전환"); autoCombat.stop();
@@ -579,7 +579,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
       } else if (action === "huntStart" || action === "flee") Impacts.clear();
     }
     // A settled cart choice is shown as the receipt in the forest itself, not as a second toast.
-    const sceneReceipt = result.ok && action === "huntChoose" && current() === "forest" && phonePage("forest") === "hunt";
+    const sceneReceipt = result.ok && ["huntChoose","artisanChoose"].includes(action) && current() === "forest" && phonePage("forest") === "hunt";
     if (!repeatGuard && action !== "temperStart" && !sceneReceipt && !(result.ok && ["openChest", "openTowerChests"].includes(action)) && !result.battle && !result.impact && result.message)
       notify(result.message + (shortOfGold ? " · 골드 부족으로 연속 강화 종료" : ""), result.promotion ? "forge-promotion" : forgeOutcome ? "forge-" + forgeOutcome : result.ok ? result.kind : "loss", forgeItemAction);
     if (result.ok && action !== "temperStart") {
@@ -927,6 +927,9 @@ function swordJournal(s, record = s.swordRecord) {
     '</details>';
 }
 function modalData() {
+  return ForgeItemView.permitDetail(state,modal,modalDataContent());
+}
+function modalDataContent() {
   const s = state;
   if (modal.startsWith("forgeItem:")) return ForgeItemView.modalContent(modal);
   if (modal.startsWith("outfit:")) return OutfitView.modal(s, modal);

@@ -259,6 +259,7 @@ const Game = (() => {
     next.hunting = { ...wallet, lastStart: wallet.lastStart && { ...wallet.lastStart } };
     // The exploration food ledger survives resets so a new run cannot re-earn its allowance.
     if (wallet.exploration !== undefined) next.hunting.exploration = JSON.parse(JSON.stringify(wallet.exploration));
+    if (s.artisanCache !== undefined) next.artisanCache = { ...s.artisanCache };
     if (!keepFood) {
       next.hunting.free = hunting.initial;
       next.hunting.rechargeAt = null;
@@ -1005,6 +1006,11 @@ const Game = (() => {
     if (last.exploration) return "explored";
     return last.chestId ? "victory" : "defeat";
   }
+  function artisanEligible(s) {
+    const ledger = s.hunting?.exploration;
+    return (ledger === undefined || explore.validLedger(ledger)) &&
+      !["pending", "claimed"].includes(s.artisanCache?.status) && forgeItems.hasPermitTarget(s);
+  }
   // Detail-view helper: the table the next opt-in start would use. No randomness, no mutation.
   function explorationPreview(s, rank, source) {
     const w = s.hunting;
@@ -1603,6 +1609,7 @@ const Game = (() => {
           return fail("이미 처리한 이전 사냥 요청입니다.");
         }
         if (request !== w.serial + 1) return fail("최신 사냥 상태를 다시 확인하세요.");
+        if (s.artisanCache?.status === "pending") return fail("장인의 보물함에서 선택한 뒤 출발하세요.");
         if (s.hunt) return fail(s.hunt.exploration ? "수레의 보상을 먼저 고르세요." : "이미 교전 중입니다.");
         const rank = Number(typeof arg === "object" && arg !== null ? arg.rank : arg);
         if (!Number.isInteger(rank) || rank < 1 || rank > Math.min(60, s.huntBest + 1))
@@ -1662,6 +1669,7 @@ const Game = (() => {
           const entry = { id: w.lastStart.id, request, ticketSource: source, number: s.huntNumber, rank,
             blade: explorationBlade(s), hp: st.hp, maxHp: st.hp };
           const exploration = { version: 1, ...event };
+          const artisan = event.kind === "treasure" && arg.artisan === 1 && artisanEligible(s);
           const place = trail.region(rank).name + " " + rank + "단계 탐험 · ";
           const done = (message, kind) =>
             ({ ...success(message + ledgerNote, kind), receipt: { ...w.lastStart }, exploration: explorationEvent(event) });
@@ -1683,6 +1691,8 @@ const Game = (() => {
             creditChest(s, chest); // Fiber was checked before the charge.
             s.lastHunt = explorationResult(entry, exploration, chest.gold, { receiptId: chest.id, ...loot });
             completeExploration(s, rank);
+            if (artisan && random() < explore.artisanChance)
+              s.artisanCache = { version: 1, id: entry.id, rank, status: "pending" };
             return done(place + event.name + " · " + chest.gold.toLocaleString() + " G", "win");
           }
           const offer = rollChest(s, "forest", rank, base, 0, int, false);
@@ -1750,6 +1760,24 @@ const Game = (() => {
         const started = { ...success(huntEnemy(s.hunt).habitat + " " + rank + "구역 사냥 시작 · " + (retry ? "지원 재도전 · 식량 소모 없음" : "식량 1개 사용") + ledgerNote), receipt: { ...w.lastStart } };
         if (event) started.exploration = explorationEvent({ ...event, name: huntEnemy(s.hunt).name });
         return started;
+      }
+      case "artisanChoose": {
+        const cache = s.artisanCache;
+        if (!cache || arg?.id !== cache.id || !["open", "pass"].includes(arg.choice))
+          return fail("선택할 장인의 보물함을 다시 확인하세요.");
+        const opened = arg.choice === "open";
+        if (cache.status !== "pending") {
+          const repeated = opened ? ["claimed", "spent"].includes(cache.status) : cache.status === "passed";
+          return repeated ? { ok: true, repeated: true, kind: "info", message: "이미 선택한 보물함입니다." } :
+            fail("이미 다른 선택을 한 보물함입니다.");
+        }
+        if (opened) {
+          const forge = blades.state(s);
+          if (forge.ore < explore.artisanCost) return fail("봉인을 풀려면 각인석 2개가 필요합니다.");
+          forge.ore -= explore.artisanCost;
+        }
+        cache.status = opened ? "claimed" : "passed";
+        return opened ? success("장인의 보증 1회 획득", "win") : success("기본 보물만 챙겼습니다.");
       }
       case "huntChoose": {
         const h = s.hunt, id = arg?.id, choice = arg?.choice;
@@ -2292,6 +2320,7 @@ const Game = (() => {
     huntPower,
     huntOutcome,
     explorationPreview,
+    artisanEligible,
     exploration: explore,
     // D1 extraction seams, exposed so tests can verify their side-effect contract (E3 §7.0).
     rollChest,

@@ -19,6 +19,19 @@ function createForgeItems(blades, outfit, craft, price) {
     return {cost:blades.cost(item), success:blades.rate(item)};
   }
 
+  function canUsePermit(s, { type, item }) {
+    if (type === "outfit" || item.level < 3 || item.level > 18 || item.work || item.finalTrial ||
+        craft.stageIndex(item) >= 0 || blades.rate(item) >= 100) return false;
+    const rack = blades.state(s);
+    return item.id !== rack.deployed && item.id !== rack.extraDeployed;
+  }
+
+  function hasPermitTarget(s) {
+    const rack = s.bladeForge;
+    return !!(rack?.items?.some(item => canUsePermit(s, { type:"blade", item })) ||
+      rack?.armors?.some(item => canUsePermit(s, { type:"chest", item })));
+  }
+
   function standardCost(type, item) {
     let total = 0;
     for (let level = 0; level < item.level;) {
@@ -72,8 +85,10 @@ function createForgeItems(blades, outfit, craft, price) {
     const value = 20 + 5 * item.base + 10 * item.grade + Math.floor(productionCost * salePercent(item.level) / 100);
     const ore = type === "outfit" ? outfit.salvageOre(item) : blades.salvageOre(item);
     const {cost, success} = enhancementQuote(type, item);
-    const token = JSON.stringify([item, wornSlot, hunting, deployed, cost, success, value, ore]);
-    return {...entry, cost, success, value, productionCost, ore, enhanceBlocked, disposeBlocked, equipBlocked, equipTargets, token};
+    const permitId = s.artisanCache?.status === "claimed" && canUsePermit(s, entry) ? s.artisanCache.id : undefined;
+    const token = JSON.stringify([item, wornSlot, hunting, deployed, cost, success, value, ore, permitId]);
+    return {...entry, cost, success, value, productionCost, ore, enhanceBlocked, disposeBlocked, equipBlocked, equipTargets, token,
+      permitId, permitApplies: permitId !== undefined};
   }
 
   function act(s, action, request, rng, pay) {
@@ -95,6 +110,14 @@ function createForgeItems(blades, outfit, craft, price) {
     const itemName = type === "outfit" ? outfit.name(item) : blades.name(item);
     if (action === "forgeItemEnhance") {
       if (q.enhanceBlocked) return {ok:false, message:q.enhanceBlocked};
+      if (request.permitId !== undefined) {
+        if (!q.permitId || request.permitId !== q.permitId)
+          return {ok:false, message:"현재 장비에 사용할 장인의 보증을 다시 확인하세요."};
+        const result = blades.enhance(s, item, { ...q, success: 100 }, itemName, () => 0, pay);
+        if (!result.ok) return result;
+        s.artisanCache.status = "spent";
+        return {...result, message:result.message + " · 장인의 보증 사용", item, type};
+      }
       const result = blades.enhance(s, item, q, itemName, rng, pay);
       return {...result, item, type};
     }
@@ -109,6 +132,6 @@ function createForgeItems(blades, outfit, craft, price) {
     s.gold += q.value;
     return {ok:true, kind:"win", message:itemName + " 판매 · +" + q.value.toLocaleString("ko-KR") + " G"};
   }
-  return {list, quote, act};
+  return {list, quote, act, hasPermitTarget};
 }
 if (typeof module !== "undefined") module.exports = createForgeItems;

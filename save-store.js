@@ -48,6 +48,7 @@ const SaveStore = (() => {
   }
   // Format 9 marks exploration state; earlier builds compute at most 8 and reject it as future.
   function saveFormat(state) {
+    if (state?.artisanCache !== undefined) return 10;
     if (state?.hunting?.exploration !== undefined || state?.huntRecord !== undefined || state?.hunt?.exploration !== undefined ||
         state?.lastHunt?.exploration !== undefined || state?.lastChest?.exploration !== undefined) return 9;
     const forge = state?.bladeForge;
@@ -173,6 +174,7 @@ const SaveStore = (() => {
     const outfit=data?.bladeForge?.outfit;
     if (outfit?.version>1) throw fault("future");
     if (data?.version > 2 || data?._save?.format > maxFormat || data?.hunting?.version > 1 || data?.bladeForge?.version>1) throw fault("future");
+    if (data?.artisanCache?.version > 1) throw fault("future");
     if (outfit!==undefined && !game.outfit.valid(outfit)) throw fault("corrupt");
     if (data?.bladeForge!==undefined && (!game.blades.valid(data.bladeForge) || !game.endgame.valid(data.bladeForge))) throw fault("corrupt");
     if (data?.bladeForge?.extraDeployed && !data.bladeForge.soul?.learned?.land && !(data.imprints?.land > 0)) throw fault("corrupt");
@@ -335,6 +337,16 @@ const SaveStore = (() => {
       return Number.isSafeInteger(serial) && serial >= 1 && serial <= wallet.serial && id === wallet.id + "-" + serial;
     }
     const h = data.hunt;
+    const cache = data.artisanCache;
+    if (cache !== undefined) {
+      if (!object(cache) || Object.keys(cache).length !== 4 || cache.version !== 1 || !validEntry(cache.id) || !data.hunting.exploration ||
+          !Number.isInteger(cache.rank) || cache.rank < 1 || cache.rank > 60 || cache.rank % 5 === 0 ||
+          !["pending", "claimed", "passed", "spent"].includes(cache.status)) throw fault("corrupt");
+      if (cache.status === "pending" && (h || data.hunting.lastStart?.id !== cache.id ||
+          data.hunting.lastStart.rank !== cache.rank || !game.exploration.sources.includes(data.hunting.lastStart.source) ||
+          (data.lastHunt && (data.lastHunt.id !== cache.id || data.lastHunt.exploration?.kind !== "treasure"))))
+        throw fault("corrupt");
+    }
     if (h?.materialRule > 1) throw fault("future");
     if (h?.materialRule !== undefined && (data.version !== 2 || h.materialRule !== 1 || h.trailVersion !== 1 ||
         !validEntry(h.id) || h.id !== data.hunting.lastStart.id || h.rank !== data.hunting.lastStart.rank ||

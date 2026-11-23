@@ -688,3 +688,47 @@ body:has(#apprentice:not([hidden])) .watch-report:has(.explore-cart) .watch-moti
 .watch-home-actions [data-power-flee]:focus-visible { outline:3px solid #fff1a8; outline-offset:2px; }
 /* The urgent prepare/retreat choice replaces the duplicate optional goal coach while held. */
 .ui-game:has(.watch-arena[data-power-held]) #apprentice { display:none!important; }
+/* N1 discovery is one object and a decision, never a disguised combat HUD. */
+.ui-game .watch-ground .watch-arena.discovery-arena {
+  display:grid; grid-template:minmax(44px,max-content) minmax(0,1fr) minmax(59px,max-content) / minmax(0,1fr);
+  gap:4px; padding:0 4px 2px;
+}
+.watch-ground[data-discovery] .watch-stage { padding-block:2px; font-size:12px; }
+.watch-ground[data-discovery] .watch-stage b { font-size:15px; }
+.discovery-head { display:grid; justify-items:center; align-content:center; gap:2px; min-width:0; color:#fff0cf; text-align:center; text-shadow:var(--readout-shadow); }
+.discovery-head > b { font-size:16px; line-height:1.15; }
+.discovery-head > span { font-size:11px; line-height:1.2; text-wrap:balance; }
+.discovery-head > small { font-size:10px; line-height:1.2; color:#ecdcb8; }
+.discovery-object { display:grid; place-items:center; align-self:stretch; min-height:0; }
+.discovery-object .watch-find { position:relative; width:168px; height:168px; isolation:isolate; }
+.discovery-object .watch-find::before { content:""; position:absolute; z-index:-1; left:9%; right:9%; bottom:8%; height:9%; border-radius:50%; background:#15261985; }
+.discovery-object .explore-art { width:100%; height:100%; image-rendering:pixelated; filter:drop-shadow(0 2px 2px #14221880); }
+.discovery-opening { position:absolute; inset:0; width:100%; height:100%; image-rendering:pixelated; animation:discovery-open .4s steps(1,end) forwards; }
+@keyframes discovery-open { 0%,45% {opacity:1} 46%,100% {opacity:0} }
+@container (min-width:350px) and (min-height:420px) {
+  .discovery-object .watch-find { width:224px; height:224px; }
+}
+.discovery-decisions { display:grid; justify-items:center; align-content:center; min-height:59px; }
+.discovery-choice-group, .discovery-decisions .explore-choices { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; width:min(100%,340px); }
+.discovery-decisions .explore-cart { display:contents; }
+.discovery-decisions .explore-shared { display:none; }
+.ui-game .discovery-decisions .explore-choice {
+  display:grid; align-content:center; justify-items:center; gap:1px; min-width:44px; min-height:70px; margin:0; padding:7px 6px;
+  border:0 solid transparent; border-image:var(--control-plate) 28 fill / 7px stretch!important;
+  border-radius:0; background:#24302a; box-shadow:0 2px 3px #0c110b99; color:#fff0cf; font:700 13px var(--sans); line-height:1.15; text-align:center;
+}
+.discovery-decisions .explore-choice .control-art { --art-size:24px; }
+.discovery-decisions .explore-choice > svg { width:20px; height:20px; }
+.discovery-decisions .explore-choice small { font-size:10px; }
+.discovery-decisions .explore-choice:disabled { filter:saturate(.25); color:#d4d1c3; }
+.discovery-decisions .explore-choice:focus-visible { outline:3px solid #fff1a8; outline-offset:2px; }
+.discovery-decisions .explore-choice:active:enabled { transform:translateY(2px); filter:brightness(1.12); }
+/* The scene already names its immediate choice; the optional next-lesson coach returns afterwards. */
+.ui-game:has([data-discovery]) #apprentice { display:none!important; }
+.ui-game .watch-ground[data-discovery] .watch-start[data-explore-focus] { --art-size:24px; }
+.artisan-permit-detail { margin-top:14px; padding-top:12px; border-top:1px solid #8f815e; }
+.artisan-permit-detail p { font-size:13px; }
+#shade[data-modal="forgeItem:permit"] .forge-dialog-actions { display:grid; grid-template-columns:minmax(44px,1fr) minmax(0,2fr); gap:8px; }
+#shade[data-modal="forgeItem:permit"] .primary { display:grid; justify-items:center; min-height:59px; font-size:15px; }
+#shade[data-modal="forgeItem:permit"] .primary small { font-size:11px; }
+.forge-help[data-artisan-held] { font-size:11px; white-space:nowrap; }
