@@ -10,6 +10,7 @@ const Game = (() => {
   const forgeItems = createForge(blades, outfit, craft, price);
   const finale = typeof module !== "undefined" ? require("./breakthrough.js") : Breakthrough;
   const dice = typeof module !== "undefined" ? require("./dice-combat.js") : DiceCombat;
+  const power = typeof module !== "undefined" ? require("./combat-power.js") : CombatPower;
   const trail = typeof module !== "undefined" ? require("./hunt-trail.js") : HuntTrail;
   const explore = typeof module !== "undefined" ? require("./exploration-rules.js") : ExplorationRules;
   const shop = typeof module !== "undefined" ? require("./relic-shop.js") : RelicShop;
@@ -835,24 +836,44 @@ const Game = (() => {
     delete w.work;
     return ok(stageName + " 완료 · " + blades.name(w) + " +" + w.level, "win");
   }
-  function bindBladeCombat(s, h, item=blades.current(s), armor=blades.currentArmor(s), style=blades.state(s).style) {
+  function bindBladeCombat(s, h, item=blades.current(s), armor=blades.currentArmor(s), style=blades.state(s).style, prepared) {
     blades.state(s).equipmentVersion = 1;
     const outfitRating = h.bladeCombat ? (h.bladeCombat.outfitArmorRating ?? 0) : undefined;
     h.armorId = armor.id;
     h.bladeId = item.id;
     h.blade = { stage: gradeForLevel(item.level), level: item.level, name: blades.name(item), weaponKind:item.weaponKind ?? "sword" };
-    h.bladeCombat = blades.skills(s,item,armor,style,outfitRating);
+    h.bladeCombat = prepared ?? blades.skills(s,item,armor,style,outfitRating);
     h.attack = h.bladeCombat.attack;
   }
   function refreshHuntGear(s, id) {
     const h = s.hunt;
-    if (!h?.bladeCombat || !id || (id !== h.bladeId && id !== h.armorId)) return;
+    if (!h?.bladeCombat || h.powerHeld || !id || (id !== h.bladeId && id !== h.armorId)) return;
     const weapon = blades.state(s).items.find(item => item.id === h.bladeId);
     const armor = blades.armors(s).find(item => item.id === h.armorId) || blades.currentArmor(s);
     const priorMax = h.maxHp;
     bindBladeCombat(s, h, weapon, armor, h.bladeCombat.style);
     h.maxHp = h.bladeCombat.hp;
     h.hp = Math.max(1, Math.min(h.maxHp, h.hp + h.maxHp - priorMax));
+  }
+  function preparedHunt(s) {
+    const h = s.hunt;
+    const bladeCombat = blades.skills(s);
+    const maxHp = bladeCombat.hp;
+    return { ...h, bladeCombat, fieldKit: outfit.build(s), maxHp,
+      hp: h.turn === 1 ? maxHp : Math.min(h.hp, maxHp) };
+  }
+
+  function huntPower(s) {
+    const h = s.hunt;
+    if (h?.powerVersion !== power.version || h.waveTurn !== 1 || h.enemyKind === "goblin" ||
+        trail.awaitingNext(h)) return null;
+    return power.estimate(h.powerHeld ? preparedHunt(s) : h);
+  }
+
+  function holdStrongerOpponent(s) {
+    if (!huntPower(s)?.blocked) return false;
+    s.hunt.powerHeld = true;
+    return true;
   }
   function bladeAttributes(s, trial = false, raid = false) {
     if (!s.bladeForge) return stats(s, trial, raid);
@@ -1720,6 +1741,11 @@ const Game = (() => {
           if (journeyBattle && rank % 5 === 0)
             s.hunt.armorDamageMultiplier = bossDamageMultiplier(s.armor.level, rank);
           trail.enter(s.hunt, 0);
+          if (d20Battle && arg.power === power.version) {
+            s.hunt.powerVersion = power.version;
+            s.hunt.skillVersion = 3; // Older tabs must not resume a fight without the preparation guard.
+            holdStrongerOpponent(s);
+          }
         }
         const started = { ...success(huntEnemy(s.hunt).habitat + " " + rank + "구역 사냥 시작 · " + (retry ? "지원 재도전 · 식량 소모 없음" : "식량 1개 사용") + ledgerNote), receipt: { ...w.lastStart } };
         if (event) started.exploration = explorationEvent({ ...event, name: huntEnemy(s.hunt).name });
@@ -1760,10 +1786,25 @@ const Game = (() => {
         if (!trail.awaitingNext(h) || arg?.id !== h.id || arg.wave !== h.wave ||
             h.wave + 1 >= trail.lineup(h.territoryRank || h.rank, h.bonusEncounter).length) return fail("이어질 조우가 없습니다.");
         trail.enter(h, h.wave + 1);
+        holdStrongerOpponent(s);
         return { ok: true, message: h.last, kind: "info" };
+      }
+      case "huntResume": {
+        const h = s.hunt;
+        if (!h?.powerHeld || arg?.id !== h.id || arg.wave !== h.wave)
+          return fail("준비 중인 조우가 바뀌었습니다.");
+        const ready = preparedHunt(s);
+        const estimate = power.estimate(ready);
+        if (estimate.blocked) return fail(estimate.unavailable ? "전투력을 계산할 수 없습니다." : "적의 전투력이 아직 더 높습니다.");
+        bindBladeCombat(s, h, blades.current(s), blades.currentArmor(s), ready.bladeCombat.style, ready.bladeCombat);
+        Object.assign(h, { fieldKit: ready.fieldKit, hp: ready.hp, maxHp: ready.maxHp });
+        delete h.powerHeld;
+        return success("같은 상대에게 도전합니다.");
       }
       case "flee": {
         if (!s.hunt) return fail("교전 중인 적이 없습니다.");
+        if (arg?.id !== undefined && (arg.id !== s.hunt.id || arg.wave !== s.hunt.wave))
+          return fail("조우가 바뀌었습니다.");
         const spent = s.hunt.ticketSource === "free" || s.hunt.ticketSource === "purchased";
         s.hunt = null;
         return success("숲길에서 안전하게 퇴각했습니다." + (spent ? " 사용한 식량은 돌려받을 수 없습니다." : ""));
@@ -1775,6 +1816,8 @@ const Game = (() => {
         if (!h) return fail("먼저 사냥을 시작하세요.");
         if (h.exploration) return fail("탐험 보상을 먼저 고르세요.");
         if (trail.awaitingNext(h)) return fail("다음 적을 기다리고 있습니다.");
+        if (h.powerHeld) return fail("대장간에서 준비하거나 조우를 넘기세요.");
+        if (holdStrongerOpponent(s)) return success("적의 전투력이 더 높아 사냥을 멈췄습니다.");
         // Existing dice saves acquire optional skill state on their next committed turn.
         if(h.diceVersion===1){
           h.skillVersion=h.trailVersion ? 2 : 1;
@@ -2246,6 +2289,7 @@ const Game = (() => {
     midRecovery,
     huntCharge,
     huntEnemy,
+    huntPower,
     huntOutcome,
     explorationPreview,
     exploration: explore,

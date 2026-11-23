@@ -672,3 +672,19 @@ body:has(#apprentice:not([hidden])) .watch-report:has(.explore-cart) .watch-moti
 .watch-arena[data-find="food"] .watch-receipt-head > b { font-size:18px; }
 .watch-arena[data-find="food"] .watch-status { position:absolute; top:calc(100% + 44px); left:0; width:100%; }
 .watch-arena[data-find="food"] .watch-motion-hint { position:absolute; right:0; bottom:calc(100% + 8px); }
+/* CP1 preflight: compare text above the clearing, choices below the unchanged combat HUD. */
+.watch-power-readout {
+  position:absolute; grid-area:1 / 1 / 2 / -1; z-index:8; top:0; left:0; right:0;
+  display:grid; justify-items:center; gap:1px; color:#fff0cf; text-shadow:var(--readout-shadow); pointer-events:none;
+}
+.watch-power-readout > small { font-size:10px; line-height:1.15; }
+.watch-power-values { display:flex; justify-content:center; gap:24px; font-size:13px; line-height:1.15; }
+.watch-power-values b { font-size:17px; font-variant-numeric:tabular-nums; }
+.watch-power-reason { color:#ffe3a3; }
+.watch-arena[data-power-check] .watch-upper-dice { visibility:hidden; }
+ .watch-power-cost { color:#e6d6b1; }
+.ui-game .watch-home-actions .watch-start:is([data-power-prepare],[data-power-resume]) { --art-size:24px; }
+.ui-game .watch-start:is([data-power-prepare],[data-power-resume]) .watch-start-mode { font-size:10px; }
+.watch-home-actions [data-power-flee]:focus-visible { outline:3px solid #fff1a8; outline-offset:2px; }
+/* The urgent prepare/retreat choice replaces the duplicate optional goal coach while held. */
+.ui-game:has(.watch-arena[data-power-held]) #apprentice { display:none!important; }

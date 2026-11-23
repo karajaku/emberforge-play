@@ -204,8 +204,12 @@ const SaveStore = (() => {
           (h.journeyTrait !== undefined && ![0,1,2,3].includes(h.journeyTrait)))) throw fault("corrupt");
       if (h?.trailVersion > 1) throw fault("future");
       if (h?.diceVersion > 2) throw fault("future");
+      if (h?.powerVersion > 1) throw fault("future");
+      if (h?.powerVersion !== undefined && (h !== data.hunt || h.powerVersion !== 1 || h.diceVersion !== 2)) throw fault("corrupt");
+      if (h?.powerHeld !== undefined && (h.powerHeld !== true || h.powerVersion !== 1 || h.waveTurn !== 1 ||
+          h.enemyKind === "goblin" || h.enemyHp !== h.enemyMax || game.trail.awaitingNext(h))) throw fault("corrupt");
       if (h?.diceVersion === 2 && (h.trailVersion !== 1 || !object(h.bladeCombat))) throw fault("corrupt");
-      const skillVersion = h?.trailVersion === 1 ? 2 : 1;
+      const skillVersion = h?.powerVersion === 1 ? 3 : h?.trailVersion === 1 ? 2 : 1;
       if (h?.skillVersion > skillVersion) throw fault("future");
       if (h?.trailVersion !== undefined) {
         if (h.trailVersion !== 1 || ![1,2].includes(h.diceVersion) || !Number.isInteger(h.rank) || h.rank < 1 || h.rank > 60 ||
@@ -222,7 +226,7 @@ const SaveStore = (() => {
         const pack = game.trail.lineup(h.territoryRank || h.rank, h.bonusEncounter);
         if (h.wave < 0 || h.wave >= pack.length || pack[h.wave] !== h.enemyKind) throw fault("corrupt");
         if (h === data.hunt) {
-          if (h.skillVersion !== 2 || !Number.isInteger(h.waveTurn) || h.waveTurn < 1 || h.waveTurn > 40 ||
+          if (h.skillVersion !== skillVersion || !Number.isInteger(h.waveTurn) || h.waveTurn < 1 || h.waveTurn > 40 ||
               typeof h.goblinCaught !== "boolean" || h.enemySkillState?.key !== game.huntEnemy(h).skill) throw fault("corrupt");
           if ((h.lastDice?.enemySkill === "escape" && h.enemyKind !== "goblin") ||
               (game.trail.awaitingNext(h) && h.wave === pack.length - 1)) throw fault("corrupt");

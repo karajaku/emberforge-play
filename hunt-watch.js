@@ -80,6 +80,19 @@ const HuntWatch=(()=>{
   function focusChoice() {
     document.querySelector('[data-explore-choice]')?.focus({preventScroll:true});
   }
+  const powerFor = s => typeof Game.huntPower === 'function' ? Game.huntPower(s) : null;
+  function powerReadout(s, power) {
+    if (!power) return '';
+    const held = !!s.hunt?.powerHeld;
+    const paid = ['free','purchased'].includes(s.hunt?.ticketSource);
+    const retreatCost = paid ? '퇴각 시 식량 환불 없음 · 보상/진척 없음' : '식량 소모 없음 · 퇴각 보상/진척 없음';
+    return '<div class="watch-power-readout" role="status"><small>전투력 · 이 적 기준 · '+(held?'현재 장비':'출발 장비')+'</small>'+
+      (power.unavailable ? '<b>전투력 확인 불가</b>' : '<div class="watch-power-values"><span>나 <b data-power-player>'+fmt(power.player)+
+        '</b></span><span>적 <b data-power-enemy>'+fmt(power.enemy)+'</b></span></div>')+
+      (held ? '<small class="watch-power-reason">'+(power.unavailable ? '계산을 확인하기 전 시작하지 않습니다' : power.blocked ?
+        '적이 더 높아 첫 공격 전 멈췄습니다' : '준비 완료 · 직접 시작하세요')+'</small><small class="watch-power-cost">'+retreatCost+'</small>' : '')+'</div>';
+  }
+
   const nextRank = () => {
     if (run?.advance) return cleared(state) + 1;
     return mode === 'repeat' ? fixedRank : cleared(state) >= 60 ? replayRank : cleared(state) + 1;
@@ -318,6 +331,7 @@ const HuntWatch=(()=>{
   }
   function view(s) {
     const h=s.hunt;
+    const power=powerFor(s), powerHeld=!!h?.powerHeld;
     // A find stands where the enemy would: no enemy HP, name, level, element chip or skills.
     const find = explorationFind(s);
     const choosing = !!find?.pending;
@@ -376,42 +390,44 @@ const HuntWatch=(()=>{
     const retry = !choosing && !held && Game.hasBossRetry(s,nextRank());
     const departure = active || held || finished || choosing ? '' : retry ? 'retry' : 'hunt';
     const stageLabel = result && nextRank() !== result.rank ? nextRank() + '단계 사냥' : '사냥';
-    const label = active ? '사냥 중지' : choosing ? '보상 선택' : finished ? '구역 선택' :
+    const label = powerHeld ? power?.blocked !== false ? '대장간 준비' : '전투 시작' : active ? '사냥 중지' : choosing ? '보상 선택' : finished ? '구역 선택' :
       held ? '진행 재개' :
       empty ? '식량 부족' : retry ? '지원 재도전' : cleared(s) >= 60 && mode !== 'repeat' ? '1회 재도전' : stageLabel;
     const detail = find ? findDetail(find) : encounterHint(h,result,enemy,rank,pack);
     const kit = find ? null : h ? h.fieldKit : !result && targetRank ? Game.outfit.build(s) : null;
     const home = !active && (!encounter || location.hash === '#world');
-    const canToggle = !choosing && (active || (!finished && !empty));
+    const canToggle = !powerHeld && !choosing && (active || (!finished && !empty));
     // While the cart waits, the hunt button is not a toggle: a stray stop tap only moves focus to the choices.
-    const control = choosing ? 'data-explore-focus aria-describedby="exploreChoices"' : canToggle ? 'data-watch="toggle"' : finished ? 'data-open="huntPlan"' : 'data-open="huntWallet"';
-    const modeNote = choosing ? '<span class="watch-start-mode">위에서 하나 선택</span>' :
+    const control = powerHeld ? (power?.blocked === false ? 'data-power-resume' : 'data-power-prepare')+' data-hunt-id="'+escapeHtml(h.id)+'" data-hunt-wave="'+h.wave+'"' : choosing ? 'data-explore-focus aria-describedby="exploreChoices"' : canToggle ? 'data-watch="toggle"' : finished ? 'data-open="huntPlan"' : 'data-open="huntWallet"';
+    const modeNote = powerHeld ? '<span class="watch-start-mode">'+(power?.blocked === false ? '준비 완료 · 직접 시작' : '같은 상대 보존')+'</span>' : choosing ? '<span class="watch-start-mode">위에서 하나 선택</span>' :
       canToggle && (active || cleared(s) < 60 || endgameRepeatSelected) ? '<span class="watch-start-mode">' +
       (active ? (run.continuous ? '연속 사냥 중' : '이번 단계 자동사냥') : '1초 누르면 연속 사냥') + '</span>' : '';
     const start = '<button class="primary watch-start' + (active ? ' watch-active' : '') + '" ' + control + '><span class="watch-start-label">' +
-      controlArt(choosing ? "bag" : !active && finished ? "compass" : "hunt") + label + '</span>' +
+      controlArt(choosing ? "bag" : powerHeld && power?.blocked !== false ? "hammer" : !active && finished ? "compass" : "hunt") + label + '</span>' +
       modeNote + (choosing ? '' : foodBar(w, departure)) + '</button>';
     const controls = '<div class="watch-home-actions">' +
-      go('forest/field', icon('hand-coins') + '<span>배치 수익</span>', 'action') + start +
+      (powerHeld ? '<button type="button" class="action" data-power-flee data-hunt-id="'+escapeHtml(h.id)+'" data-hunt-wave="'+h.wave+'">'+icon('arrow-left')+'<span>퇴각</span></button>' : go('forest/field', icon('hand-coins') + '<span>배치 수익</span>', 'action')) + start +
       go('world/map', controlArt('compass') + '<span>모험 지도</span>', 'action') + '</div>';
     return '<section class="watch-view watch-ground' + (home ? ' watch-home' : '') + '"' + (territory ? ' data-boss-territory="'+territory+'"' : '') + '><div class="watch-stage">' +
       '<span class="watch-stage-name">'+(territory ? icon('crown')+'우두머리 영역' : icon('trees')+'사냥터')+'</span> · <b>'+rank+'단계'+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(find?'<span class="trail-wave">탐험 · 발견</span>':trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+'<small class="watch-version">v'+UpdateNotice.version()+'</small>'+(h?.ripostes>0 && !h.journeyBattle && !h.bladeCombat?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+
       (kit ? '<div class="outfit-enemy-line">' + OutfitView.encounterChip(terrain,enemy.kind,kit,!!h) + '</div>' : '') + '</div>' +
-      '<div class="scene watch-arena combat-hud" data-region="'+area.id+'"'+(find?' data-find="'+find.kind+'"':'')+'>'+fighter('player',blade.name,'+'+fmt(blade.level),sprite,128,hp,max)+fighter('enemy',enemy.name,'Lv.'+rank,enemy.sprite||'boar',144,enemyHp,total)+
+      '<div class="scene watch-arena combat-hud" data-region="'+area.id+'"'+(powerHeld?' data-power-held':'')+(power?' data-power-check':'')+(find?' data-find="'+find.kind+'"':'')+'>'+fighter('player',blade.name,'+'+fmt(blade.level),sprite,128,hp,max)+fighter('enemy',enemy.name,'Lv.'+rank,enemy.sprite||'boar',144,enemyHp,total)+
+      powerReadout(s,power)+
       (useD20 ? '<div class="watch-upper-dice">' + d20('player',roll?.playerFace,roll?.attackCheck) +
         d20('enemy',roll?.enemyFace,roll?.replyCheck) + '</div>' + impactNumber('player',roll) + impactNumber('enemy',roll) : '')+
       (!active && (s.hunt || s.lastHunt)?.lastDice?.attackCheck ? openBtn('huntPlan',icon('compass')+'사냥 구역','watch-recent-loot watch-plan-link') : '')+
       (settled && !received ? openBtn('huntLoot',icon('backpack')+'최근 전리품','watch-recent-loot') : '')+
       '<div class="watch-report">'+
-      '<div class="watch-reward" role="status">'+(detail?'<div class="trail-detail">'+detail+'</div>':'')+(choosing ? cartChoices(h)
+      '<div class="watch-reward" role="status">'+(!powerHeld&&detail?'<div class="trail-detail">'+detail+'</div>':'')+(choosing ? cartChoices(h)
         :find?.kind === 'food' ? foodReceipt(s,result)
         :received ? HuntLootView.resultView(s,settled,active)
         :defeated?'<b class="watch-defeat">패배</b>'+defeatSummary(result)+go('forge','장비 강화','action')
-        :reason&&!(h&&reason==='일시 중단')?'<b>'+reason+'</b>':'')+'</div>'+
-      huntStatus(s, held)+'</div></div>'+controls+'</section>';
+        :!powerHeld&&reason&&!(h&&reason==='일시 중단')?'<b>'+reason+'</b>':'')+'</div>'+
+      (powerHeld ? '' : huntStatus(s, held))+'</div></div>'+controls+'</section>';
   };
   function beforeRender() {
     cancelHuntPress();
+    if (active && state.hunt?.powerHeld) stop('',false);
     if (active && !allowed()) stop('', false);
   }
   function refreshWallet() {
@@ -427,6 +443,7 @@ const HuntWatch=(()=>{
   }
   function beginHunt(continuous = false) {
     if (active || !allowed()) return;
+    if (state.hunt?.powerHeld) return;
     if (state.hunt?.exploration) {focusChoice();return;}
     if (!state.hunt && !pending()) {
       if (!validRank(nextRank())) return;
@@ -475,12 +492,14 @@ const HuntWatch=(()=>{
     busy=true;
     try {
       const h=state.hunt;
+      if(h?.powerHeld){stop('');return;}
       // A saved cart never resumes automatically; it waits for one explicit choice.
       if(h?.exploration){stop('');return;}
       if(Game.trail.awaitingNext(h)) {
         const id=h.id,wave=h.wave;
         await act(null,'',undefined,undefined,()=>live(token)&&state.hunt?.id===id&&state.hunt.wave===wave?
           {action:'huntAdvance',arg:{id,wave}}:null);
+        if(state.hunt?.powerHeld){stop('');return;}
         if(storageError)stop('저장 상태를 확인해 주세요');
         else if(live(token) && state.hunt?.id===id && state.hunt.wave===wave+1 && motionEnabled()) {
           document.querySelector('.watch-ground .boss-creature')?.animate([
@@ -517,11 +536,12 @@ const HuntWatch=(()=>{
           await act(null,'',undefined,undefined,()=>live(token)&&!state.hunt&&!pending()&&
             mode===selectedMode&&validRank(rank)&&state.hunting.id===wallet&&state.hunting.serial===serial&&
             (state.hunting.free>0||state.hunting.purchased>0)?
-            {action:'huntStart',arg:{rank,request:serial+1,combat:Game.exploration.combat,explore:Game.exploration.version}}:null);
+            {action:'huntStart',arg:{rank,request:serial+1,combat:Game.exploration.combat,explore:Game.exploration.version,power:1}}:null);
           // The legacy repeat runner is inactive; no second controller is armed.
           autoCombat.stop();
           if(storageError){stop('저장 상태를 확인해 주세요');return;}
           if(token!==generation)return;
+          if(state.hunt?.powerHeld){stop('');return;}
           // The cart stops even a continuous run; nothing departs again until a new press.
           if(state.hunt?.exploration){stop('');return;}
           const startId=state.hunting.serial===serial+1&&state.hunting.lastStart?.id;
@@ -543,6 +563,21 @@ const HuntWatch=(()=>{
   }
   // One explicit cart choice; the rules make a repeated identical request idempotent.
   let choosingCart = false;
+  let choosingPower = false;
+  function boundPower(button) {
+    return allowed() && state.hunt?.powerHeld && state.hunt.id === button.dataset.huntId && state.hunt.wave === Number(button.dataset.huntWave);
+  }
+  async function powerAction(button, action) {
+    if (choosingPower || busy || !boundPower(button)) return;
+    const id=button.dataset.huntId, wave=Number(button.dataset.huntWave);
+    choosingPower=true;
+    stop('',false); autoCombat.stop(); repeatHunting.stop('전투 전 준비');
+    try {
+      await act(null,'',undefined,undefined,()=>boundPower(button) ? {action,arg:{id,wave}} : null);
+      if (action === 'huntResume' && !storageError && state.hunt?.id === id && state.hunt.wave === wave && !state.hunt.powerHeld)
+        beginHunt(false);
+    } finally { choosingPower=false; }
+  }
   async function chooseCart(choice, id) {
     if (choosingCart || active || busy || !allowed() || !['gear','gold'].includes(choice)) return;
     const h = state.hunt;
@@ -596,6 +631,14 @@ const HuntWatch=(()=>{
       suppressHuntClick = false;
       event.preventDefault();
       event.stopImmediatePropagation();
+      return;
+    }
+    const powerButton=event.target.closest('[data-power-prepare],[data-power-flee],[data-power-resume]');
+    if(powerButton){
+      event.preventDefault(); event.stopImmediatePropagation();
+      if(!boundPower(powerButton)) return;
+      if(powerButton.hasAttribute('data-power-prepare')) {stop('',false);nav('forge');}
+      else powerAction(powerButton,powerButton.hasAttribute('data-power-flee')?'flee':'huntResume');
       return;
     }
     const choice=event.target.closest('[data-explore-choice]');
