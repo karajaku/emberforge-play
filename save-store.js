@@ -46,7 +46,11 @@ const SaveStore = (() => {
       stats.critChance <= 100 && [25,40].includes(stats.blockedDamagePercent) &&
       stats.outfitArmorRating <= stats.armorRating;
   }
-  function saveFormat(forge) {
+  // Format 9 marks exploration state; earlier builds compute at most 8 and reject it as future.
+  function saveFormat(state) {
+    if (state?.hunting?.exploration !== undefined || state?.huntRecord !== undefined || state?.hunt?.exploration !== undefined ||
+        state?.lastHunt?.exploration !== undefined || state?.lastChest?.exploration !== undefined) return 9;
+    const forge = state?.bladeForge;
     if (forge?.equipmentVersion === 1) return 8;
     if (forge?.firstBossRetry !== undefined) return 7;
     if (forge?.outfit!==undefined) return 6;
@@ -73,11 +77,97 @@ const SaveStore = (() => {
       (loot.outfitDrop === undefined || (outfit && game.outfit.validItem(loot.outfitDrop,outfit.serial) && loot.outfitDrop.level === 0)) &&
       (loot.outfitSalvaged === undefined || (loot.outfitSalvaged === true && !loot.outfitDrop));
   }
+  const count = n => Number.isSafeInteger(n) && n >= 0;
+  function validFoundChest(c, rank, entryId) {
+    return object(c) && typeof c.id === "string" && !!c.id && c.source === "forest" && c.rank === rank &&
+      [0,1,2].includes(c.tier) && count(c.base) && c.counter === 0 && count(c.extra) && count(c.gold) && count(c.shards) &&
+      Array.isArray(c.charms) && c.charms.length === 3 && c.charms.every(count) && c.scrolls === 0 &&
+      c.materialRule === 1 && c.entryId === entryId && c.fiber === game.forestYield(rank);
+  }
+  // The drawn event must be one this table can produce at this roll, with the region's own name.
+  function validEvent(e, rank, kinds) {
+    const rules = game.exploration;
+    if (!object(e) || e.version !== 1 || !kinds.includes(e.kind) || typeof e.table !== "string" ||
+        !Object.hasOwn(rules.tables, e.table) || !Number.isInteger(rank) || rank < 1 || rank > 60) return false;
+    const range = rules.ranges(e.table)[e.kind];
+    return !!range && Number.isInteger(e.roll) && e.roll >= range.lo && e.roll <= range.hi &&
+      e.region === rules.region(rank) && e.name === rules.findName(e.kind, rank);
+  }
+  const pendingForbidden = ["turn", "trailVersion", "diceVersion", "skillVersion", "bladeCombat", "materialRule",
+    "fieldKit", "lastDice", "wave", "waveTurn", "bonusEncounter", "territoryRank", "bladeId", "armorId"];
+  const resultForbidden = ["chestId", "lastDice", "diceVersion", "trailVersion", "bladeCombat", "fieldKit",
+    "firstGearChoice", "territoryRank", "strongestHit"];
+  function validateExploration(data, outfit, validEntry, entries, ids) {
+    const corrupt = () => { throw fault("corrupt"); };
+    const rules = game.exploration;
+    const wallet = data.hunting, forge = data.bladeForge, ledger = wallet?.exploration;
+    const h = data.hunt, last = data.lastHunt, chest = data.lastChest;
+    if (ledger !== undefined && !rules.validLedger(ledger)) corrupt();
+    if (data.huntRecord !== undefined && (!object(forge) || !rules.validRecord(data.huntRecord, forge.cleared))) corrupt();
+    // Every exploration result came from an opt-in start, which always creates the ledger.
+    if ((h?.exploration !== undefined || last?.exploration !== undefined || chest?.exploration !== undefined) &&
+        (ledger === undefined || ledger.consumed < 1 || !object(forge))) corrupt();
+    for (const c of data.chests || []) if (c.exploration !== undefined) corrupt(); // Finds are credited at once.
+
+    if (h?.exploration !== undefined) {
+      const e = h.exploration, start = wallet.lastStart;
+      if (!object(e) || !object(start) || !validEntry(h.id) || h.id !== start.id || h.rank !== start.rank ||
+          h.request !== wallet.serial || h.ticketSource !== start.source || !rules.sources.includes(h.ticketSource) ||
+          !Number.isSafeInteger(h.number) || h.number < 1 || !Number.isSafeInteger(h.maxHp) || h.maxHp < 1 ||
+          h.hp !== h.maxHp || !object(h.blade) ||
+          Object.keys(h).some(k => k.startsWith("enemy") || pendingForbidden.includes(k)) ||
+          !validEvent(e, h.rank, ["cart"]) || !rules.cartTables.includes(e.table) ||
+          !rules.eligible({ explore: rules.version, combat: rules.combat, source: h.ticketSource, rank: h.rank, cleared: forge.cleared }) ||
+          (e.table.startsWith("first") ? h.rank !== forge.cleared + 1 : h.rank > forge.cleared) ||
+          !rules.validPlan(e.plan) || !validFoundChest(e.offer, h.rank, h.id) ||
+          e.offer.gold !== e.offer.base + e.offer.extra || e.saleGold !== e.offer.base ||
+          ids.has(e.offer.id) || entries.has(h.id)) corrupt();
+    }
+
+    if (chest?.exploration !== undefined) {
+      const x = chest.exploration;
+      if (!object(x) || x.version !== 1 || !["treasure", "cart"].includes(x.kind) ||
+          !validFoundChest(chest, chest.rank, chest.entryId) || chest.huntLoot === undefined ||
+          !Array.isArray(chest.huntLoot.gearDrops)) corrupt();
+      const gold = x.kind === "cart" && x.choice === "gold";
+      if (x.kind === "treasure" ? x.choice !== undefined || x.saleGold !== undefined :
+          !rules.choices.includes(x.choice) || (gold ? x.saleGold !== chest.base : x.saleGold !== undefined)) corrupt();
+      if (chest.gold !== chest.base + chest.extra + (gold ? x.saleGold : 0)) corrupt();
+      if (gold && (chest.huntLoot.gearDrops.length || chest.huntLoot.outfitDrop || chest.huntLoot.outfitSalvaged)) corrupt();
+    }
+
+    if (last?.exploration !== undefined) {
+      const e = last.exploration, health = last.health;
+      if (!validEntry(last.id) || !rules.sources.includes(last.ticketSource) || resultForbidden.some(k => last[k] !== undefined) ||
+          !validEvent(e, last.rank, ["treasure", "food", "cart"]) || last.rank % 5 === 0 || last.rank > forge.cleared ||
+          (e.table.startsWith("first") && !(Array.isArray(data.huntRecord?.explored) && data.huntRecord.explored.includes(last.rank))) ||
+          last.turns !== 0 || last.damageTaken !== 0 || last.ripostes !== 0 || last.bonus !== 0 || !count(last.reward) ||
+          !object(health) || !Number.isSafeInteger(health.maxHp) || health.maxHp < 1 || health.hp !== health.maxHp ||
+          health.enemyHp !== 0 || health.enemyMax !== 0) corrupt();
+      if (e.kind === "food") {
+        if (e.food !== 1 || e.choice !== undefined || e.saleGold !== undefined || last.reward !== 0 || ledger.found < 1 ||
+            ["receiptId", "gearDrops", "materialPrize", "bladePrize", "outfitDrop", "outfitSalvaged"].some(k => last[k] !== undefined)) corrupt();
+      } else {
+        const gold = e.kind === "cart" && e.choice === "gold";
+        if (e.food !== undefined || (e.kind === "treasure" ? e.choice !== undefined || e.saleGold !== undefined :
+            !rules.choices.includes(e.choice) || (gold ? !count(e.saleGold) : e.saleGold !== undefined))) corrupt();
+        if (typeof last.receiptId !== "string" || !last.receiptId || !Array.isArray(last.gearDrops) ||
+            (gold && (last.gearDrops.length || last.outfitDrop !== undefined || last.outfitSalvaged !== undefined))) corrupt();
+        // Opening an older battle chest later replaces lastChest. While the receipt is still
+        // lastChest it must be exactly the chest credited by the same start; it is never stored.
+        if (chest?.id === last.receiptId) {
+          if (chest.entryId !== last.id || chest.rank !== last.rank || chest.exploration?.kind !== e.kind ||
+              chest.exploration.choice !== e.choice || chest.exploration.saleGold !== e.saleGold || last.reward !== chest.gold ||
+              JSON.stringify(last.gearDrops) !== JSON.stringify(chest.huntLoot.gearDrops)) corrupt();
+        } else if ((data.chests || []).some(c => c.id === last.receiptId || c.entryId === last.id)) corrupt();
+      }
+    }
+  }
   function decode(raw) {
     let data;
     try { data = JSON.parse(raw); } catch { throw fault("corrupt"); }
     if (data?.heirloom !== undefined) throw fault("future");
-    const maxFormat=saveFormat(data?.bladeForge);
+    const maxFormat=saveFormat(data);
     if (data?.bladeForge?.equipmentVersion > 1) throw fault("future");
     if (data?.bladeForge?.soul?.version>2) throw fault("future");
     const outfit=data?.bladeForge?.outfit;
@@ -149,9 +239,11 @@ const SaveStore = (() => {
           ![h.lastDice.playerFace, h.lastDice.enemyFace].every(n => dieValue(n, 6)))) throw fault("corrupt");
     }
     const result=data?.lastHunt;
-    if (result?.outfitDrop!==undefined && (!outfit || !result.fieldKit || !result.chestId ||
+    // Battles prove an outfit drop with fieldKit+chestId; exploration finds prove it with their receipt.
+    const outfitReceipt = !!result && (result.exploration !== undefined ? !!result.receiptId : !!result.fieldKit && !!result.chestId);
+    if (result?.outfitDrop!==undefined && (!outfit || !outfitReceipt ||
         !game.outfit.validItem(result.outfitDrop,outfit.serial) || result.outfitDrop.level!==0)) throw fault("corrupt");
-    if (result?.outfitSalvaged!==undefined && (result.outfitSalvaged!==true || !result.fieldKit || !result.chestId || result.outfitDrop)) throw fault("corrupt");
+    if (result?.outfitSalvaged!==undefined && (result.outfitSalvaged!==true || !outfitReceipt || result.outfitDrop)) throw fault("corrupt");
     if (!object(data) || ![1, 2].includes(data.version) || !object(data.weapon) || !Array.isArray(data.field))
       throw fault("corrupt");
     if (data.created !== undefined && (!Number.isFinite(data.created) || Math.abs(data.created) > 8.64e15))
@@ -259,6 +351,7 @@ const SaveStore = (() => {
           (data.lastHunt?.chestId === c.id && (data.lastHunt.id !== c.entryId || data.lastHunt.rank !== c.rank))) throw fault("corrupt");
       entries.add(c.entryId);
     }
+    validateExploration(data, outfit, validEntry, entries, ids);
     const restored = { ...defaults, ...data, version: 2,
       forestFiber: data.version === 1 ? 0 : data.forestFiber, huntLining: data.version === 1 ? 0 : data.huntLining,
       fieldIncomeVersion: data.fieldIncomeVersion ?? 1,
@@ -364,7 +457,7 @@ const SaveStore = (() => {
       // generation). No new game/action/random roll is executed on retry.
       if (!pending) {
         const generation = mode === "reset" || !state._save ? id() : state._save.generation;
-        const value = { ...state, version: 2, _save: { format: saveFormat(state.bladeForge), revision: (state._save?.revision || 0) + 1,
+        const value = { ...state, version: 2, _save: { format: saveFormat(state), revision: (state._save?.revision || 0) + 1,
           generation, savedAt: Date.now() } };
         const raw = JSON.stringify(value);
         decode(raw);
@@ -444,6 +537,6 @@ const SaveStore = (() => {
       });
     };
   }
-  return { keys: standardKeys, decode, create, createLock };
+  return { keys: standardKeys, decode, create, createLock, saveFormat };
 })();
 if (typeof module !== "undefined") module.exports = SaveStore;

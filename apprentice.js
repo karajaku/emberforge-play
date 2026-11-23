@@ -37,7 +37,9 @@ const Apprentice = (() => {
     return completed(s).findIndex((done) => !done);
   }
 
+  const cartTip = () => ({ text: "수레 보상을 하나 고르세요. 장비와 골드 중 지금 필요한 것을 선택합니다.", route: "forest", selector: "[data-explore-choice]", button: "보상 선택지 찾기" });
   function guidance(s, step) {
+    if (s.hunt?.exploration?.kind === "cart") return cartTip();
     const target = (text, route, selector, button) => ({ text, route, selector, button });
     if (s.bladeForge) return currentGuidance(s, step, target);
     const plan = Game.journeyForge(s, "weapon");
@@ -190,6 +192,7 @@ const Apprentice = (() => {
   // hunt button; locating it never starts or settles the hunt.
   function target(s, step = next(s)) {
     if (step < 0) return null;
+    if (s.hunt?.exploration?.kind === "cart") return cartTip();
     if (s.hunt) return { text: "저장된 사냥이 남아 있습니다. 숲의 사냥 버튼으로 이어 가세요. 찾기는 사냥을 시작하지 않습니다.",
       route: "forest", selector: ".watch-start", button: "사냥 재개" };
     return guidance(s, step);

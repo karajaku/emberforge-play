@@ -21,13 +21,14 @@ const AutoCombat = (() => {
     }
     function valid(token) {
       const h = hunt();
-      return automatic && allowed() && token.generation === generation &&
+      return automatic && allowed() && !h?.exploration && token.generation === generation &&
         h?.id === token.id && h?.turn === token.turn && pending === token;
     }
     function refresh(arm = true) {
       if (!automatic) return;
       const h = hunt();
-      if (!allowed() || (battleId && h?.id !== battleId)) { stop(); return; }
+      // A waiting exploration cart is not a battle and never takes automatic turns.
+      if (!allowed() || h?.exploration || (battleId && h?.id !== battleId)) { stop(); return; }
       if (!h || pending) return;
       battleId = h.id;
       if (!arm) return;

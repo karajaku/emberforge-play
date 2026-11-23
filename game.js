@@ -11,6 +11,7 @@ const Game = (() => {
   const finale = typeof module !== "undefined" ? require("./breakthrough.js") : Breakthrough;
   const dice = typeof module !== "undefined" ? require("./dice-combat.js") : DiceCombat;
   const trail = typeof module !== "undefined" ? require("./hunt-trail.js") : HuntTrail;
+  const explore = typeof module !== "undefined" ? require("./exploration-rules.js") : ExplorationRules;
   const shop = typeof module !== "undefined" ? require("./relic-shop.js") : RelicShop;
   const compare = typeof module !== "undefined" ? require("./gear-comparison.js") : createGearComparison;
   const compareGear = compare({blades, outfit, endgame, craft, dice, stats});
@@ -255,6 +256,8 @@ const Game = (() => {
     const wallet = settleHunting(s, t);
     const next = s.journeyEconomy ? freshJourney(t) : fresh(t);
     next.hunting = { ...wallet, lastStart: wallet.lastStart && { ...wallet.lastStart } };
+    // The exploration food ledger survives resets so a new run cannot re-earn its allowance.
+    if (wallet.exploration !== undefined) next.hunting.exploration = JSON.parse(JSON.stringify(wallet.exploration));
     if (!keepFood) {
       next.hunting.free = hunting.initial;
       next.hunting.rechargeAt = null;
@@ -726,6 +729,12 @@ const Game = (() => {
     }
   }
   function awardChest(s, source, rank, base, counter, int, fixedGold = false) {
+    const chest = rollChest(s, source, rank, base, counter, int, fixedGold);
+    (s.chests ||= []).push(chest);
+    return chest;
+  }
+  // Rolls one chest and reserves its id. It neither stores nor credits the chest.
+  function rollChest(s, source, rank, base, counter, int, fixedGold = false) {
     const tower = source === "tower";
     const reward = tower ? towerReward(rank) : null;
     const roll = int(1, 100);
@@ -741,8 +750,21 @@ const Game = (() => {
     const chest = { id: s.created + "-" + s.chestSerial, source, rank, tier, base, counter, extra,
       gold: base + counter + extra, shards, charms, scrolls: Number(tower) };
     if (tower) chest.name = reward.name;
-    (s.chests ||= []).push(chest);
     return chest;
+  }
+  // Credits a chest's contents. The fiber balance is checked before anything changes.
+  function creditChest(s, c) {
+    if (c.materialRule === 1) {
+      const balance = s.forestFiber + c.fiber;
+      if (!Number.isSafeInteger(balance)) return { ok: false, message: "섬유 보관 한도에 도달했습니다. 보물은 보관함에 남습니다." };
+      s.forestFiber = balance;
+    }
+    s.gold += c.gold;
+    s.shards += c.shards;
+    s.scrolls += c.scrolls;
+    c.charms.forEach((amount, i) => { s.charms[i] += amount; });
+    s.lastChest = c;
+    return { ok: true };
   }
   function bladePrizeGold(rank, t = Date.now()) {
     return Math.round(
@@ -909,6 +931,79 @@ const Game = (() => {
   function hasBossRetry(s, rank) {
     return rank === 5 && s.bladeForge?.firstBossRetry === "ready";
   }
+  // One gear plan per reward, drawn exactly like a forest victory.
+  function pickGearPlan(plans, random) {
+    let gearRoll = plans.length > 1 ? random() * 100 : 0;
+    return plans.find(entry => {
+      gearRoll -= entry.chance;
+      return gearRoll < 0;
+    }) ?? plans.at(-1);
+  }
+  function explorationBlade(s) {
+    const item = blades.current(s);
+    return { stage: gradeForLevel(item.level), level: item.level, name: blades.name(item), weaponKind: item.weaponKind ?? "sword" };
+  }
+  // Treasure and the cart's gear bundle: the victory's gear plan and ore, without boss or progress effects.
+  function explorationLoot(s, rank, plan, random) {
+    const b = blades.state(s);
+    b.equipmentVersion = 1;
+    const gearDrops = blades.rollGear(s, rank, null, random, plan.gear, false);
+    b.ore += 1;
+    const loot = { gearDrops, materialPrize: "각인석 +1" };
+    loot.bladePrize = blades.rewardText(loot);
+    if (plan.outfit) Object.assign(loot, outfit.reward(s, { rank }, random, true));
+    return loot;
+  }
+  // Completing the next stage by exploration is progress; repeats change nothing.
+  function completeExploration(s, rank) {
+    const b = blades.state(s);
+    if (rank !== b.cleared + 1) return false;
+    b.cleared = rank;
+    b.equipmentVersion = 1;
+    s.huntBest = Math.max(s.huntBest, rank);
+    const record = s.huntRecord ??= { version: 1, explored: [] };
+    if (!record.explored.includes(rank)) {
+      record.explored.push(rank);
+      record.explored.sort((a, b) => a - b);
+    }
+    return true;
+  }
+  function explorationResult(entry, exploration, reward, extra = {}) {
+    return { id: entry.id, ticketSource: entry.ticketSource, rank: entry.rank, blade: { ...entry.blade },
+      health: { number: entry.number, hp: entry.maxHp, maxHp: entry.maxHp, enemyHp: 0, enemyMax: 0 },
+      turns: 0, damageTaken: 0, ripostes: 0, reward, bonus: 0, exploration, ...extra };
+  }
+  function cartReceipt(last) {
+    return { id: last.id, choice: last.exploration.choice, receiptId: last.receiptId, gold: last.reward };
+  }
+  function explorationEvent(e) {
+    return { kind: e.kind, table: e.table, roll: e.roll, name: e.name };
+  }
+  function huntOutcome(last) {
+    if (!last) return null;
+    if (last.exploration) return "explored";
+    return last.chestId ? "victory" : "defeat";
+  }
+  // Detail-view helper: the table the next opt-in start would use. No randomness, no mutation.
+  function explorationPreview(s, rank, source) {
+    const w = s.hunting;
+    const cleared = s.bladeForge ? s.bladeForge.cleared : (s.huntBest || 0);
+    const charge = source ?? (hasBossRetry(s, rank) ? "retry" : w && w.free > 0 ? "free" : "purchased");
+    const stagePhase = explore.phase(rank, cleared);
+    const none = { eligible: false, phase: stagePhase, foodPossible: false, table: null,
+      odds: { combat: 100, treasure: 0, food: 0, cart: 0 } };
+    if (!w || !explore.eligible({ explore: explore.version, combat: explore.combat, source: charge, rank, cleared }))
+      return none;
+    const ledger = w.exploration === undefined ? explore.freshLedger() : w.exploration;
+    const valid = explore.validLedger(ledger);
+    if (valid && !Number.isSafeInteger(ledger.consumed + 1)) return none;
+    const after = valid ? { ...ledger, consumed: ledger.consumed + 1 } : ledger;
+    const free = charge === "free" ? w.free - 1 : w.free;
+    const foodPossible = valid && explore.foodPossible(after, free, hunting.cap);
+    const cooling = valid ? ledger.cartCooldown > 0 : [1, 2].includes(ledger?.cartCooldown);
+    const table = explore.tableKey(stagePhase, foodPossible, cooling);
+    return { eligible: true, phase: stagePhase, foodPossible, table, odds: { ...explore.tables[table] } };
+  }
   function perform(s, act, arg, t = Date.now(), random = Math.random, pressedAt = t) {
     settle(s, t);
     const fail = (message) => ({ ok: false, message });
@@ -1031,17 +1126,9 @@ const Game = (() => {
         const index = (s.chests || []).findIndex((c) => c.id === arg);
         if (index < 0) return fail("이미 열었거나 보관함에 없는 상자입니다.");
         const c = s.chests[index];
-        if (c.materialRule === 1) {
-          const balance = s.forestFiber + c.fiber;
-          if (!Number.isSafeInteger(balance)) return fail("섬유 보관 한도에 도달했습니다. 보물은 보관함에 남습니다.");
-          s.forestFiber = balance;
-        }
+        const credited = creditChest(s, c);
+        if (!credited.ok) return fail(credited.message);
         s.chests.splice(index, 1);
-        s.gold += c.gold;
-        s.shards += c.shards;
-        s.scrolls += c.scrolls;
-        c.charms.forEach((amount, i) => { s.charms[i] += amount; });
-        s.lastChest = c;
         return success("보물상자 개봉 · " + c.gold.toLocaleString() + " G", "win");
       }
       case "beginPath": {
@@ -1483,12 +1570,19 @@ const Game = (() => {
         const request = typeof arg === "object" && arg !== null ? arg.request : w.serial + 1;
         if (!Number.isSafeInteger(request) || request < 1) return fail("사냥 시작 요청이 올바르지 않습니다.");
         if (request <= w.serial) {
-          if (request === w.lastStart?.request)
-            return { ok: true, message: s.hunt?.id === w.lastStart.id ? "진행 중이던 전투입니다." : "이미 처리한 사냥 시작입니다.", receipt: { ...w.lastStart } };
+          if (request === w.lastStart?.request) {
+            const pending = s.hunt?.id === w.lastStart.id;
+            // Exploration starts return the same receipt plus the event that was already drawn.
+            const explored = pending ? s.hunt.exploration :
+              s.lastHunt?.id === w.lastStart.id ? s.lastHunt.exploration : undefined;
+            if (explored) return { ok: true, message: pending ? "수레의 보상을 먼저 고르세요." : "이미 처리한 탐험입니다.",
+              receipt: { ...w.lastStart }, exploration: explorationEvent(explored) };
+            return { ok: true, message: pending ? "진행 중이던 전투입니다." : "이미 처리한 사냥 시작입니다.", receipt: { ...w.lastStart } };
+          }
           return fail("이미 처리한 이전 사냥 요청입니다.");
         }
         if (request !== w.serial + 1) return fail("최신 사냥 상태를 다시 확인하세요.");
-        if (s.hunt) return fail("이미 교전 중입니다.");
+        if (s.hunt) return fail(s.hunt.exploration ? "수레의 보상을 먼저 고르세요." : "이미 교전 중입니다.");
         const rank = Number(typeof arg === "object" && arg !== null ? arg.rank : arg);
         if (!Number.isInteger(rank) || rank < 1 || rank > Math.min(60, s.huntBest + 1))
           return fail("먼저 이전 지역을 토벌하세요.");
@@ -1502,6 +1596,15 @@ const Game = (() => {
           return fail("장비 보관함이 가득 찼습니다. 가득 찬 부위의 여분 장비를 분해하세요.");
         const trailBattle = bladeBattle || journeyBattle || arg?.combat === "trail-v1";
         if (bladeBattle && rank>blades.state(s).cleared+1) return fail("무기로 이전 지역을 먼저 토벌하세요.");
+        // Exploration is explicit opt-in. Every refusal happens before food is charged.
+        const exploring = typeof arg === "object" && arg !== null && arg.explore !== undefined;
+        if (exploring && (arg.explore !== explore.version || arg.combat !== explore.combat))
+          return fail("탐험 규칙을 확인하세요.");
+        if (exploring && !retry && explore.validLedger(w.exploration) && !Number.isSafeInteger(w.exploration.consumed + 1))
+          return fail("탐험 기록 한도에 도달했습니다. 저장 기록을 확인해 주세요.");
+        if (exploring && !Number.isSafeInteger(s.forestFiber + forestYield(rank)))
+          return fail("섬유 보관 한도에 도달했습니다. 사냥을 시작할 수 없습니다.");
+        const clearedBefore = bladeBattle ? blades.state(s).cleared : 0;
         const st = bladeBattle ? blades.skills(s) : trailBattle ? huntStats(s) : stats(s),
           enemyHp = 90 + Math.round(36 * (rank - 1) ** 1.65);
         const enemy = huntEnemy(rank);
@@ -1516,6 +1619,57 @@ const Game = (() => {
         s.huntNumber = (s.huntNumber || 0) + 1;
         if (s.weapon.route?.trait === "edge" && task?.open && rank >= task.needed)
           s.weapon.route.hunt = s.huntNumber;
+        let event = null, ledgerNote = "";
+        if (exploring) {
+          if (w.exploration === undefined) w.exploration = explore.freshLedger();
+          const ledger = w.exploration, ledgerOK = explore.validLedger(ledger);
+          // An invalid ledger is never repaired or advanced in play; it only disables food.
+          if (ledgerOK && (source === "free" || source === "purchased")) ledger.consumed++;
+          if (!ledgerOK) ledgerNote = " · 탐험 원장 확인 필요";
+          if (explore.eligible({ explore: arg.explore, combat: arg.combat, source, rank, cleared: clearedBefore })) {
+            const foodOK = ledgerOK && explore.foodPossible(ledger, w.free, hunting.cap);
+            const cooling = ledgerOK ? ledger.cartCooldown > 0 : [1, 2].includes(ledger?.cartCooldown);
+            const table = explore.tableKey(explore.phase(rank, clearedBefore), foodOK, cooling);
+            const roll = int(0, 99); // First draw after the charge, before any battle randomness.
+            const kind = explore.pick(table, roll);
+            if (ledgerOK) ledger.cartCooldown = explore.cooldownAfter(ledger.cartCooldown, kind);
+            event = { kind, table, roll, region: explore.region(rank), name: explore.findName(kind, rank) };
+          }
+        }
+        if (event && event.kind !== "combat") {
+          outfit.state(s);
+          const entry = { id: w.lastStart.id, request, ticketSource: source, number: s.huntNumber, rank,
+            blade: explorationBlade(s), hp: st.hp, maxHp: st.hp };
+          const exploration = { version: 1, ...event };
+          const place = trail.region(rank).name + " " + rank + "단계 탐험 · ";
+          const done = (message, kind) =>
+            ({ ...success(message + ledgerNote, kind), receipt: { ...w.lastStart }, exploration: explorationEvent(event) });
+          if (event.kind === "food") {
+            w.free++;
+            w.exploration.found++;
+            if (w.free >= hunting.cap) w.rechargeAt = null;
+            s.lastHunt = explorationResult(entry, { ...exploration, food: 1 }, 0);
+            completeExploration(s, rank);
+            return done(place + event.name + " · 식량 +1", "win");
+          }
+          const base = bladePrizeGold(rank, t);
+          const plan = pickGearPlan(huntGearPlans(s, rank, true), random);
+          if (event.kind === "treasure") {
+            const loot = explorationLoot(s, rank, plan, random);
+            const chest = rollChest(s, "forest", rank, base, 0, int, false);
+            Object.assign(chest, { materialRule: 1, entryId: entry.id, fiber: forestYield(rank),
+              exploration: { version: 1, kind: "treasure" }, huntLoot: loot });
+            creditChest(s, chest); // Fiber was checked before the charge.
+            s.lastHunt = explorationResult(entry, exploration, chest.gold, { receiptId: chest.id, ...loot });
+            completeExploration(s, rank);
+            return done(place + event.name + " · " + chest.gold.toLocaleString() + " G", "win");
+          }
+          const offer = rollChest(s, "forest", rank, base, 0, int, false);
+          Object.assign(offer, { materialRule: 1, entryId: entry.id, fiber: forestYield(rank) });
+          s.hunt = { ...entry, exploration: { ...exploration,
+            plan: { gear: [...plan.gear], outfit: plan.outfit ?? null }, offer, saleGold: base } };
+          return done(place + event.name + " · 보상을 하나 고르세요", "info");
+        }
         s.hunt = {
           id: w.lastStart.id,
           request,
@@ -1567,10 +1721,42 @@ const Game = (() => {
             s.hunt.armorDamageMultiplier = bossDamageMultiplier(s.armor.level, rank);
           trail.enter(s.hunt, 0);
         }
-        return { ...success(huntEnemy(s.hunt).habitat + " " + rank + "구역 사냥 시작 · " + (retry ? "지원 재도전 · 식량 소모 없음" : "식량 1개 사용")), receipt: { ...w.lastStart } };
+        const started = { ...success(huntEnemy(s.hunt).habitat + " " + rank + "구역 사냥 시작 · " + (retry ? "지원 재도전 · 식량 소모 없음" : "식량 1개 사용") + ledgerNote), receipt: { ...w.lastStart } };
+        if (event) started.exploration = explorationEvent({ ...event, name: huntEnemy(s.hunt).name });
+        return started;
+      }
+      case "huntChoose": {
+        const h = s.hunt, id = arg?.id, choice = arg?.choice;
+        if (!explore.choices.includes(choice)) return fail("수레의 두 보상 중 하나를 고르세요.");
+        const last = s.lastHunt;
+        if (!(h?.exploration?.kind === "cart" && h.id === id)) {
+          if (last?.exploration?.kind === "cart" && last.id === id) {
+            if (last.exploration.choice !== choice) return fail("이미 다른 보상을 골랐습니다.");
+            return { ok: true, repeated: true, message: "이미 받은 수레 보상입니다.", kind: "info", receipt: cartReceipt(last) };
+          }
+          return fail(h?.exploration ? "수레 정보가 바뀌었습니다. 현재 선택지를 확인하세요." : "고를 수레 보상이 없습니다.");
+        }
+        const e = h.exploration;
+        if (choice === "gear" && (blades.state(s).items.length >= 120 || blades.armors(s).length >= 120))
+          return fail("장비 보관함이 가득 찼습니다. 가득 찬 부위의 여분 장비를 분해하거나 금속을 파세요.");
+        if (!Number.isSafeInteger(s.forestFiber + e.offer.fiber))
+          return fail("섬유 보관 한도에 도달했습니다. 보상은 그대로 남습니다.");
+        const loot = explorationLoot(s, h.rank, choice === "gear" ? e.plan : { gear: [], outfit: null }, random);
+        const sale = choice === "gold" ? { saleGold: e.saleGold } : {};
+        const chest = { ...e.offer, charms: [...e.offer.charms], exploration: { version: 1, kind: "cart", choice, ...sale }, huntLoot: loot };
+        chest.gold += sale.saleGold || 0;
+        creditChest(s, chest);
+        s.lastHunt = explorationResult(h, { version: 1, kind: "cart", table: e.table, roll: e.roll, region: e.region,
+          name: e.name, choice, ...sale }, chest.gold, { receiptId: chest.id, ...loot });
+        completeExploration(s, h.rank);
+        s.hunt = null;
+        return { ...success(trail.region(h.rank).name + " " + h.rank + "단계 탐험 · " +
+          (choice === "gear" ? "장비 챙기기" : "금속 팔기") + " · " + chest.gold.toLocaleString() + " G", "win"),
+          receipt: cartReceipt(s.lastHunt) };
       }
       case "huntAdvance": {
         const h = s.hunt;
+        if (h?.exploration) return fail("탐험 보상을 먼저 고르세요.");
         if (!trail.awaitingNext(h) || arg?.id !== h.id || arg.wave !== h.wave ||
             h.wave + 1 >= trail.lineup(h.territoryRank || h.rank, h.bonusEncounter).length) return fail("이어질 조우가 없습니다.");
         trail.enter(h, h.wave + 1);
@@ -1587,6 +1773,7 @@ const Game = (() => {
       case "block": {
         const h = s.hunt;
         if (!h) return fail("먼저 사냥을 시작하세요.");
+        if (h.exploration) return fail("탐험 보상을 먼저 고르세요.");
         if (trail.awaitingNext(h)) return fail("다음 적을 기다리고 있습니다.");
         // Existing dice saves acquire optional skill state on their next committed turn.
         if(h.diceVersion===1){
@@ -1649,12 +1836,7 @@ const Game = (() => {
           };
           if (h.bladeCombat) {
             const firstClear = h.rank === 1 && blades.state(s).cleared === 0;
-            const plans = huntGearPlans(s, h.rank, Boolean(h.fieldKit));
-            let gearRoll = plans.length > 1 ? random() * 100 : 0;
-            const plan = plans.find(entry => {
-              gearRoll -= entry.chance;
-              return gearRoll < 0;
-            }) ?? plans.at(-1);
+            const plan = pickGearPlan(huntGearPlans(s, h.rank, Boolean(h.fieldKit)), random);
             const receipt = blades.rollReward(s,h,random,plan.gear);
             receipt.materialPrize += endgame.victory(s,h);
             receipt.bladePrize = blades.rewardText(receipt);
@@ -2064,6 +2246,12 @@ const Game = (() => {
     midRecovery,
     huntCharge,
     huntEnemy,
+    huntOutcome,
+    explorationPreview,
+    exploration: explore,
+    // D1 extraction seams, exposed so tests can verify their side-effect contract (E3 §7.0).
+    rollChest,
+    creditChest,
     trail,
     canStoreWeapon,
     canDive,

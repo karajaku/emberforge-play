@@ -21,8 +21,12 @@ function speech(who, text, action = "") {
     '" alt=""><div><b>' + CharcoalStory.names[who] + "</b><p>" + text + "</p>" +
     action + "</div></div>";
 }
+// A waiting exploration cart has no turn; only a battle can be charging.
+function huntCharging(s) {
+  return !!s.hunt && Number.isInteger(s.hunt.turn) && Game.huntCharge(s.hunt.turn);
+}
 function storyChat(s, place) {
-  const words = CharcoalStory.dialogue(s, place, s.hunt && Game.huntCharge(s.hunt.turn));
+  const words = CharcoalStory.dialogue(s, place, huntCharging(s));
   if (!words) return "";
   const [who, text, target] = words;
   const scenes = { bridge: "다리 건너 살펴보기", bundle: "꾸러미 풀어 보기", lesson: "작업대 살펴보기" };
@@ -41,7 +45,7 @@ function storyChat(s, place) {
   return '<aside class="story-chat" aria-label="동료 대화">' + speech(who, text, action) + "</aside>";
 }
 function phoneStoryButton(s, place) {
-  const words = CharcoalStory.dialogue(s, place, s.hunt && Game.huntCharge(s.hunt.turn));
+  const words = CharcoalStory.dialogue(s, place, huntCharging(s));
   if (!words) return "";
   const [who] = words;
   return '<button class="companion-button" data-open="companion" aria-label="' +

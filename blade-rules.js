@@ -277,18 +277,25 @@ const BladeRules = (() => {
     b.ore += ore;
     if (boss) b.seals++;
     const materialPrize = "각인석 +" + ore + (boss ? " · 우두머리 인장 +1" : "");
-    const base = 1 + Math.floor(((h.territoryRank || h.rank) - 1) / 5);
-    const gearDrops=[];
     const itemPercent = awardedTypes ? 100 : loot.dropOdds(h.rank,first).itemPercent;
+    const gearDrops = rollGear(s, h.rank, h.territoryRank, rng, awardedTypes ?? ["weapon","armor"], firstWeaponChoice, itemPercent);
+    return {gearDrops,materialPrize};
+  }
+  // Gear-only roll shared by combat rewards and exploration finds. It never touches progress,
+  // ore, seals, chests or gold; only item serials, the racks and the last weapon's kind change.
+  function rollGear(s, rank, territoryRank, rng, types, firstWeaponChoice, itemPercent = 100) {
+    const b = state(s);
+    const base = 1 + Math.floor(((territoryRank || rank) - 1) / 5);
+    const gearDrops=[];
     const armorRack=armors(s);
-    for (const type of awardedTypes ?? ["weapon","armor"]) {
+    for (const type of types) {
       if (itemPercent < 100 && rng()*100 >= itemPercent) continue;
       const isArmor=type==="armor";
       const id=isArmor ? "a"+ ++b.armorSerial : "b"+ ++b.serial;
-      const item=blade(id,base,h.rank);
+      const item=blade(id,base,rank);
       if (isArmor) item.type="armor";
       item.lootVersion=1;
-      item.grade=loot.rollGrade(h.rank,rng);
+      item.grade=loot.rollGrade(rank,rng);
       const rule=loot.baseGradeRules[item.grade];
       const count=integer(rule.min,rule.max,rng);
       for (let i=0;i<count;i++) addMod(item,null,rng);
@@ -302,7 +309,7 @@ const BladeRules = (() => {
       b.items.at(-1).weaponKind = kind;
       weaponDrop.weaponKind = kind;
     }
-    return {gearDrops,materialPrize};
+    return gearDrops;
   }
   function rewardText({gearDrops,materialPrize}) {
     const gear = gearDrops.map(item =>
@@ -533,7 +540,7 @@ const BladeRules = (() => {
     armorRate,
     skills,
     available, maxTier, integer, rollMod, rollValue, validMod,
-    reward, rollReward, rewardText,
+    reward, rollReward, rollGear, rewardText,
     act,
     valid,
   };

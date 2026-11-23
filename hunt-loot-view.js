@@ -6,7 +6,9 @@ const HuntLootView = (() => {
   function settled(s) {
     const chest = s.lastChest;
     if (chest?.source !== "forest" || !chest.id) return null;
-    const result = chest.huntLoot || (s.lastHunt?.chestId === chest.id && s.lastHunt);
+    // Exploration receipts carry their loot and are linked by receiptId instead of chestId.
+    const last = s.lastHunt;
+    const result = chest.huntLoot || ((last?.chestId === chest.id || last?.receiptId === chest.id) && last);
     return {chest, result:result || {}};
   }
 
@@ -69,6 +71,7 @@ const HuntLootView = (() => {
       result.outfitSalvaged && "착용 장비 자동 분해 · 각인석 +1",
       chest.fiber && "숲결 섬유 +"+fmt(chest.fiber),
       chest.goblinGold && "고블린 +"+fmt(chest.goblinGold)+" G 포함",
+      chest.exploration?.saleGold && "금속 판매 +"+fmt(chest.exploration.saleGold)+" G 포함",
       chest.shards && "별의 파편 +"+fmt(chest.shards),
       chest.scrolls && "주문서 +"+fmt(chest.scrolls),
       ...(chest.charms || []).map((n,i) => n && Game.blessings[i]+" +"+fmt(n)),
@@ -80,8 +83,10 @@ const HuntLootView = (() => {
 
   function resultView(s, receipt, active) {
     const chest = receipt.chest;
-    return '<div class="watch-receipt"><div class="watch-receipt-head"><b>'+chest.rank+'단계 클리어</b><strong>'+
-      icon("coins")+' +'+fmt(chest.gold)+' G</strong></div><div class="watch-loot">'+rewards(s,receipt)+'</div>'+
+    return '<div class="watch-receipt"><div class="watch-receipt-head"><b>'+chest.rank+(chest.exploration ? '단계 탐험 완료' : '단계 클리어')+'</b><strong>'+
+      icon("coins")+' +'+fmt(chest.gold)+' G</strong>'+
+      (chest.exploration?.kind === 'cart' ? '<small class="explore-result-kind">'+(chest.exploration.choice === 'gold' ? '금속 판매' : '장비 수령')+'</small>' : '')+
+      '</div><div class="watch-loot">'+rewards(s,receipt)+'</div>'+
       '<div class="loot-actions">'+openBtn("huntLoot",icon("backpack")+"최근 전리품","action")+
       (receipt.result.firstGearChoice ? openBtn("firstGearCompare","장비 비교","action") : "")+
       (!active && chest.fiber ? openBtn("bladeArmorLining",icon("shield")+"안감 제작","action lining-link") : '')+
@@ -91,7 +96,7 @@ const HuntLootView = (() => {
   function detailView(s) {
     if (!reading) return ["최근 전리품",desc("아직 수령한 전리품이 없습니다.")];
     const {chest,result} = reading;
-    return [chest.rank+"단계 전리품",'<div class="loot-history"><p class="loot-gold">'+icon("coins")+' +'+fmt(chest.gold)+
+    return [chest.rank+(chest.exploration ? "단계 탐험 전리품" : "단계 전리품"),'<div class="loot-history"><p class="loot-gold">'+icon("coins")+' +'+fmt(chest.gold)+
       ' G</p>'+rewards(s,reading,true)+(result.firstGearChoice ? openBtn("firstGearCompare","장비 비교") : "")+'</div>'];
   }
 

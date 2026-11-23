@@ -145,7 +145,7 @@ function scene(id, heading, english, loc, sprite = "", grade = 0, enemy = null, 
 }
 function adventureMap(s) {
   const details = {
-    forest: s.hunt ? s.hunt.rank + "구역 전투 중" : Math.min(60, s.huntBest + 1) + "구역 사냥",
+    forest: s.hunt ? s.hunt.rank + (s.hunt.exploration ? "단계 보상 선택" : "구역 전투 중") : Math.min(60, s.huntBest + 1) + "구역 사냥",
     mine: s.autoMine ? "자동 탐사 " + s.autoMine.completed + " / " + s.autoMine.limit : s.dive ? fmt(s.dive.depth) + " m 탐사 중" : Game.canDive(s.weapon) ? "산소통 " + fmt(s.tanks) + "개" : "+19 또는 베이스 II 이상 필요",
     tower: "무한의 탑 " + fmt(s.tower) + "층",
     altar: "별의 파편 " + fmt(s.shards) + "개",
@@ -462,6 +462,7 @@ function huntingWalletContent(s) {
     '<details class="hunt-wallet-help"><summary>사냥과 보급 안내</summary>' +
     desc("사냥에 나갈 때 식량을 1개 씁니다. 기본 비축분은 " + Game.hunting.cap + "개까지 자동 보급하며 출석으로 더 비축할 수 있습니다.") +
     desc("첫 5단계 지원 재도전은 식량이 1개 이상 있어야 출발할 수 있으며 식량을 쓰지 않습니다. 진행 재개와 배치 수익에도 식량을 쓰지 않습니다.") +
+    desc("탐험 중 식량을 찾을 수 있습니다. 찾은 양은 쓴 식량의 70%를 넘지 않습니다.") +
     (w.purchased ? line("별도 보관분", fmt(w.purchased) + "개 · 기본 비축분부터 사용") : "") + '</details></div>';
 }
 function huntModeControls(s) {
@@ -508,6 +509,9 @@ function forestView(s, health) {
   const canDepart = w.free + w.purchased > 0;
   const foodCost = (rank) => Game.hasBossRetry(s, rank) ? " · 식량 1개 필요, 소모 없음" : " · 식량 1개";
   let content;
+  // A waiting exploration cart has no turn, HP race or moves; it is chosen in the forest scene.
+  if (h?.exploration) return '<div class="stack hunt-stack">' + desc(h.rank + "단계 보상 선택 · 사냥터에서 하나를 고르세요.") +
+    go("forest", "사냥터로", "action") + '</div>';
   if (h) content = huntIntent(h) + '<div class="battle-controls">' + hud +
     (h.rank >= 2 ? huntTools(h) + huntChoices(h) : '<div class="actions">' +
       btn("strike", icon("sword") + (h.counter ? "반격 ×2.5" : "베기"), "", h.counter ? "primary grow counter-ready" : "primary grow") +
@@ -553,6 +557,10 @@ function chestReceipt(c) {
 }
 function huntResult(last, chests) {
   if (!last) return "";
+  // Exploration is never a defeat: it settled at once or by a cart choice.
+  if (last.exploration) return '<div class="hunt-result"><b>' + icon(last.reward ? "coins" : "trees") + last.rank + "단계 탐험 완료" +
+    (last.reward ? " · " + fmt(last.reward) + " G" : last.exploration.food ? " · 식량 +" + fmt(last.exploration.food) : "") + "</b><small>" +
+    escapeHtml(last.exploration.name || "") + (last.ticketSource ? " · 식량 1개 사용" : "") + "</small></div>";
   const chest = chests?.find(c => c.id === last.chestId);
   const title = chest ? "토벌 성공" : last.reward ? "토벌 · " + fmt(last.reward) + " G" : "패배";
   const bonus = last.bonus ? " (+" + fmt(last.bonus) + " G)" : "";
@@ -795,7 +803,7 @@ function zoneView(s, id) {
     ) +
     '</div><section class="panel"><h2>' +
     {
-      forest: s.hunt ? "토벌 중" : s.lastHunt ? "토벌 결과" : "토벌 준비",
+      forest: s.hunt ? (s.hunt.exploration ? "보상 선택" : "토벌 중") : s.lastHunt ? "토벌 결과" : "토벌 준비",
       mine: s.autoMine ? "자동 탐사" : s.dive ? "탐사 중" : "탐사 준비",
       tower: "등반 준비",
       altar: "장비 각성",

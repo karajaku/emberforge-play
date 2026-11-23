@@ -12,6 +12,8 @@ const RepeatHunting = (() => {
       const s = state();
       rank = Number(rank);
       if (run?.active || candidate || !allowed() || !Number.isInteger(rank) || rank < 1 || rank > Math.min(60, s.huntBest + 1)) return false;
+      // The legacy runner never sends explore-v1 and never resolves a waiting exploration cart.
+      if (s.hunt?.exploration) return false;
       if (s.hunt && s.hunt.rank !== rank) return false;
       const chest = !s.hunt && s.lastHunt?.rank === rank && s.chests.find(c => c.id === s.lastHunt.chestId && c.source === "forest");
       const w = game.huntingStatus(s, now);

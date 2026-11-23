@@ -15,7 +15,7 @@ const GameMusic = (() => {
     if (modal === "temper") return "forge";
     if (modal === "treasure") return "triumph";
     if (modal === "battle") return "battle";
-    if (route === "forest") return state.hunt && page !== "field" ? "battle" : "forest";
+    if (route === "forest") return state.hunt && !state.hunt.exploration && page !== "field" ? "battle" : "forest";
     if (route === "mine") return state.dive || state.autoMine ? "depths" : "mine";
     if (route === "tower") return state.towerRun || towerMode === "trial" ? "trial" : "tower";
     return ({ forge: "forge", world: "world", bag: "home", growth: "altar", altar: "altar" })[route] || "forge";

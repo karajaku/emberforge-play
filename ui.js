@@ -474,7 +474,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     }
     repeatHunting.stage(action, result, beforeHunt, arg);
     save();
-    HuntWatch.stageOutcome(beforeHuntHealth);
+    HuntWatch.stageOutcome(beforeHuntHealth, action, result);
     if (repeatGuard) {
       if (!result.ok) repeatHunting.stop(action === "openChest" ? "보물 수령 실패" : "입장 불가");
       else if (action === "huntStart" && repeatHunting.active) autoCombat.select("auto");
@@ -578,7 +578,9 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
         Impacts.play(document.querySelector("#modalBody .modal-scene"), kind);
       } else if (action === "huntStart" || action === "flee") Impacts.clear();
     }
-    if (!repeatGuard && action !== "temperStart" && !(result.ok && ["openChest", "openTowerChests"].includes(action)) && !result.battle && !result.impact && result.message)
+    // A settled cart choice is shown as the receipt in the forest itself, not as a second toast.
+    const sceneReceipt = result.ok && action === "huntChoose" && current() === "forest" && phonePage("forest") === "hunt";
+    if (!repeatGuard && action !== "temperStart" && !sceneReceipt && !(result.ok && ["openChest", "openTowerChests"].includes(action)) && !result.battle && !result.impact && result.message)
       notify(result.message + (shortOfGold ? " · 골드 부족으로 연속 강화 종료" : ""), result.promotion ? "forge-promotion" : forgeOutcome ? "forge-" + forgeOutcome : result.ok ? result.kind : "loss", forgeItemAction);
     if (result.ok && action !== "temperStart") {
       const stage = document.querySelector("#screen .scene");
@@ -712,7 +714,7 @@ function render() {
     view =
       adventureMap(state) +
       (phonePage(id) === "map" ? metrics(
-        metric("최고 토벌", state.huntBest ? state.huntBest + "구역" : "첫 도전"),
+        metric("최고 진행", state.huntBest ? state.huntBest + "단계" : "첫 도전"),
         metric("탑 입장권", fmt(state.tickets) + "장"),
         metric("배치한 검", state.field.length + "자루"),
       ) : section("대장간 게시판") +
@@ -784,7 +786,11 @@ function placeLesson() {
   const start = box(screen.querySelector(".watch-start"));
   const pager = box(screen.querySelector(".forge-layout .forge-item-pager")) ||
     box(screen.querySelector(".forge-layout .forge-slot-switch"));
-  if (start) {
+  const cart = box(screen.querySelector('.watch-arena[data-find="cart"]:has([data-explore-choice])'));
+  if (cart) {
+    set("forest", cart.left + 74, 140);
+    host.style.setProperty("--lesson-y", Math.round(cart.top + 64) + "px");
+  } else if (start) {
     set("forest", start.left + start.width / 2, Math.min(260, innerWidth - 24));
     const h = host.offsetHeight, w = host.offsetWidth, floor = start.top - 6, top = floor - h;
     host.style.setProperty("--lesson-y", Math.round(top) + "px");
@@ -1261,8 +1267,10 @@ function modalData() {
     case "huntPlan":
       return ["사냥 구역", HuntWatch.planView(s)];
     case "huntRules":
-      if (!s.hunt || s.hunt.diceVersion === 2) return ["숲 사냥",
+      // A waiting cart is not a battle; it reads the current forest rules and exploration odds.
+      if (!s.hunt || s.hunt.exploration || s.hunt.diceVersion === 2) return ["숲 사냥",
         desc("사냥 버튼을 짧게 누르면 이번 단계를 끝내고, 1초 꾹 누르면 다음 단계까지 이어서 사냥합니다. 사냥 중에 다시 누르면 멈춥니다.") +
+        HuntWatch.exploreRules(s) +
         line("공격 d20", "1은 빗나감 · 20은 치명타") +
         desc("타격 순간에 공격 눈과 판정, 피해를 표시합니다. 공격 주사위와 기술 보정의 합이 방어 d6으로 정한 목표 이상이면 명중하며, 명중한 공격에는 무기의 치명타 확률이 적용됩니다. 예고된 적 기술에는 방어 보정이 붙고 반격 검술은 보정이 더 큽니다. 우두머리의 기술을 완전히 막으면 두 굴림을 중앙에 잠깐 표시합니다. 방어 눈과 목표는 사냥을 중단한 뒤 사냥 구역에서 확인할 수 있습니다.") +
         desc("사냥에 나갈 때 식량을 1개 씁니다. 진행 중인 사냥은 식량이 없어도 재개할 수 있습니다. 다섯 단계마다 우두머리를 만납니다. 무기와 방어구는 보관함에서 비교하고 장착합니다.") + openBtn("bladeStyles","검술과 능력 확인")];
