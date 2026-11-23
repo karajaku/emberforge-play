@@ -187,43 +187,118 @@ function storageAction(action) {
   }, true);
 }
 const toast = el("toast");
-let toastTimer = 0, toastDrag = null;
-
+let toastTimer = 0, toastRevision = 0, toastDeadline = 0, toastRemaining = 4500, toastPaused = false;
+function dismissToast() {
+  clearTimeout(toastTimer);
+  toast.classList.remove("on");
+  el("noticeSlot").hidden = true;
+  requestAnimationFrame(fitNoticeRails);
+  document.querySelectorAll(".has-notice").forEach(node => node.classList.remove("has-notice"));
+}
+// Bound side actions by the measured caption, including wrapped names and summaries.
+let forgeRailObserver;
+function fitNoticeRails() {
+  const layout = document.querySelector('#screen > .forge-layout');
+  const stage = layout?.querySelector('.stage-side');
+  const caption = stage?.querySelector('.forge-slide .caption, .scene .caption');
+  if (!stage || !caption) return;
+  let right = stage.querySelector('.forge-dispose-rail');
+  const duel = stage.querySelector(':scope > .ui-daily-duel');
+  if (duel) {
+    if (!right) {
+      right = document.createElement('nav');
+      right.className = 'ui-forge-rail forge-dispose-rail';
+      right.setAttribute('aria-label', '대장간 추가 작업');
+      stage.append(right);
+    }
+    right.setAttribute('aria-label', '대장간 추가 작업');
+    right.prepend(duel);
+  }
+  const rails = [...stage.querySelectorAll('.ui-forge-rail')];
+  if (!rails.length) return;
+  for (const rail of rails) rail.classList.remove('notice-bounded');
+  const defaultTop = parseFloat(getComputedStyle(rails[0]).top);
+  const origin = stage.getBoundingClientRect();
+  const top = layout.classList.contains('has-notice') ? el('noticeSlot').getBoundingClientRect().bottom + 4 : origin.top + defaultTop;
+  const height = Math.max(0, caption.getBoundingClientRect().top - 4 - top);
+  for (const rail of rails) {
+    rail.classList.add('notice-bounded');
+    rail.style.setProperty('--notice-rail-top', (top - origin.top) + 'px');
+    rail.style.setProperty('--notice-rail-height', height + 'px');
+    rail.classList.remove('notice-compact');
+    if (rail.scrollHeight > rail.clientHeight + 1) rail.classList.add('notice-compact');
+    if (!rail.dataset.noticeScroll) {
+      rail.dataset.noticeScroll = 'true';
+      const indicators = () => {
+        rail.classList.toggle('can-scroll-up', rail.scrollTop > 1);
+        rail.classList.toggle('can-scroll-down', rail.scrollTop + rail.clientHeight < rail.scrollHeight - 1);
+      };
+      rail.addEventListener('scroll', indicators, {passive:true});
+      rail.addEventListener('focusin', event => {
+        const button = event.target.closest('button');
+        if (!button) return;
+        revealNoticeRailButton(button);
+      });
+    }
+    if (rail.contains(document.activeElement)) revealNoticeRailButton(document.activeElement);
+    rail.classList.toggle('can-scroll-up', rail.scrollTop > 1);
+    rail.classList.toggle('can-scroll-down', rail.scrollTop + rail.clientHeight < rail.scrollHeight - 1);
+  }
+}
+function revealNoticeRailButton(button) {
+  const rail = button.closest('.notice-bounded');
+  if (!rail) return;
+  const b = button.getBoundingClientRect(), r = rail.getBoundingClientRect();
+  if (b.top < r.top) rail.scrollTop -= Math.ceil(r.top - b.top);
+  else if (b.bottom > r.bottom) rail.scrollTop += Math.ceil(b.bottom - r.bottom);
+}
+function observeNoticeRails() {
+  forgeRailObserver?.disconnect();
+  forgeRailObserver = new ResizeObserver(fitNoticeRails);
+  for (const node of document.querySelectorAll('#screen > .forge-layout .stage-side, #screen > .forge-layout .caption')) forgeRailObserver.observe(node);
+  fitNoticeRails();
+}
+window.addEventListener('resize', fitNoticeRails);
+function placeToast() {
+  const slot = el("noticeSlot");
+  // Keep the live region outside replaced screen/modal markup while rendering.
+  if (!toast.classList.contains("on")) return;
+  document.querySelectorAll(".has-notice").forEach(node => node.classList.remove("has-notice"));
+  const inModal = !el("shade").hidden;
+  if (inModal && (modal.startsWith("blade") || modal.startsWith("soul:") ||
+      modal.startsWith("outfit:") || modal.startsWith("inventory-") || modal === "storyScene")) { dismissToast(); return; }
+  const host = inModal ? el("modalBody") :
+    document.querySelector("#screen > .forge-layout") || el("screen");
+  host.prepend(slot);
+  host.classList.add("has-notice");
+  slot.hidden = false;
+  requestAnimationFrame(() => { fitNoticeRails(); scheduleToastDismissal(); });
+}
 function scheduleToastDismissal() {
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove("on"), 4500);
-}
-function resetToastDrag() {
-  if (!toastDrag) return;
-  const { id } = toastDrag;
-  toastDrag = null;
-  if (toast.hasPointerCapture(id)) toast.releasePointerCapture(id);
-  toast.classList.remove("dragging");
-  toast.style.removeProperty("--toast-drag-y");
-}
-toast.addEventListener("pointerdown", event => {
-  if (!event.isPrimary || event.button !== 0 || toastDrag || !toast.classList.contains("on")) return;
-  clearTimeout(toastTimer);
-  toastDrag = { id: event.pointerId, x: event.clientX, y: event.clientY };
-  toast.setPointerCapture(event.pointerId);
-  toast.classList.add("dragging");
-});
-function trackToastDrag(event) {
-  if (event.pointerId !== toastDrag?.id) return;
-  const rise = toastDrag.y - event.clientY;
-  const tracking = event.type === "pointermove" || event.type === "pointerup";
-  const dismiss = tracking && rise >= 28 && rise > Math.abs(event.clientX - toastDrag.x);
-  if (!dismiss && event.type === "pointermove") {
-    toast.style.setProperty("--toast-drag-y", -Math.max(0, rise) + "px");
+  const body = el("noticeText"), revision = toastRevision;
+  const overflowing = body.scrollHeight > body.clientHeight + 1;
+  body.setAttribute("aria-label", overflowing ? "알림 내용 · 위아래로 스크롤하여 전체 읽기" : "알림 내용");
+  if (!toast.classList.contains("on")) return;
+  const reading = overflowing || toast.matches(":hover, :focus-within");
+  if (reading) {
+    if (!toastPaused && toastDeadline) toastRemaining = Math.max(0, toastDeadline - performance.now());
+    toastPaused = true;
+    toastDeadline = 0;
     return;
   }
-  resetToastDrag();
-  if (dismiss) toast.classList.remove("on");
-  else scheduleToastDismissal();
+  if (toastPaused || !toastDeadline) toastDeadline = performance.now() + toastRemaining;
+  toastPaused = false;
+  toastTimer = setTimeout(() => { if (revision === toastRevision) dismissToast(); }, Math.max(0, toastDeadline - performance.now()));
 }
-for (const type of ["pointermove", "pointerup", "pointercancel", "lostpointercapture"]) {
-  toast.addEventListener(type, trackToastDrag);
-}
+el("noticeClose").addEventListener("click", dismissToast);
+toast.addEventListener("pointerenter", scheduleToastDismissal);
+toast.addEventListener("focusin", scheduleToastDismissal);
+toast.addEventListener("pointerleave", scheduleToastDismissal);
+toast.addEventListener("focusout", () => requestAnimationFrame(scheduleToastDismissal));
+toast.addEventListener("keydown", event => {
+  if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); dismissToast(); }
+});
 function notify(msg, kind = "info", forgeItem = false) {
   if (HuntWatch.active && current() === 'forest' && !modal) return;
   if (!msg) return;
@@ -234,17 +309,22 @@ function notify(msg, kind = "info", forgeItem = false) {
       status.id="bladeActionStatus"; status.setAttribute("role","status");
       el("modalBody").prepend(status);
     }
-    toast.classList.remove("on");
+    dismissToast();
     status.textContent=msg;
     return;
   }
-  resetToastDrag();
+  clearTimeout(toastTimer);
+  toastRevision++;
+  toastRemaining = 4500;
+  toastDeadline = performance.now() + toastRemaining;
+  toastPaused = false;
   const titles = { "forge-success": "강화 성공", "forge-hold": "강화 유지",
     "forge-drop": "강화 하락", "forge-destroy": "장비 파괴", "forge-promotion": "검 승급", loss: "주의", win: "획득 · 완료" };
-  el("noticeTitle").textContent = titles[kind] || "알림";
+  el("noticeTitle").textContent = titles[kind] || "";
   el("noticeMessage").textContent = msg;
   toast.className = "on " + kind + (forgeItem ? " forge-item-notice" : "");
-  scheduleToastDismissal();
+  el("noticeText").scrollTop = 0;
+  placeToast();
 }
 function sound(kind, delay = 0) {
   if (prefs.sound && !document.hidden) GameSound.play(kind, delay);
@@ -635,11 +715,14 @@ function render() {
       orderView(state));
   const screen = el("screen");
   const huntButtonFocused = document.activeElement?.matches(".watch-start");
+  document.body.append(el("noticeSlot"));
   screen.innerHTML = view;
   if (huntButtonFocused) screen.querySelector(".watch-start")?.focus({ preventScroll: true });
   bindOutfitQuotes(screen);
   renderLesson();
   GameUI.shell();
+  observeNoticeRails();
+  placeToast();
   autoStory();
   bindForgeRequests(screen);
   syncMusic();
@@ -1134,6 +1217,7 @@ function displayModal() {
   else delete titleNode.dataset.rarity;
   if (rarity) titleNode.setAttribute("aria-label", title + " · " + rarity.name);
   else titleNode.removeAttribute("aria-label");
+  document.body.append(el("noticeSlot"));
   el("modalBody").innerHTML = html;
   for (const button of el("modalBody").querySelectorAll("[data-soul-act]"))
     button.soulQuote = soulQuote(state, JSON.parse(button.dataset.soulArg));
@@ -1145,6 +1229,7 @@ function displayModal() {
     updateSaleQuote(true);
   }
   el("shade").hidden = false;
+  placeToast();
   document.body.style.overflow = "hidden";
   syncMusic();
 }
@@ -1194,6 +1279,7 @@ function closeModal(focus = true) {
   storyScene = null;
   battle = null;
   el("shade").hidden = true;
+  placeToast();
   document.body.style.overflow = "";
   syncMusic();
   if (provisionDialog) HuntWatch.refreshWallet();

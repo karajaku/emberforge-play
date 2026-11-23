@@ -48,10 +48,6 @@
 .ui-game .forge-item-browser:has(.ui-daily-duel) .forge-dispose-rail { margin-top:66px; }
 .forge-empty-message { margin:auto; display:grid; justify-items:center; gap:12px; }
 .forge-empty-message b { color:#fff1d5; }
-body.ui-game[data-place="forge"] #noticeSlot:has(.forge-item-notice) { top:37%; pointer-events:none; }
-#toast.forge-item-notice.on { width:max-content; max-width:calc(100vw - 125px); min-height:0; padding:7px 11px; pointer-events:none; text-align:center; }
-#toast.forge-item-notice #noticeTitle, #toast.forge-item-notice::after { display:none; }
-body:has(#shade:not([hidden])) #toast.forge-item-notice { visibility:hidden; }
 #shade[data-modal="forgeItem:filter"] {
   align-items:start;
   overflow-y:auto;
@@ -256,7 +252,6 @@ body.ui-game { grid-template-rows:auto minmax(0,1fr) auto auto; }
 .ui-game #screen .metric small { color:#bdb69f; }
 .ui-game .gear-switch { width:205px;top:0;background:#20302de8; }
 .ui-game .forge-slot-switch { width:min(290px,100%); }
-.ui-game[data-place="forge"][data-page="work"] #noticeSlot { top:calc(env(safe-area-inset-top) + 112px); }
 .forge-slot-switch button { white-space:nowrap; }
 .forge-slot-grid .bag-worn-slot[aria-pressed="true"] { box-shadow:inset 0 0 0 2px #18261f; background:#38463c; }
 .forge-slot-grid .bag-worn-slot[aria-pressed="true"]::after {
@@ -576,6 +571,72 @@ body:has(#shade:is([data-modal^="blade"],[data-modal^="outfit:"],[data-modal^="i
 .gear-worn-stats thead { background:#e5e9dc; color:#374834; }
 .gear-worn-stats td { font-weight:600; }
 
+/* T1: one in-flow notification surface; fixed HUD and primary actions keep their seats. */
+.ui-game #noticeSlot { position:relative; inset:auto; width:auto; height:48px; min-height:48px; margin:0 8px 4px; padding:0; pointer-events:auto; }
+.ui-game #noticeSlot[hidden] { display:none; }
+.ui-game #toast, .ui-game #toast.on, .ui-game #toast.forge-item-notice.on {
+  display:flex; flex-direction:row; align-items:center; text-shadow:none; gap:4px; position:relative; inset:auto; transform:none;
+  width:100%; max-width:none; height:48px; min-height:48px; padding:0 0 0 8px;
+  border:1px solid #efd7a4; border-left:3px solid var(--fx,#c99a4e); border-image:none;
+  border-radius:8px; text-align:left; touch-action:pan-y; user-select:text; -webkit-user-select:text;
+  transition:none; pointer-events:auto; box-shadow:none;
+}
+.ui-game #toast::after { display:none; }
+.ui-game #noticeText { flex:1; min-width:0; max-height:36px; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; touch-action:pan-y; font:13px/18px var(--sans); overflow-wrap:anywhere; word-break:keep-all; white-space:normal; }
+.ui-game #noticeMessage { display:inline; font:inherit; white-space:normal; overflow:visible; text-overflow:clip; }
+.ui-game #toast #noticeTitle { display:inline; font:700 13px/18px var(--sans); }
+.ui-game #noticeTitle:empty { display:none; }
+.ui-game #noticeClose { display:grid; place-items:center; flex:0 0 44px; width:44px; height:44px; min-height:44px; padding:0; margin:0; border:0; border-radius:6px; background:transparent; color:inherit; font-size:24px; box-shadow:none; }
+.ui-game #noticeText:focus-visible,.ui-game #noticeClose:focus-visible { outline:2px solid #76551c; outline-offset:-2px; }
+.ui-game #screen > .forge-layout > #noticeSlot { position:absolute; top:50px; left:max(8px,env(safe-area-inset-left)); right:max(8px,env(safe-area-inset-right)); margin:0; z-index:5; }
+.ui-game #screen > .forge-layout.has-notice .stage-side { padding-top:102px; }
+.ui-game .forge-layout.has-notice :is(.ui-forge-rail,.ui-daily-duel) { top:142px; }
+.ui-game #screen > .forge-layout.has-notice .stage-side .scene { min-height:0; }
+.ui-game #screen.has-notice { display:flex; flex-direction:column; min-height:0; }
+/* Only the forest scene absorbs the notice height; list pages keep intrinsic section heights and #screen scrolling. */
+.ui-game #screen.has-notice > .watch-ground { flex:1; min-height:0; }
+.ui-game #modalBody > #noticeSlot { inset:auto; margin:4px 0; }
+body.ui-game:has(#shade:not([hidden])) #modalBody #toast { visibility:visible; }
+@media(max-height:660px) {
+  .ui-game .forge-item-browser.has-notice :is(.ui-forge-rail,.ui-daily-duel) { top:108px; }
+}
+
+.ui-game #screen > .forge-layout { position:relative; }
+
+/* T2: scroll only side actions, between the notice and the entire equipment caption.
+   Side marks indicate further content without covering buttons or equipment. */
+.ui-game .forge-layout .ui-forge-rail.notice-bounded {
+  top:var(--notice-rail-top); height:var(--notice-rail-height); max-height:var(--notice-rail-height);
+  margin-top:0; display:flex; flex-direction:column; justify-content:flex-start;
+  overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; touch-action:pan-y;
+  scrollbar-width:thin; width:64px; padding:0 3px 1px; box-sizing:border-box;
+}
+.ui-game .forge-layout .notice-bounded > button {
+  flex:0 0 auto; min-width:44px; transition:none;
+}
+.ui-game .forge-layout .notice-bounded.notice-compact { gap:3px; }
+.ui-game .forge-layout .notice-bounded.notice-compact > button { height:44px; min-height:44px; }
+.ui-game .forge-layout .notice-bounded > .ui-daily-duel { position:static; margin:0; width:57px; }
+.ui-game .forge-layout .notice-bounded {
+  --rail-up:transparent; --rail-down:transparent; border:0;
+  background:linear-gradient(var(--rail-up),var(--rail-up)) left top / 2px 10px no-repeat,
+    linear-gradient(var(--rail-down),var(--rail-down)) left bottom / 2px 10px no-repeat;
+}
+.ui-game .forge-layout .notice-bounded.can-scroll-up { --rail-up:#efcf8c; }
+.ui-game .forge-layout .notice-bounded.can-scroll-down { --rail-down:#efcf8c; }
+@media(max-height:660px) {
+  /* Remove only empty space above caption ink; text size, width and content stay intact. */
+  .ui-game .forge-item-browser.has-notice .scene .caption { padding-top:0; padding-bottom:0; }
+  .ui-game .forge-item-browser.has-notice .forge-item-summary,
+  .ui-game .forge-item-browser.has-notice .forge-item-summary b { line-height:1.3; }
+}
+@media(min-height:661px) {
+  .ui-game .forge-layout .notice-bounded:not(.notice-compact) > .ui-daily-duel { min-height:52px; height:52px; }
+}
+@media(max-height:660px) {
+  .ui-game .forge-layout .notice-bounded > button { min-height:44px; height:44px; }
+}
+.ui-game .forge-layout .notice-bounded button:focus-visible { outline-offset:-3px; }
 /* Explicitly located guidance floats over unused upper scene space; controls stay put. */
 .ui-game #apprentice:not([hidden]) {
   position:fixed; grid-row:auto; top:112px; left:78px; right:78px; width:auto;
