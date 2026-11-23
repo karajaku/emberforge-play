@@ -85,6 +85,17 @@ const GameUI = (() => {
           craft.insertAdjacentHTML('beforeend','<small>+'+Swordcraft.stages[0].target+' 제작</small>');
         }
       }
+      const orderButton = rail.querySelector('[data-go="forge/orders"]');
+      if (orderButton) {
+        const order = Game.currentOrder(state);
+        const progress = order ? Math.max(0, Math.min(1, state.best / order[0])) : 1;
+        const description = !order ? '모든 의뢰 완료' : state.best >= order[0] ? '보상 수령 가능' :
+          '진척도 ' + state.best + ' / ' + order[0];
+        orderButton.classList.add('forge-order-progress');
+        orderButton.setAttribute('aria-label', '의뢰 · ' + description);
+        orderButton.insertAdjacentHTML('beforeend', '<span class="order-menu-track" aria-hidden="true"><i style="width:' +
+          progress * 100 + '%"></i></span>');
+      }
       stage.append(rail);
       if (!archiveBlade) stage.insertAdjacentHTML("beforeend",ForgeItemView.disposalButtons());
       if (state.best > 0) {
