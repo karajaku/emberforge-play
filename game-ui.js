@@ -46,12 +46,12 @@ const GameUI = (() => {
     let tools=document.querySelector('.ui-utilities');
     if(!tools) {
       tools=document.createElement('details');tools.className='ui-utilities';
-      tools.innerHTML='<summary aria-label="이야기, 기록, 수업 메뉴">'+icon('menu')+'</summary><div class="ui-utility-content"></div>';
+      tools.innerHTML='<summary>'+icon('menu')+'<span>메뉴</span></summary><div class="ui-utility-content">'+openBtn('settings',icon('settings')+'설정','ghost')+'</div>';
       document.querySelector('header .headwrap').append(tools);
     }
     const content=tools.querySelector('.ui-utility-content');
     const titleActions=document.querySelector('#title .title-actions');
-    content.querySelector('.title-actions')?.remove();if(titleActions)content.prepend(titleActions);
+    content.querySelector('.title-actions')?.remove();if(titleActions)content.append(titleActions);
     if(current()==='forge'&&phonePage('forge')==='work') {
       const rail=document.createElement('nav');rail.className='ui-forge-rail';rail.setAttribute('aria-label','대장간 작업');
       const armor = gear === "armor";
@@ -108,6 +108,11 @@ const GameUI = (() => {
     }
     const growth=document.querySelector('.progression-stage');if(growth)growth.innerHTML=icon('sparkles');
   }
+  // Safari may not synthesize click for a tap on non-interactive scene/HUD content.
+  document.addEventListener('pointerdown',event=>{
+    const menu = document.querySelector('.ui-utilities[open]');
+    if (menu && !menu.contains(event.target)) menu.open = false;
+  },true);
   document.addEventListener('click',event=>{
     const menu = document.querySelector('.ui-utilities[open]');
     if (menu && (!menu.contains(event.target) || event.target.closest('[data-go],[data-open],[data-lesson]'))) menu.open = false;

@@ -216,13 +216,14 @@ body.ui-game { --text:#f4ead4;--muted:#c1b69e;--gold:#e4be79;--mint:#91d9b6; }
 .ui-game .wallet b { color:#f9e4b8; }
 .ui-game .wallet { flex:1;justify-content:center; }
 .ui-game .resources { gap:6px; }
-.ui-game #settingsIcon { width:44px; }
 .ui-game .ui-utilities { position:relative;flex:none;z-index:50; }
-.ui-utilities summary { display:grid;place-items:center;width:44px;height:44px;padding:0;border:1px solid #947c55;border-radius:10px;background:#29342f;color:#e5c78f;list-style:none;cursor:pointer; }
+.ui-utilities summary { display:flex;align-items:center;justify-content:center;gap:4px;min-width:76px;height:44px;padding:0 8px;border:1px solid #947c55;border-radius:10px;background:#29342f;color:#e5c78f;font-size:13px;white-space:nowrap;list-style:none;cursor:pointer; }
 .ui-utilities summary::-webkit-details-marker { display:none; }
 .ui-utilities summary svg { width:24px;height:24px; }
-.ui-utility-content { position:absolute;right:0;top:51px;width:220px;padding:12px;background:#202b2b;border:1px solid #a88b59;border-radius:12px;box-shadow:0 8px 24px #0009; }
-.ui-game .ui-utility-content .title-actions { display:grid;gap:8px; }
+.ui-utility-content { position:absolute;right:0;top:51px;width:220px;max-width:calc(100vw - 20px);max-height:calc(100dvh - 80px - env(safe-area-inset-top,0px));overflow-y:auto;padding:12px;background:#202b2b;border:1px solid #a88b59;border-radius:12px;box-shadow:0 8px 24px #0009; }
+.ui-game .ui-utility-content > [data-open="settings"] { width:100%;margin-bottom:8px; }
+.ui-game .ui-utility-content button { min-width:44px;min-height:44px;font-size:13px;justify-content:flex-start; }
+.ui-game .ui-utility-content .title-actions { display:grid;gap:8px;justify-content:stretch; }
 .ui-game .ui-utility-content .title-actions button { font-size:13px;justify-content:flex-start; }
 body.ui-game { grid-template-rows:auto minmax(0,1fr) auto auto; }
 .ui-game #mobileNav { grid-row:4; }

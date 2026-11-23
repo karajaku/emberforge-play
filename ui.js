@@ -1678,7 +1678,6 @@ window.addEventListener("emberforge-rules-updated", () => {
 });
 el("brandIcon").innerHTML = icon("anvil");
 el("coinIcon").innerHTML = icon("coins");
-el("settingsIcon").innerHTML = icon("settings");
 locked(() => {
   state = readState();
   if (!state) { state = Game.freshJourney(); save(); }
