@@ -27,11 +27,9 @@ const BladeView = (() => {
   }
   function forge(s, quote) {
     const b = rules(), item = quote.item, style = b.state(s).style;
-    const finished = item.level === 20, rate = quote.success;
+    const finished = item.level === 20;
     const next = finished ? "" : ' <span class="mint">→ ' + fmt(b.attack(item, item.level + 1)) + "</span>";
-    const odds = finished ? "<b>무기 완성</b><span>최고 강화 +20</span>" :
-      "<b>강화 +" + item.level + " → +" + (item.level + 1) + '</b><div class="odds-bar" aria-hidden="true"><i class="odds-success" style="width:' +
-      pct(rate) + '"></i><i class="odds-hold" style="width:' + pct(100-rate) + '"></i></div><span>성공 ' + pct(rate) + " · 유지 " + pct(100-rate) + "</span>";
+    const odds = finished ? "<b>무기 완성</b><span>최고 강화 +20</span>" : ForgeItemView.odds(quote);
     const main = ForgeItemView.strike(s,quote);
     return '<div class="columns forge-layout blade-layout"><div class="stage-side">' + switches("weapon") +
       scene("forge", label(item), "", b.baseGradeNames[item.grade] + " · " + b.styles[style] + " 검술", sprite(item), 0, null, "", item) + '</div><section class="panel"><div class="stats">' +
@@ -42,11 +40,8 @@ const BladeView = (() => {
   function armor(s,quote) {
     const b=rules(), item=quote.item, stats=b.armorStats(s,item), done=item.level>=20;
 
-    const rate=quote.success;
     const readout=line("흉갑 방어력",fmt(b.armorRating(item))+(done?"":' <span class="mint">→ '+fmt(b.armorRating(item,item.level+1))+'</span>'));
-    const meter=done ? "<b>방어구 완성</b><span>숲 적용 +20</span>" :
-      "<b>강화 +"+item.level+" → +"+(item.level+1)+'</b><div class="odds-bar" aria-hidden="true"><i class="odds-success" style="width:'+pct(rate)+
-      '"></i><i class="odds-hold" style="width:'+pct(100-rate)+'"></i></div><span>성공 '+pct(rate)+' · 유지 '+pct(100-rate)+'</span>';
+    const meter=done ? "<b>방어구 완성</b><span>숲 적용 +20</span>" : ForgeItemView.odds(quote);
     const button=ForgeItemView.strike(s,quote);
     return '<div class="columns forge-layout blade-layout"><div class="stage-side">'+switches("armor")+
       scene("forge",label(item),"",b.baseGradeNames[item.grade]+" · 착용 방어력 "+fmt(stats.armorRating),"cuirass",0,null,"",item)+'</div><section class="panel"><div class="stats">'+
@@ -203,7 +198,7 @@ const BladeView = (() => {
     if (key.startsWith("bladeLoot-")) return lootPreview(s, Number(key.slice(10)));
     if (key === "bladeWork") return craftWorkshop({...s,weapon:item},true);
     if (key === "bladeFinal") return finalWorkshop({...s,weapon:item},true);
-    if (key === "bladeInfo") return [label(item), info(s,item)+desc("실패하면 강화비를 쓰고 현재 강화를 유지합니다.")+openBtn("bladeCraft","각인·연마"),b.itemRarity(item)];
+    if (key === "bladeInfo") return [label(item), info(s,item)+desc(b.destroyRate(item) > 0 ? "실패하면 강화비를 쓰고 현재 강화를 유지하거나, 파괴 "+pct(b.destroyRate(item))+" 확률로 강화 단계만 +0이 됩니다. 장비는 남습니다." : "실패하면 강화비를 쓰고 현재 강화를 유지합니다.")+openBtn("bladeCraft","각인·연마"),b.itemRarity(item)];
     if (key === "bladeStyles") return ["검술 선택",styles(s)];
     if (key === "bladeCraft") return ["무기 제작",workshop(s)];
     if (key === "bladeCollection") return ["무기 보관함",collection(s)];

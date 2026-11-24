@@ -394,7 +394,8 @@ const HuntWatch=(()=>{
     const useD20=!encounter || encounter.diceVersion===2;
     const useDice=encounter?.diceVersion===1;
     const item=Game.blades.current(s);
-    const blade=encounter ? Game.huntBlade(s,encounter) : {name:Game.blades.name(item),level:item.level,weaponKind:item.weaponKind,stage:Game.bladeStage({level:item.level,grade:0})};
+    // A held fight is compared against the gear worn now, so its name tag shows that gear as well.
+    const blade=encounter && !encounter.powerHeld ? Game.huntBlade(s,encounter) : {name:Game.blades.name(item),level:item.level,weaponKind:item.weaponKind,stage:Game.bladeStage({level:item.level,grade:0})};
     const fightingItem = encounter?.bladeId ? Game.blades.state(s).items.find(it => it.id === encounter.bladeId) :
       encounter ? null : item;
     const sprite=BladeView.sprite(blade,blade.stage || 0);

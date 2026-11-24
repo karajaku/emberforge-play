@@ -57,7 +57,6 @@ const OutfitView = (() => {
     const done = item?.level === 20, detail = item ? ForgeItemView.detailKey(quote) : "outfit:slot:" + key;
     let readout, odds, strike;
     if (item) {
-      const {success} = quote;
       const stat = item.mode === "expose" ? "exposure" : "conversion";
       const name = api().elements[item.element] + (stat === "exposure" ? " 저항 감소" : " 피해 전환");
       const next = api().effect({...item,level:item.level + 1});
@@ -66,9 +65,7 @@ const OutfitView = (() => {
       const rating = Game.blades.armorRating(item);
       if (rating) readout = line("방어력", fmt(rating) + (done ? "" : ' <span class="mint">→ ' +
         fmt(Game.blades.armorRating(item,item.level+1)) + '</span>'));
-      odds = done ? '<b>최고 강화 +20</b>' :
-        "<b>강화 +" + item.level + " → +" + (item.level + 1) + '</b><div class="odds-bar" aria-hidden="true"><i class="odds-success" style="width:' +
-        pct(success) + '"></i><i class="odds-hold" style="width:' + pct(100-success) + '"></i></div><span>성공 ' + pct(success) + " · 유지 " + pct(100-success) + "</span>";
+      odds = done ? '<b>최고 강화 +20</b>' : ForgeItemView.odds(quote);
       strike = ForgeItemView.strike(s,quote);
     } else {
       const spare = kit.items.some(it => it.kind === slot.kind && !slotFor(s,it.id));
@@ -148,8 +145,12 @@ const OutfitView = (() => {
       if (kind) body += line("유리한 사냥터",area.name + " · " + Game.trail.enemy(region,kind).name);
     }
     if (current) {
-      body += item.level < 20 ? btn("outfitForge","재련 +" + (item.level + 1) + " · " + fmt(q.cost) + " G · 성공 " + pct(q.success),
-        item.id,"primary",s.gold < q.cost) : line("재련","최고 단계 +20");
+      // A level that can reset the item is struck only at the forge, where the odds, notice and result are shown.
+      body += item.level >= 20 ? line("재련","최고 단계 +20") : q.destroy > 0 ?
+        line("재련 +" + (item.level + 1), "성공 " + pct(q.success) + ' · <b data-tone="down">파괴 ' + pct(q.destroy) + '</b>') +
+          '<button class="primary" data-forge-item="' + item.id + '">' + icon("hammer") + '대장간에서 강화</button>' :
+        btn("outfitForge","재련 +" + (item.level + 1) + " · " + fmt(q.cost) + " G · 성공 " + pct(q.success),
+          item.id,"primary",s.gold < q.cost);
       body += btn("outfitUnequip", current.name + " 해제", current.key + ":" + item.id);
     }
     if (s.hunt) body += desc("착용과 재련으로 바뀐 능력치는 다음 사냥부터 적용됩니다.");

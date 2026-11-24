@@ -170,6 +170,26 @@
 .forge-control-layout .journey-odds { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:3px 10px; min-height:40px; }
 .journey-odds > span { font-size:12px; color:#ace5c8; }
 .journey-odds .odds-bar { flex:1; min-width:25px; }
+/* The destroy share is 1–5%, so its segment keeps a visible width; the text carries the exact value. */
+.journey-odds .odds-destroy { flex:none; min-width:6px; box-shadow:-1px 0 #1d1611; }
+.journey-odds .odds-risk { white-space:nowrap; }
+.journey-odds .odds-risk em { font-style:normal; font-weight:700; color:#ffb3aa; }
+.forge-risk-detail { margin:0 0 12px; padding-bottom:10px; border-bottom:1px solid #8f815e; }
+.forge-risk-detail .line, .forge-risk-notice .line { margin:0; padding:5px 0; gap:8px; }
+:is(.forge-risk-detail,.forge-risk-notice) .line strong { text-align:right; }
+:is(.forge-risk-detail,.forge-risk-notice) h3 { margin:8px 0 2px; font-size:13px; color:#57381c; }
+.dialog .forge-risk-reset { margin:4px 0; font-size:13px; line-height:1.45; color:var(--text); }
+.forge-risk-cost { white-space:nowrap; }
+.forge-risk-paths { margin:0; padding:0; list-style:none; }
+.forge-risk-paths li { display:grid; gap:1px; padding:4px 0; font-size:13px; line-height:1.4; }
+.forge-risk-paths li span { color:var(--muted); }
+.dialog .forge-risk-none { margin:2px 0; font-size:13px; }
+.forge-risk-none b { display:block; margin-top:6px; color:var(--text); }
+.forge-risk-detail > button { width:100%; min-height:44px; margin-top:6px; }
+.forge-risk-table summary { box-sizing:border-box; min-height:44px; padding:13px 0; cursor:pointer; font-size:13px; font-weight:700; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+.forge-risk-table tr[aria-current] :is(th,td) { font-weight:800; background:#f3dfb4; }
+/* The one button stays in reach on a short screen; the text scrolls behind it. */
+.forge-risk-notice > .primary { position:sticky; bottom:0; width:100%; min-height:48px; box-shadow:0 -10px 8px -2px #fff4de, 0 12px 0 4px #fff4de; }
 .primary[data-act="journeyBulk"] { flex-direction:column; justify-content:center; gap:2px; }
 .primary[data-act="journeyBulk"] small { margin:0; }
 .journey-traits { display:grid; gap:8px; }

@@ -119,6 +119,11 @@ const BladeRules = (() => {
   }
   const rates = [100, 100, 100, 95, 90, 85, 80, 80, 78, 75, 72, 70, 68, 65, 60, 55, 50, 45, 40, 35];
   const rate = (item) => rates[item.level] || 0;
+  // Chance per attempt that a failed hit resets the item to +0. It is taken out of the hold share,
+  // so the success chance and the single random draw stay as they were.
+  const destroyRates = { 15: 1, 16: 2, 17: 3, 18: 4, 19: 5 };
+  const destroyRate = (item) => Math.min(100 - rate(item), destroyRates[item.level] || 0);
+  const riskNoticed = (s) => s.forgeRisk !== undefined;
   const income = (item) =>
     item && item.level >= 13
       ? Math.round(
@@ -323,10 +328,24 @@ const BladeRules = (() => {
     if (item.finalTrial) return {ok:false, message:"진행 중인 마지막 돌파를 먼저 마치세요."};
     if (item.level >= 20) return {ok:false, message:"+20 완성 장비입니다."};
     if (s.gold < quote.cost) return {ok:false, message:"강화 골드가 부족합니다."};
+    const destroy = Math.max(0, Math.min(100 - quote.success, quote.destroy || 0));
+    // The player must have seen the one-time notice before any hit that can reset the item.
+    if (destroy > 0 && !riskNoticed(s))
+      return {ok:false, code:"riskNotice", message:"강화 파괴 안내를 먼저 확인하세요."};
     pay(s, quote.cost);
-    const success = rng() * 100 < quote.success;
+    const roll = rng() * 100;
+    const success = roll < quote.success;
+    if (destroy > 0) s.forgeRisk.attempts++;
+    if (!success && roll >= 100 - destroy) {
+      const from = item.level;
+      item.level = 0;
+      delete item.work;
+      s.forgeRisk.breaks++;
+      return {ok:true, kind:"loss", outcome:"destroy", from,
+        message:itemName + " +" + from + " → +0 · 강화 파괴"};
+    }
     if (success) item.level++;
-    return {ok:true, kind:success ? "win" : "info",
+    return {ok:true, kind:success ? "win" : "info", outcome:success ? "success" : "hold",
       message:itemName + " +" + item.level + (success ? " 강화 성공" : " 강화 유지")};
   }
   function act(s, action, arg, rng, pay) {
@@ -401,7 +420,7 @@ const BladeRules = (() => {
       case "bladeArmor":
       case "bladeForge": {
         if (arg && arg !== item.id) return fail("장착 장비가 바뀌었습니다.");
-        return enhance(s, item, {cost:cost(item), success:rate(item)}, name(item), rng, pay);
+        return enhance(s, item, {cost:cost(item), success:rate(item), destroy:destroyRate(item)}, name(item), rng, pay);
       }
       case "bladeArmorEtch":
       case "bladeEtch": {
@@ -535,6 +554,7 @@ const BladeRules = (() => {
     caps,
     cost,
     rate,
+    destroyRate, destroyRates, riskNoticed,
     income,
     salvageOre, enhance,
     armorRate,

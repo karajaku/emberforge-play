@@ -303,7 +303,7 @@ toast.addEventListener("focusout", () => requestAnimationFrame(scheduleToastDism
 toast.addEventListener("keydown", event => {
   if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); dismissToast(); }
 });
-function notify(msg, kind = "info", forgeItem = false) {
+function notify(msg, kind = "info", forgeItem = false, title = "") {
   if (HuntWatch.active && current() === 'forest' && !modal) return;
   if (!msg) return;
   if ((modal.startsWith("blade") || modal.startsWith("soul:")) && !el("shade").hidden) {
@@ -324,7 +324,7 @@ function notify(msg, kind = "info", forgeItem = false) {
   toastPaused = false;
   const titles = { "forge-success": "강화 성공", "forge-hold": "강화 유지",
     "forge-drop": "강화 하락", "forge-destroy": "장비 파괴", "forge-promotion": "검 승급", loss: "주의", win: "획득 · 완료" };
-  el("noticeTitle").textContent = titles[kind] || "";
+  el("noticeTitle").textContent = title || titles[kind] || "";
   el("noticeMessage").textContent = msg;
   toast.className = "on " + kind + (forgeItem ? " forge-item-notice" : "");
   el("noticeText").scrollTop = 0;
@@ -465,7 +465,17 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     const beforeHunt = state.hunt;
     const beforeHuntHealth = state.hunt && {...state.hunt};
     if (action === "huntStart" && arg && typeof arg === "object" && !arg.combat) arg = { ...arg, combat: "blade-d20-v1" };
+    const destroyBefore = action === "forgeItemEnhance" ? Game.forgeItems.quote(state,arg.id)?.destroy : 0;
     const result = Game.perform(state, action, arg, undefined, undefined, pressedAt);
+    // The rules refuse an unannounced hit that could reset the item. Nothing changed, so show the notice.
+    if (!result.ok && result.code === "riskNotice") {
+      if (forgeItemAction) modal = "";
+      render();
+      if (modal) displayModal();
+      else if (ForgeItemView.openRiskNotice()) return;
+      notify(result.message, "loss");
+      return;
+    }
     if (!result.ok && (action === "openChest" || action === "craftHuntLining")) {
       if (repeatGuard && repeatHunting.active) repeatHunting.stop("보물 수령 실패");
       notify(result.message, "loss");
@@ -483,7 +493,11 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     autoCombat.refresh(false);
     if (result.ok && ["craftMove","bladeWorkMove"].includes(equivalent)) animationStart = performance.now();
     if (result.impact) huntStart = performance.now();
-    const forgeAction = action === "forgeItemEnhance" || forgeWornItem || [
+    // A reset to +0 is named by the rules. `state.breaks` stays the older forge's own record.
+    const destroyed = result.ok && result.outcome === "destroy";
+    if (result.ok && result.outcome) ForgeItemView.hold(result.outcome, destroyBefore,
+      action === "forgeItemEnhance" ? Game.forgeItems.quote(state,arg.id)?.destroy : 0);
+    const forgeAction = destroyed || action === "forgeItemEnhance" || forgeWornItem || [
       "enhance",
       "bladeForge",
       "bladeArmor",
@@ -503,10 +517,10 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
       "breathForge",
       "temper",
     ].includes(action);
-    const forgeOutcome = result.ok && forgeAction ? Feedback.forgeOutcome(
+    const forgeOutcome = !(result.ok && forgeAction) ? null : destroyed ? "destroy" : Feedback.forgeOutcome(
       gearBefore, actionLevel(),
       state.breaks > breaksBefore, result.kind,
-    ) : null;
+    );
     const retryOutcome = heldEnhance && (forgeOutcome === "hold" || forgeOutcome === "drop");
     const shortOfGold = retryOutcome && state.gold < Game.enhancementCost(state, state[arg]);
     const repeatStrike = retryOutcome && !shortOfGold;
@@ -581,7 +595,12 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     // A settled cart choice is shown as the receipt in the forest itself, not as a second toast.
     const sceneReceipt = result.ok && ["huntChoose","artisanChoose"].includes(action) && current() === "forest" && phonePage("forest") === "hunt";
     if (!repeatGuard && action !== "temperStart" && !sceneReceipt && !(result.ok && ["openChest", "openTowerChests"].includes(action)) && !result.battle && !result.impact && result.message)
-      notify(result.message + (shortOfGold ? " · 골드 부족으로 연속 강화 종료" : ""), result.promotion ? "forge-promotion" : forgeOutcome ? "forge-" + forgeOutcome : result.ok ? result.kind : "loss", forgeItemAction);
+    {
+      // The rule's log line ends with the result's name; the notice titles it and says what the item keeps.
+      const kept = destroyed && ForgeItemView.keepTag(forgeItemAction ? Game.forgeItems.quote(state,arg.id)?.type : action.startsWith("outfit") ? "outfit" : "blade");
+      const text = destroyed ? result.message.replace(/ · 강화 파괴$/, "") + " · " + kept : result.message;
+      notify(text + (shortOfGold ? " · 골드 부족으로 연속 강화 종료" : ""), result.promotion ? "forge-promotion" : forgeOutcome ? "forge-" + forgeOutcome : result.ok ? result.kind : "loss", forgeItemAction, destroyed ? "강화 파괴" : "");
+    }
     if (result.ok && action !== "temperStart") {
       const stage = document.querySelector("#screen .scene");
       const chest = ["openChest", "openTowerChests"].includes(action);
@@ -592,7 +611,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
         const level = actionLevel();
         const promotedTo = result.promotion?.to;
         const label = promotedTo ? Game.grades[promotedTo] + " 승급" : action === "temper" ? (state.heat === 5 ? "정밀 타격" : "담금질 완료") :
-          state.breaks > breaksBefore ? "장비 파괴" : level > gearBefore ? "+" + fmt(level) + (action === "journeyForge" || action === "journeyBulk" ? " 재련 완료" : " 강화 성공") : level < gearBefore ? "+" + level + " · 하락" :
+          destroyed ? "+0 · 강화 파괴" : state.breaks > breaksBefore ? "장비 파괴" : level > gearBefore ? "+" + fmt(level) + (action === "journeyForge" || action === "journeyBulk" ? " 재련 완료" : " 강화 성공") : level < gearBefore ? "+" + level + " · 하락" :
           result.kind === "win" ? "단조 완료" : "+" + level + " · 유지";
         const outcome = promotedTo ? "success" : forgeOutcome;
         if (animate) Feedback.play("forge", stage, label, outcome, repeatStrike, promotedTo);
@@ -927,7 +946,7 @@ function swordJournal(s, record = s.swordRecord) {
     '</details>';
 }
 function modalData() {
-  return ForgeItemView.permitDetail(state,modal,modalDataContent());
+  return ForgeItemView.detail(state,modal,modalDataContent());
 }
 function modalDataContent() {
   const s = state;
@@ -1402,6 +1421,7 @@ function closeModal(focus = true) {
   const targets = [
     lastFocus,
     lastFocus?.classList.contains("watch-start") && el("screen").querySelector(".watch-start"),
+    lastFocus?.classList.contains("forge-strike") && el("screen").querySelector(".forge-strike"),
     key && el("screen").querySelector('[data-open="' + CSS.escape(key) + '"]'),
     lastFocus?.classList.contains("bag-slot") && el("screen").querySelector(".bag-slot"),
     key === "daily" && el("screen").querySelector('[data-act="fastTower"]'),
@@ -1609,7 +1629,29 @@ document.addEventListener("click", (e) => {
     return;
   }
   if ("forgeReset" in d || d.forgeFilter) return ForgeItemView.filterChange(d.forgeFilter,d.filterValue);
+  // Right after a hit that entered a risk level or reset the item, the hammer takes no tap.
+  const hammer = b.closest("#screen") && (d.forgePreview === "risk" || d.forgeAction === "forgeItemEnhance");
+  if (hammer && ForgeItemView.held()) return;
   if (d.forgePreview) return ForgeItemView.preview(d.forgePreview,b);
+  if ("forgeRiskAck" in d) return locked(() => {
+    // Only the notice's own button confirms it; closing the dialog any other way leaves it unread.
+    if (modal !== "forgeItem:risk") return;
+    sync();
+    if (Game.perform(state, "forgeRiskAck").ok) { save(); ForgeItemView.hold("ack"); }
+    closeModal(false);
+    render();
+    el("screen").querySelector(".forge-strike")?.focus({ preventScroll: true });
+  });
+  if (d.forgeItem) {
+    // Leads from an item's detail to the forge with that item on the anvil.
+    if (!ForgeItemView.selectItem(state,d.forgeItem)) return notify("이 장비는 보관함에 없습니다.");
+    archiveBlade = false;
+    closeModal(false);
+    if (current() === "forge" && phonePage("forge") === "work") render();
+    else nav("forge");
+    el("screen").querySelector(".forge-strike")?.focus({ preventScroll: true });
+    return;
+  }
   if (d.forgeAction && b.forgeRequest) {
     b.disabled = true;
     return act(d.forgeAction,b.forgeRequest);

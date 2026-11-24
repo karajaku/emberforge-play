@@ -48,6 +48,8 @@ const SaveStore = (() => {
   }
   // Format 9 marks exploration state; earlier builds compute at most 8 and reject it as future.
   function saveFormat(state) {
+    // Format 11 marks a save whose player has seen the destroy notice; earlier builds reject it as future.
+    if (state?.forgeRisk !== undefined) return 11;
     if (state?.artisanCache !== undefined) return 10;
     if (state?.hunting?.exploration !== undefined || state?.huntRecord !== undefined || state?.hunt?.exploration !== undefined ||
         state?.lastHunt?.exploration !== undefined || state?.lastChest?.exploration !== undefined) return 9;
@@ -175,6 +177,12 @@ const SaveStore = (() => {
     if (outfit?.version>1) throw fault("future");
     if (data?.version > 2 || data?._save?.format > maxFormat || data?.hunting?.version > 1 || data?.bladeForge?.version>1) throw fault("future");
     if (data?.artisanCache?.version > 1) throw fault("future");
+    const risk = data?.forgeRisk;
+    if (risk?.version > 1) throw fault("future");
+    if (risk !== undefined && (risk === null || typeof risk !== "object" || Array.isArray(risk) ||
+        Object.keys(risk).length !== 3 || risk.version !== 1 ||
+        ![risk.attempts, risk.breaks].every(n => Number.isSafeInteger(n) && n >= 0) || risk.breaks > risk.attempts))
+      throw fault("corrupt");
     if (outfit!==undefined && !game.outfit.valid(outfit)) throw fault("corrupt");
     if (data?.bladeForge!==undefined && (!game.blades.valid(data.bladeForge) || !game.endgame.valid(data.bladeForge))) throw fault("corrupt");
     if (data?.bladeForge?.extraDeployed && !data.bladeForge.soul?.learned?.land && !(data.imprints?.land > 0)) throw fault("corrupt");

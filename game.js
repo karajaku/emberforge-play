@@ -260,6 +260,7 @@ const Game = (() => {
     // The exploration food ledger survives resets so a new run cannot re-earn its allowance.
     if (wallet.exploration !== undefined) next.hunting.exploration = JSON.parse(JSON.stringify(wallet.exploration));
     if (s.artisanCache !== undefined) next.artisanCache = { ...s.artisanCache };
+    if (s.forgeRisk !== undefined) next.forgeRisk = { ...s.forgeRisk };
     if (!keepFood) {
       next.hunting.free = hunting.initial;
       next.hunting.rechargeAt = null;
@@ -1040,6 +1041,19 @@ const Game = (() => {
       return { ok: true, message, kind };
     };
     const int = (a, b) => a + Math.floor(random() * (b - a + 1));
+    // Carry the enhancement outcome to the screen; a destroy also names the level it fell from.
+    const forged = (result) => {
+      const done = success(result.message, result.kind);
+      if (result.outcome) done.outcome = result.outcome;
+      if (result.from !== undefined) done.from = result.from;
+      return done;
+    };
+    if (act === "forgeRiskAck") {
+      // Confirms the one-time destroy notice. Nothing else changes, and repeating it is harmless.
+      if (arg !== undefined) return fail("강화 파괴 안내를 다시 확인하세요.");
+      if (s.forgeRisk === undefined) s.forgeRisk = { version: 1, attempts: 0, breaks: 0 };
+      return { ok: true, message: "", kind: "info" };
+    }
     if (["forgeItemEnhance", "forgeItemEquip", "forgeItemSell", "forgeItemSalvage"].includes(act)) {
       endgame.record(s);
       const result = forgeItems.act(s, act, arg, random, payForgeFee);
@@ -1050,11 +1064,11 @@ const Game = (() => {
         if (type !== "outfit" && item.level === 20) endgame.record(s);
         refreshHuntGear(s, item.id);
       }
-      return success(result.message, result.kind);
+      return forged(result);
     }
     if (typeof act==="string" && act.startsWith("outfit")) {
       const result=outfit.act(s,act,arg,random,payForgeFee);
-      return result.ok ? success(result.message,result.kind) : result;
+      return result.ok ? forged(result) : result;
     }
     const soulAction=typeof act==="string" && act.startsWith("soul");
     if (soulAction || (typeof act === "string" && act.startsWith("blade"))) {
@@ -1073,7 +1087,7 @@ const Game = (() => {
         s.best=Math.max(s.best,blades.current(s).level);
       }
       if (target.level===20) endgame.record(s);
-      return success(result.message,result.kind);
+      return forged(result);
     }
     const type = arg === "armor" ? "armor" : "weapon";
     const g = s[type];

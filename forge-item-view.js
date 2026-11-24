@@ -5,6 +5,9 @@ const ForgeItemView = (() => {
   const filter = {...defaults};
   let selected = "", position = 0, emptySlot = "", visible = [], shown = null;
   let selectionVersion = 0, pending = null;
+  // The hammer ignores taps for a moment after a hit that changes what the next tap risks.
+  let holdUntil = 0;
+  const enterHoldMs = 800, destroyHoldMs = 1000;
 
   const slotName = key => Game.outfit.slots.find(slot => slot.key === key)?.name || "무기";
   const itemName = q => (q.type === "outfit" ? Game.outfit.name(q.item) : Game.blades.name(q.item)) + " +" + q.item.level;
@@ -83,8 +86,92 @@ const ForgeItemView = (() => {
     if (q.item.level === 20 && q.wornSlot && q.type !== "outfit")
       return openBtn(chest ? "bladeArmorCollection" : "bladeCollection",icon("check")+"강화 완료<small>+20 · 교체</small>","primary");
     const fee = q.enhanceBlocked ? escapeHtml(q.enhanceBlocked) : fmt(q.cost) + " G" + (s.gold < q.cost ? " · 부족 " + fmt(q.cost - s.gold) + " G" : "");
-    return '<button class="primary" data-forge-action="forgeItemEnhance"' + (q.enhanceBlocked || s.gold < q.cost ? " disabled" : "") +
+    const blocked = q.enhanceBlocked || s.gold < q.cost;
+    // The first risky hit of a save opens the notice instead of striking.
+    const target = !blocked && q.risk?.noticeNeeded ? 'data-forge-preview="risk" aria-haspopup="dialog"' : 'data-forge-action="forgeItemEnhance"';
+    const name = q.risk ? ' aria-label="강화 · ' + fee + ' · ' + oddsText(q) + '"' : "";
+    return '<button class="primary" ' + target + (blocked ? " disabled" : "") + name +
       '>' + controlArt("hammer") + '강화<small>' + fee + '</small></button>';
+  }
+  const oddsText = q => "성공 " + pct(q.success) + " · 유지 " + pct(q.hold) + " · 파괴 " + pct(q.destroy);
+  // One odds row for the weapon, chest and outfit views. A level that cannot reset the item renders
+  // exactly as it always did; a risk level shows success and destroy, with hold left to the bar.
+  function odds(q) {
+    const bar = '<b>강화 +' + q.item.level + ' → +' + (q.item.level + 1) + '</b><div class="odds-bar" aria-hidden="true"><i class="odds-success" style="width:' +
+      pct(q.success) + '"></i><i class="odds-hold" style="width:' + pct(q.hold) + '"></i>';
+    if (!q.risk) return bar + '</div><span>성공 ' + pct(q.success) + ' · 유지 ' + pct(q.hold) + '</span>';
+    return bar + '<i class="odds-destroy" style="width:' + pct(q.destroy) + '"></i></div><span class="odds-risk"><span aria-hidden="true">성공 ' +
+      pct(q.success) + ' · <em>파괴 ' + pct(q.destroy) + '</em></span><span class="grade-access">' + oddsText(q) + '</span></span>';
+  }
+  function hold(outcome, before, after) {
+    // The notice's 확인 sits over the hammer, so a second tap right after it must not strike either.
+    const ms = outcome === "destroy" ? destroyHoldMs : outcome === "ack" || (outcome === "success" && !(before > 0) && after > 0) ? enterHoldMs : 0;
+    if (ms) holdUntil = Math.max(holdUntil, performance.now() + ms);
+  }
+  const held = () => performance.now() < holdUntil;
+  const keepTag = type => type === "outfit" ? "장비·속성 유지" : "옵션·특성 유지";
+  const average = gold => "약 " + fmt(Math.round(gold)) + " G";
+  // Ways past this level with no destroy roll, each with what a failure costs.
+  function safePaths(q) {
+    const {paths} = q.risk, rows = [];
+    if (paths.permit) rows.push(["장인의 보증", "이 강화 1회 성공 보장 · 파괴 없음 · 1회 소모"]);
+    const choices = paths.breakthrough.length ? Breakthrough.choices(q.item, Game.price) : [];
+    for (const {key, count, fee} of choices) {
+      if (!paths.breakthrough.includes(key)) continue;
+      const text = key === "edge" ? "실패하면 +" + (q.item.level - 1) + "로 하락 · 1회 " + fmt(fee) + " G" :
+        key === "ward" ? "실패하면 제련비 소모, +" + q.item.level + " 유지 · 1회 " + fmt(fee) + " G" :
+        "재료를 채우면 확정 · 납품 " + Breakthrough.rules(count).goal + "점(" +
+          Object.values(Breakthrough.materials).map(m => m.name + " " + m.points + "점").join(" · ") + ")";
+      rows.push([Breakthrough.methods[key].name, text]);
+    }
+    return rows;
+  }
+  const noPathReason = {
+    outfit: "착용 칸 장비에는 보증과 돌파가 없습니다.",
+    process: "제작 공정을 마치지 않아 보증 대상이 아닙니다.",
+    noPermit: "장인의 보증을 보유하고 있지 않습니다.",
+    deployed: "사냥터에 배치한 무기는 회수해야 보증을 쓸 수 있습니다.",
+    notWorn: "착용하면 +19 돌파를 쓸 수 있습니다.",
+    noMark: "공정 특성이 없어 +19 돌파를 쓸 수 없습니다.",
+  };
+  const pathList = rows => '<ul class="forge-risk-paths">' + rows.map(([name, text]) =>
+    '<li><b>' + name + '</b><span>' + text + '</span></li>').join("") + '</ul>';
+  const huntingNote = q => q.hunting ? desc("지금 사냥에 쓰는 장비입니다. 파괴되면 진행 중인 전투에도 바로 반영됩니다.") : "";
+  const resetNote = q => '<p class="forge-risk-reset">파괴되면 강화 단계만 +0으로 돌아가고 장비는 남습니다. <b>' + keepTag(q.type) + '</b></p>';
+  const rebuildLine = q => line("다시 +" + q.item.level + "까지 평균 비용", '<span class="forge-risk-cost">' + average(q.risk.rebuildCost) + '</span>');
+  function riskNotice(q) {
+    const rows = safePaths(q);
+    return ["강화 파괴 안내", '<div class="forge-risk-notice">' + line("선택 장비", GearGradeView.colored(q.item, itemName(q))) +
+      line("이번 강화", '성공 ' + pct(q.success) + ' · 유지 ' + pct(q.hold) + ' · <b data-tone="down">파괴 ' + pct(q.destroy) + '</b>') +
+      resetNote(q) + rebuildLine(q) +
+      (rows.length ? '<h3>파괴 없는 경로</h3>' + pathList(rows) : "") + huntingNote(q) +
+      desc("이 안내는 한 번만 나옵니다. 확인한 뒤 망치를 다시 눌러야 강화합니다.") +
+      '<button class="primary" data-forge-risk-ack>확인</button></div>'];
+  }
+  // The risk block that leads the detail of a level that can reset the item.
+  function riskDetail(q) {
+    const rows = safePaths(q), {paths} = q.risk;
+    const table = [];
+    for (let level = 0; level < 20; level++) {
+      const destroy = Game.blades.destroyRate({level});
+      if (!(destroy > 0)) continue;
+      const success = Game.blades.rate({level});
+      table.push('<tr' + (level === q.item.level ? ' aria-current="true"' : '') + '><th scope="row">+' + level + '</th><td>' + pct(success) +
+        '</td><td>' + pct(100 - success - destroy) + '</td><td>' + pct(destroy) + '</td></tr>');
+    }
+    const breakthrough = paths.breakthrough.length ?
+      openBtn(q.type === "chest" ? "bladeArmorFinal" : "bladeFinal", icon("hammer") + "돌파 방식 선택", "action") : "";
+    const permit = paths.permit ?
+      '<button class="action" data-forge-preview="permit">성공 보장 사용 · ' + fmt(q.cost) + ' G</button>' : "";
+    return '<section class="forge-risk-detail" aria-label="강화 파괴">' +
+      line("강화 파괴", '<b data-tone="down">이번 강화 파괴 ' + pct(q.destroy) + '</b>') + resetNote(q) + rebuildLine(q) +
+      line("이번 강화", "성공 " + pct(q.success) + " · 유지 " + pct(q.hold)) +
+      (rows.length ? '<h3>파괴 없는 경로</h3>' + pathList(rows) + breakthrough + permit :
+        '<p class="forge-risk-none"><b>파괴 없는 경로 없음</b> ' + noPathReason[paths.reason] + '</p>') + huntingNote(q) +
+      '<details class="forge-risk-table"><summary>단계별 파괴 확률</summary><table class="loot-table"><thead><tr><th>단계</th><th>성공</th><th>유지</th><th>파괴</th></tr></thead><tbody>' +
+      table.join("") + '</tbody></table>' +
+      desc("확률 막대의 파괴 구간은 보이도록 넓힌 표시이며 정확한 값은 글자를 따릅니다. 평균 비용은 일반 강화 기준이고 추가 파괴는 넣지 않았습니다.") +
+      '</details></section>';
   }
   function decorate(s,layout) {
     if (archiveBlade || !layout.querySelector(".forge-slot-switch")) return;
@@ -302,6 +389,10 @@ const ForgeItemView = (() => {
         '<div class="forge-filter-footer"><button type="button" data-forge-reset>초기화</button>' +
         '<button type="button" data-close>닫기</button></div>'];
     }
+    if (key === "forgeItem:risk") {
+      const live = pending && Game.forgeItems.quote(state, pending.id);
+      return live?.risk ? riskNotice(live) : ["강화 파괴 안내", desc("대장간에서 장비를 다시 선택하세요.") + '<button class="action" data-close>닫기</button>'];
+    }
     const q = pending;
     if(key==='forgeItem:permit'&&q){
       const eligible=q.permitApplies&&q.permitId;
@@ -311,8 +402,9 @@ const ForgeItemView = (() => {
         desc('보증은 소모되지 않습니다. 대장간에서 다른 적격 장비를 선택해 상세를 확인하세요.')+'<button class="action" data-close>닫기</button>'];
       return ['장인의 보증 사용',line('선택 장비',GearGradeView.colored(q.item,itemName(q)))+
         line('강화 결과','+'+q.item.level+' → +'+(q.item.level+1)+' · 성공 보장')+
+        (q.risk?line('일반 강화','성공 '+pct(q.success)+' · <b data-tone="down">파괴 '+pct(q.destroy)+'</b>'):'')+
         line('정상 강화비',fmt(q.cost)+' G'+(!enough?' · 골드 부족':''))+
-        desc('장인의 보증 1회를 사용합니다. 일반 강화의 골드 비용은 그대로 냅니다.')+
+        desc('장인의 보증 1회를 사용합니다. 일반 강화의 골드 비용은 그대로 냅니다.'+(q.risk?' 보증으로 강화하면 파괴 판정이 없습니다.':''))+
         '<div class="forge-dialog-actions"><button class="action" data-close>취소</button><button class="primary" data-forge-action="forgeItemEnhance" data-forge-permit'+
         (!eligible||!enough?' disabled':'')+'>성공 보장 사용<small>'+fmt(q.cost)+' G · 보증 1회 소모</small></button></div>'];
     }
@@ -354,7 +446,7 @@ const ForgeItemView = (() => {
     }
   }
   function preview(mode,button) {
-    if (!shown || !["sell","salvage","equip","permit"].includes(mode)) return;
+    if (!shown || !["sell","salvage","equip","permit","risk"].includes(mode)) return;
     pending = structuredClone(shown);
     showModal("forgeItem:" + mode, button);
   }
@@ -373,13 +465,25 @@ const ForgeItemView = (() => {
     return version === selectionVersion && current() === "forge" && phonePage("forge") === "work" && !archiveBlade &&
       modal === (permit?'forgeItem:permit':source) && selected === id && (!permit||pending?.permitId===permitId);
   }
-  function permitDetail(s,key,content) {
-    if(s.artisanCache?.status!=='claimed'||!shown||key!==detailKey(shown)||current()!=='forge'||phonePage('forge')!=='work')return content;
+  // Adds what only the forge knows to the shown item's detail: the destroy risk first, the permit last.
+  function detail(s,key,content) {
+    if(!shown||key!==detailKey(shown)||current()!=='forge'||phonePage('forge')!=='work')return content;
     const q=Game.forgeItems.quote(s,shown.id);
     if(!q)return content;
-    return [content[0],content[1]+'<section class="artisan-permit-detail"><b>장인의 보증 1회 보유</b><p>정상 골드 비용을 내고 적격 일반 강화 한 번의 성공을 보장합니다.</p>'+
-      '<button class="action" data-forge-preview="permit">'+(q.permitApplies?'성공 보장 사용 · '+fmt(q.cost)+' G':'보증 사용 조건')+'</button></section>',...content.slice(2)];
+    let body=content[1];
+    if(q.risk)body=riskDetail(q)+body;
+    // A usable permit is offered inside the risk block; otherwise it keeps its place at the end.
+    if(s.artisanCache?.status==='claimed'&&!q.risk?.paths.permit)
+      body+='<section class="artisan-permit-detail"><b>장인의 보증 1회 보유</b><p>정상 골드 비용을 내고 적격 일반 강화 한 번의 성공을 보장합니다.</p>'+
+        '<button class="action" data-forge-preview="permit">'+(q.permitApplies?'성공 보장 사용 · '+fmt(q.cost)+' G':'보증 사용 조건')+'</button></section>';
+    return [content[0],body,...content.slice(2)];
   }
-  return {view,selectSlot,selectItem,step,detailKey,strike,decorate,equipButton,disposalButtons,modalContent,filterChange,preview,request,guard,permitDetail,filtering,cancelSwipe,
+  // Opens the one-time notice for the shown item, e.g. after the rules refused an unannounced risky hit.
+  function openRiskNotice() {
+    if (!shown?.risk || modal) return false;
+    preview("risk", el("screen").querySelector(".forge-strike"));
+    return modal === "forgeItem:risk";
+  }
+  return {view,selectSlot,selectItem,step,detailKey,strike,odds,hold,held,keepTag,decorate,equipButton,disposalButtons,modalContent,filterChange,preview,request,guard,detail,openRiskNotice,filtering,cancelSwipe,
     get shown(){return shown;},get version(){return selectionVersion;},invalidate(){selectionVersion++;}};
 })();

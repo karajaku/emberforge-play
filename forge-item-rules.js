@@ -16,7 +16,7 @@ function createForgeItems(blades, outfit, craft, price) {
 
   function enhancementQuote(type, item) {
     if (type === "outfit") return outfit.quote(item);
-    return {cost:blades.cost(item), success:blades.rate(item)};
+    return {cost:blades.cost(item), success:blades.rate(item), destroy:blades.destroyRate(item)};
   }
 
   function canUsePermit(s, { type, item }) {
@@ -49,6 +49,31 @@ function createForgeItems(blades, outfit, craft, price) {
       }
     }
     return total;
+  }
+
+  // Average gold to climb from +0 back to the current level by ordinary enhancement.
+  // A finished workshop stage does not reopen after a reset, so this ignores marks.
+  function rebuildCost(type, item) {
+    let total = 0;
+    for (let level = 0; level < item.level; level++) {
+      const step = enhancementQuote(type, {...item, level});
+      total += step.cost * 100 / step.success;
+    }
+    return total;
+  }
+
+  // Ways to pass this level without a destroy roll, as the rules stand for this item right now.
+  function safePaths(type, item, wornSlot, permit, deployed) {
+    const marks = type === "outfit" ? [] : [...new Set(item.marks || [])];
+    const breakthrough = item.level === 19 && wornSlot && !item.finalTrial ? marks : [];
+    let reason = "";
+    if (!permit && !breakthrough.length) {
+      if (type === "outfit") reason = "outfit";
+      else if (item.level === 19) reason = marks.length ? "notWorn" : "noMark";
+      else if (deployed) reason = "deployed";
+      else reason = craft.stageIndex(item) >= 0 ? "process" : "noPermit";
+    }
+    return {permit, breakthrough, reason};
   }
 
   function salePercent(level) {
@@ -84,10 +109,17 @@ function createForgeItems(blades, outfit, craft, price) {
     const productionCost = standardCost(type, item);
     const value = 20 + 5 * item.base + 10 * item.grade + Math.floor(productionCost * salePercent(item.level) / 100);
     const ore = type === "outfit" ? outfit.salvageOre(item) : blades.salvageOre(item);
-    const {cost, success} = enhancementQuote(type, item);
+    const {cost, success, destroy} = enhancementQuote(type, item);
     const permitId = s.artisanCache?.status === "claimed" && canUsePermit(s, entry) ? s.artisanCache.id : undefined;
-    const token = JSON.stringify([item, wornSlot, hunting, deployed, cost, success, value, ore, permitId]);
-    return {...entry, cost, success, value, productionCost, ore, enhanceBlocked, disposeBlocked, equipBlocked, equipTargets, token,
+    const token = JSON.stringify([item, wornSlot, hunting, deployed, cost, success, value, ore, permitId, destroy]);
+    // Present only while this level can reset the item; a 0% table leaves every screen as it was.
+    const risk = destroy > 0 ? {
+      rebuildCost: rebuildCost(type, item),
+      noticeNeeded: !blades.riskNoticed(s),
+      paths: safePaths(type, item, wornSlot, permitId !== undefined, deployed),
+    } : null;
+    return {...entry, cost, success, hold:100 - success - destroy, destroy, risk, hunting,
+      value, productionCost, ore, enhanceBlocked, disposeBlocked, equipBlocked, equipTargets, token,
       permitId, permitApplies: permitId !== undefined};
   }
 
@@ -113,7 +145,7 @@ function createForgeItems(blades, outfit, craft, price) {
       if (request.permitId !== undefined) {
         if (!q.permitId || request.permitId !== q.permitId)
           return {ok:false, message:"현재 장비에 사용할 장인의 보증을 다시 확인하세요."};
-        const result = blades.enhance(s, item, { ...q, success: 100 }, itemName, () => 0, pay);
+        const result = blades.enhance(s, item, { ...q, success: 100, destroy: 0 }, itemName, () => 0, pay);
         if (!result.ok) return result;
         s.artisanCache.status = "spent";
         return {...result, message:result.message + " · 장인의 보증 사용", item, type};
