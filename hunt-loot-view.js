@@ -53,7 +53,9 @@ const HuntLootView = (() => {
     const baseline = owned.kind === "ring" && slot ? slot.name+" 대비" : "착용 대비";
     const score = '<small class="loot-score">전투력 '+fmt(comparison.score)+' · '+baseline+
       ' <em data-tone="'+tone+'">'+change+'</em></small>';
-    const text = '<span class="loot-name"><b>'+label+'</b><small aria-hidden="true">'+Game.blades.itemRarity(item).name+'</small>'+score+'</span>';
+    // A weapon carries its interval and one hit (hand-over §7.5).
+    const pace = owned.type === "blade" ? '<small class="loot-pace">'+BladeView.hitLine(item)+'</small>' : '';
+    const text = '<span class="loot-name"><b>'+label+'</b><small aria-hidden="true">'+Game.blades.itemRarity(item).name+'</small>'+pace+score+'</span>';
     const button = '<button type="button" class="'+GearGradeView.lootClass(item)+'" data-loot-forge="'+escapeHtml(drop.id)+'">'+
       art+text+'<span class="loot-forge-label">'+icon("hammer")+'강화</span></button>';
     if (!detailed) return button;

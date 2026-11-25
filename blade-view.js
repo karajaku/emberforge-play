@@ -1,11 +1,12 @@
 "use strict";
 const BladeView = (() => {
   const rules = () => Game.blades;
-  const styleHints = {
+  // `marks`: the wounds the worn weapon needs for a rupture (the dagger's four).
+  const styleHints = marks => ({
     heavy: "기세를 모아 일격을 가합니다.",
     counter: "적 스킬 예고에 일반 타격을 방어로 바꿉니다. 막으면 다음 공격으로 되받습니다.",
-    wound: "상처는 매 턴 출혈을 일으킵니다. 3겹부터 다음 공격이 방어를 뚫고 파열됩니다.",
-  };
+    wound: "상처는 출혈을 일으켜 내 공격에 더해집니다. 상처 " + marks + "개부터 다음 공격이 방어를 뚫고 파열됩니다.",
+  });
   const sideLabel = {prefix: "접두", suffix: "접미"};
   const isArmor = item => item.type === "armor";
   const label = item => rules().name(item) + " +" + item.level;
@@ -17,6 +18,18 @@ const BladeView = (() => {
   function damageRange(stats) {
     return stats.minDamage === stats.maxDamage ? fmt(stats.minDamage) : fmt(stats.minDamage) + "–" + fmt(stats.maxDamage);
   }
+  // Interval and one hit as one phrase (hand-over §7.5): "1.5초마다 59–72". The hit is the item's two-second
+  // numbers times the kind's hit scale; an attack-speed suffix shortens the interval and leaves the hit.
+  function timing(item) {
+    return AttackSpeedCombat.timing(item.weaponKind ?? "sword", item.mods.find(m => m.key === "haste")?.value || 0);
+  }
+  function hitLine(item) {
+    const stats = rules().weaponStats(item), pace = timing(item);
+    const [low, high] = HuntStrikes.hitRange(stats.minDamage, stats.maxDamage, pace.hitScale);
+    return HuntStrikes.interval(pace.interval) + "마다 " + (low === high ? fmt(low) : fmt(low) + "–" + fmt(high));
+  }
+  // The phrase stays on one line wherever a list or a summary wraps.
+  const hitMark = item => '<span class="gear-pace">' + hitLine(item) + '</span>';
   const artwork = item => '<span class="gear-portrait" aria-hidden="true" style="background-image:url(assets/' + sprite(item) + '-sheet.png)"></span>';
   function switches(type) {
     const quick = [["weapon","hunt","무기"],["armor","equip","흉갑"]].map(([id,ic,label]) =>
@@ -69,7 +82,7 @@ const BladeView = (() => {
     const b = rules(), profile = b.weaponProfile(item);
     return GearGradeView.detail(item) + GearCompareView.detail(Game.compareGear(s,item,"blade"), "blade") + equip +
       line("무기 종류", profile.name) +
-      (item.weaponKind === "dagger" ? line("치명타 피해", "150%") : line("무기 특성", escapeHtml(profile.trait))) +
+      line("무기 특성", escapeHtml(profile.trait) + (profile.trait2 ? "<br>" + escapeHtml(profile.trait2) : "")) +
       (item.base ? line("재질 특성", escapeHtml(b.bases[item.base].trait)) : "") +
       line("획득", item.base ? "숲 " + item.rank + "단계" : "대장간 지급") +
       line("+20 완성 공격력", fmt(b.attack(item, 20))) + slots(item);
@@ -94,7 +107,7 @@ const BladeView = (() => {
   function collection(s) {
     const b = rules(), rack = b.state(s);
     return line("무기",rack.items.length+" / 120자루") + (Game.endgame.info(s).gift ? SoulView.open("lessons","첫 +20 선물 선택","primary") : "") + rack.items.slice().reverse().map(item => row(GearGradeView.colored(item,label(item)),
-      GearCompareView.score(Game.compareGear(s,item,"blade")) + " · 물리 " + damageRange(b.weaponStats(item)) + " · 명중 시 치명타 " + pct(b.weaponStats(item).critChance) + (item.id === rack.equipped ? " · 장착 중" : [rack.deployed,rack.extraDeployed].includes(item.id) ? " · 배치 중" : ""),
+      GearCompareView.score(Game.compareGear(s,item,"blade")) + " · " + hitMark(item) + " · 명중 시 치명타 " + pct(b.weaponStats(item).critChance) + (item.id === rack.equipped ? " · 장착 중" : [rack.deployed,rack.extraDeployed].includes(item.id) ? " · 배치 중" : ""),
       openBtn("bladeItem-"+item.id,"살펴보기","mini"),"",artwork(item))).join("") +
       '<button class="action" data-archive-blade>기록 검 대장간</button>';
   }
@@ -117,7 +130,7 @@ const BladeView = (() => {
     const firstProcess = item.level===7 && Swordcraft.stageIndex(item)===0;
     const choice = firstProcess ? line("일반 강화 → +8",fmt(b.cost(item))+" G · 성공 "+pct(b.rate(item))) +
       line((armor ? armorStageNames[0] : Swordcraft.stages[0].title)+" → +"+Swordcraft.stages[0].target,"연마 3회 후 마감") : "";
-    return line(armor ? "장착 방어구" : "장착 무기", GearGradeView.colored(item,label(item))) + line("베이스 등급",b.baseGradeNames[item.grade]) + line("각인석 / 우두머리 인장",fmt(rack.ore)+"개 / "+fmt(rack.seals || 0)+"개") + choice + processes(s,item) +
+    return line(armor ? "장착 방어구" : "장착 무기", GearGradeView.colored(item,label(item))) + (armor ? "" : line("한 방", hitLine(item))) + line("베이스 등급",b.baseGradeNames[item.grade]) + line("각인석 / 우두머리 인장",fmt(rack.ore)+"개 / "+fmt(rack.seals || 0)+"개") + choice + processes(s,item) +
       slots(item,true,rack.ore) + (available.length ? btn(prefix(item)+"Etch",icon("sparkles")+"무작위 각인 · 2석","","primary",rack.ore<2) +
         '<label for="bladeTarget">지정 각인</label><select id="bladeTarget">' + available.map(([key,def]) =>
           '<option value="'+key+'">'+sideLabel[def.side]+" · "+escapeHtml(def.name)+'</option>').join("") +
@@ -182,13 +195,16 @@ const BladeView = (() => {
       openBtn("outfit:enemy:" + rank + ":" + Game.trail.lineup(rank,false)[0],"이 단계의 적 저항") + affixes];
   }
   function styles(s) {
-    const b = rules(), st=b.skills(s), chosen=b.state(s).style;
+    const b = rules(), st=b.skills(s), chosen=b.state(s).style, hints=styleHints(st.ruptureAt ?? 3);
+    // One hit of each move with the worn weapon, beside its interval (hand-over §7.5).
+    const hit = HuntStrikes.hitValues(st, st.hitScale ?? 1), each = value => fmt(Math.round(value));
     return Object.entries(b.styles).map(([key,name]) => {
       const special = st.ascension === key && Game.endgame.transform[key];
-      return row(special ? name+" · "+special.name : name,special ? special.detail : styleHints[key],btn("bladeStyle",chosen===key?"선택됨":"선택",key,"mini",chosen===key));
+      return row(special ? name+" · "+special.name : name,special ? special.detail : hints[key],btn("bladeStyle",chosen===key?"선택됨":"선택",key,"mini",chosen===key));
     }).join("") +
-      line("일반 타격 / 기세 일격", fmt(st.strike)+" / "+fmt(st.heavy)) +
-      line("반격 / 파열(3겹)", fmt(st.counter)+" / "+fmt(st.attack+3*st.rupture)) + line("체력 / 상시 피해 감소",fmt(st.hp)+" / "+pct(st.defense)) +
+      line("공격 간격", HuntStrikes.interval(timing(b.current(s)).interval) + "마다 한 번") +
+      line("일반 타격 / 기세 일격", each(hit.strike)+" / "+each(hit.heavy)) +
+      line("반격 / 파열", each(hit.counter)+" / "+each(hit.rupture)) + line("체력 / 상시 피해 감소",fmt(st.hp)+" / "+pct(st.defense)) +
       line("착용 방어력",fmt(st.armorRating)) +
       (s.hunt ? desc("선택한 검술은 다음 사냥에 적용됩니다.") : "");
   }
@@ -202,9 +218,9 @@ const BladeView = (() => {
     if (key === "bladeStyles") return ["검술 선택",styles(s)];
     if (key === "bladeCraft") return ["무기 제작",workshop(s)];
     if (key === "bladeCollection") return ["무기 보관함",collection(s)];
-    if (key === "bladeGuide") return ["무기 제작 수업", desc("숲에서는 한손검·도끼·철퇴·단검이 떨어집니다. 무기마다 기본 피해 범위와 명중 시 치명타 확률이 다릅니다. 공격 주사위의 20도 치명타이며, 치명타는 1.5배 피해를 줍니다. 흉갑·투구·어깨·다리·장갑·망토의 방어력은 합산됩니다.") + OutfitView.loadout() +
+    if (key === "bladeGuide") return ["무기 제작 수업", desc("숲에서는 한손검·도끼·철퇴·단검이 떨어집니다. 무기마다 공격 간격과 한 방의 피해 범위, 명중 시 치명타 확률이 다릅니다. 공격 굴림의 20도 치명타이며, 치명타는 1.5배 피해를 줍니다. 흉갑·투구·어깨·다리·장갑·망토의 방어력은 합산됩니다.") + OutfitView.loadout() +
       line("강화", "공격력 증가 · 최고 +20") + line("각인", "접두·접미에 새 옵션") +
-      desc("+7·+9·+11 제작 공정에서 특성을 고르면 +19에 마무리 공법이 열립니다. 각인석은 숲 승리와 여분 무기 분해로 모읍니다. 사냥 전에 검술을 고르면 주사위 전투에서 자동으로 발동합니다.") +
+      desc("+7·+9·+11 제작 공정에서 특성을 고르면 +19에 마무리 공법이 열립니다. 각인석은 숲 승리와 여분 무기 분해로 모읍니다. 사냥 전에 검술을 고르면 숲 전투에서 자동으로 발동합니다.") +
       openBtn("bladeLoot-1","단계별 장비 획득 확률") + openBtn("bladeStyles","검술 고르기") + go("forest","숲 사냥","primary")];
     const target=b.state(s).items.find(it=>key==="bladeItem-"+it.id || key==="bladeSalvage-"+it.id);
     if (!target) return ["무기 보관함",collection(s)];
@@ -213,5 +229,5 @@ const BladeView = (() => {
       btn("bladeSalvage","각인석으로 분해",target.id,"action",target.id===item.id)];
     return [label(target),itemDetail(s,target),b.itemRarity(target)];
   }
-  return {forge, armor, switches, modal, sprite, artwork, damageRange, itemDetail, armorDetail, label};
+  return {forge, armor, switches, modal, sprite, artwork, damageRange, hitLine, hitMark, itemDetail, armorDetail, label};
 })();

@@ -571,8 +571,9 @@ function huntResult(last, chests) {
     "구역 " +
     title +
     "</b><small>" +
-    last.turns +
-    "턴 · 받은 피해 " +
+    // A fight on the rule clock records its rule time instead of turns (AS1-1 M5).
+    (last.diceVersion === 3 ? HuntStrikes.duration(last.duration) : last.turns + "턴") +
+    " · 받은 피해 " +
     last.damageTaken +
     " · 반격 " +
     last.ripostes +
@@ -725,8 +726,11 @@ function towerView(s) {
         : !s.tickets && dailyAvailable(s)
           ? openBtn("daily", icon("gift") + "출석 보상 · 입장권 5장", "primary")
           : btn("fastTower", icon("chevrons-up") + "고속 등반 · 입장권 1장", "", "primary", !s.tickets)) +
+    // The tower keeps the weapon numbers shipped before the rule clock until its own update (AS1-2).
     (tr ? '<details><summary>시련 규칙</summary>' +
-      desc("매 층 체력 회복 · 20턴 이내 승리 · 보상 3개 중 1개 선택. 매주 월요일 0시(한국 시간)에 초기화됩니다.") + '</details>' : "") +
+      desc("매 층 체력 회복 · 20턴 이내 승리 · 보상 3개 중 1개 선택. 매주 월요일 0시(한국 시간)에 초기화됩니다.") +
+      desc("탑과 길드 표적은 다음 업데이트까지 이전 무기 수치로 싸웁니다.") + '</details>'
+      : '<details><summary>탑 전투 안내</summary>' + desc("탑과 길드 표적은 다음 업데이트까지 이전 무기 수치로 싸웁니다.") + '</details>') +
     (tr ? openBtn("restart", "1층부터 다시 도전")
       : line("보유 입장권", s.tickets + "장") +
         line(Game.towerReward(f).name, brief(Game.towerReward(f).minGold) + "~" + brief(Game.towerReward(f).maxGold) + " G") +

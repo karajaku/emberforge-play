@@ -11,6 +11,7 @@ const Game = (() => {
   const finale = typeof module !== "undefined" ? require("./breakthrough.js") : Breakthrough;
   const dice = typeof module !== "undefined" ? require("./dice-combat.js") : DiceCombat;
   const power = typeof module !== "undefined" ? require("./combat-power.js") : CombatPower;
+  const asc = typeof module !== "undefined" ? require("./attack-speed-combat.js") : AttackSpeedCombat;
   const trail = typeof module !== "undefined" ? require("./hunt-trail.js") : HuntTrail;
   const explore = typeof module !== "undefined" ? require("./exploration-rules.js") : ExplorationRules;
   const shop = typeof module !== "undefined" ? require("./relic-shop.js") : RelicShop;
@@ -838,13 +839,18 @@ const Game = (() => {
     delete w.work;
     return ok(stageName + " 완료 · " + blades.name(w) + " +" + w.level, "win");
   }
+  // A hunt on the rule clock (diceVersion 3) binds the AS1-1 kind numbers; every other blade hunt keeps
+  // the numbers shipped before it, also when it is bound again midway (hand-over §3, R9).
+  const onRuleClock = h => h?.diceVersion === asc.diceVersion;
+  // Kind values a running encounter keeps when its weapon is bound again (hand-over §2.9).
+  const kindTraits = ["hitScale", "woundGain", "ruptureAt", "deepWounds", "passesBlocks", "blockedDamagePercent"];
   function bindBladeCombat(s, h, item=blades.current(s), armor=blades.currentArmor(s), style=blades.state(s).style, prepared) {
     blades.state(s).equipmentVersion = 1;
     const outfitRating = h.bladeCombat ? (h.bladeCombat.outfitArmorRating ?? 0) : undefined;
     h.armorId = armor.id;
     h.bladeId = item.id;
     h.blade = { stage: gradeForLevel(item.level), level: item.level, name: blades.name(item), weaponKind:item.weaponKind ?? "sword" };
-    h.bladeCombat = prepared ?? blades.skills(s,item,armor,style,outfitRating);
+    h.bladeCombat = prepared ?? blades.skills(s,item,armor,style,outfitRating,!onRuleClock(h));
     h.attack = h.bladeCombat.attack;
   }
   function refreshHuntGear(s, id) {
@@ -853,24 +859,45 @@ const Game = (() => {
     const weapon = blades.state(s).items.find(item => item.id === h.bladeId);
     const armor = blades.armors(s).find(item => item.id === h.armorId) || blades.currentArmor(s);
     const priorMax = h.maxHp;
+    const kept = onRuleClock(h) && h.events > 0 ? Object.fromEntries(kindTraits.map(key => [key, h.bladeCombat[key]])) : null;
     bindBladeCombat(s, h, weapon, armor, h.bladeCombat.style);
+    if (kept) Object.assign(h.bladeCombat, kept);
+    if (onRuleClock(h)) asc.rebind(h);
     h.maxHp = h.bladeCombat.hp;
     h.hp = Math.max(1, Math.min(h.maxHp, h.hp + h.maxHp - priorMax));
   }
   function preparedHunt(s) {
-    const h = s.hunt;
-    const bladeCombat = blades.skills(s);
+    const h = s.hunt, timed = onRuleClock(h);
+    const bladeCombat = blades.skills(s, undefined, undefined, undefined, undefined, !timed);
     const maxHp = bladeCombat.hp;
-    return { ...h, bladeCombat, fieldKit: outfit.build(s), maxHp,
+    const ready = { ...h, bladeCombat, fieldKit: outfit.build(s), maxHp,
       hp: h.turn === 1 ? maxHp : Math.min(h.hp, maxHp) };
+    if (timed) {
+      // The weapon worn now may be of another kind: its interval, hit scale and first attack apply.
+      ready.blade = { ...h.blade, weaponKind: blades.current(s).weaponKind ?? "sword" };
+      asc.rebind(ready);
+    }
+    return ready;
   }
 
   function huntPower(s) {
     const h = s.hunt;
-    if (h?.powerVersion !== power.version || h.waveTurn !== 1 || h.enemyKind === "goblin" ||
-        trail.awaitingNext(h)) return null;
+    if (!h || h.enemyKind === "goblin" || trail.awaitingNext(h)) return null;
+    if (onRuleClock(h))
+      return h.powerVersion === asc.powerVersion && h.events === 0 ? asc.estimate(h.powerHeld ? preparedHunt(s) : h) : null;
+    if (h.powerVersion !== power.version || h.waveTurn !== 1) return null;
     return power.estimate(h.powerHeld ? preparedHunt(s) : h);
   }
+  const huntTrailResult = h => {
+    const result = h.trailVersion ? {trailVersion:1, wave:h.wave, bonusEncounter:h.bonusEncounter} : {};
+    if (h.bladeCombat) Object.assign(result,{bladeCombat:h.bladeCombat,armorId:h.armorId,wounds:h.wounds,territoryRank:h.territoryRank,fieldKit:h.fieldKit});
+    return result;
+  };
+  // What a result keeps of the fight itself: the last roll of a turn fight, or the last strikes, the rule
+  // time (the last event time of every encounter, added up) and the own attacks of a fight on the rule clock.
+  const huntRecord = (h, roll) => onRuleClock(h)
+    ? { diceVersion: h.diceVersion, lastStrikes: h.lastStrikes, duration: (h.elapsed || 0) + h.clock, attacks: h.attacks || 0 }
+    : roll ? { diceVersion: h.diceVersion, lastDice: roll } : {};
 
   function holdStrongerOpponent(s) {
     if (!huntPower(s)?.blocked) return false;
@@ -879,7 +906,8 @@ const Game = (() => {
   }
   function bladeAttributes(s, trial = false, raid = false) {
     if (!s.bladeForge) return stats(s, trial, raid);
-    const build = blades.skills(s),
+    // The tower and the guild target keep the kind numbers shipped before AS1-1 until AS1-2 (R8).
+    const build = blades.skills(s, undefined, undefined, undefined, undefined, true),
       original = build.attack;
     if (trial) {
       build.attack += Math.round(Math.sqrt(s.trial.buffs.attack));
@@ -1032,7 +1060,21 @@ const Game = (() => {
     const table = explore.tableKey(stagePhase, foodPossible, cooling);
     return { eligible: true, phase: stagePhase, foodPossible, table, odds: { ...explore.tables[table] } };
   }
-  function perform(s, act, arg, t = Date.now(), random = Math.random, pressedAt = t) {
+  // Save format 12 (hand-over §4.1): the mark is set before anything of AS1-1 can be stored (a fight on the
+  // rule clock, its result, an attack-speed affix, the mace's new pass-through) and is never cleared.
+  function markAttackSpeed(s) {
+    if (s.attackSpeed !== undefined) return;
+    const fight = h => !!h && (onRuleClock(h) || h.powerVersion === asc.powerVersion ||
+      (h.bladeCombat && (h.bladeCombat.mods?.haste !== undefined || ![25, 40].includes(h.bladeCombat.blockedDamagePercent ?? 25))));
+    if (fight(s.hunt) || fight(s.lastHunt) || s.bladeForge?.items?.some(item => item.mods?.some(mod => mod.key === "haste")))
+      s.attackSpeed = { version: 1 };
+  }
+  function perform(s, ...rest) {
+    const result = performAction(s, ...rest);
+    markAttackSpeed(s);
+    return result;
+  }
+  function performAction(s, act, arg, t = Date.now(), random = Math.random, pressedAt = t) {
     settle(s, t);
     const fail = (message) => ({ ok: false, message });
     const success = (message, kind = "info") => {
@@ -1632,7 +1674,8 @@ const Game = (() => {
           return fail("비축 식량이 부족해 사냥을 떠날 수 없습니다. 식량 보급이나 출석 보상을 확인하세요.");
         const journeyBattle = arg?.combat === "journey-v1";
         const d20Battle = arg?.combat === "blade-d20-v1";
-        const bladeBattle = d20Battle || arg?.combat === "blade-v1";
+        const timedBattle = arg?.combat === asc.id;
+        const bladeBattle = d20Battle || timedBattle || arg?.combat === "blade-v1";
         const retry = bladeBattle && hasBossRetry(s, rank);
         if (bladeBattle && (blades.state(s).items.length>=120 || blades.armors(s).length>=120))
           return fail("장비 보관함이 가득 찼습니다. 가득 찬 부위의 여분 장비를 분해하세요.");
@@ -1640,14 +1683,14 @@ const Game = (() => {
         if (bladeBattle && rank>blades.state(s).cleared+1) return fail("무기로 이전 지역을 먼저 토벌하세요.");
         // Exploration is explicit opt-in. Every refusal happens before food is charged.
         const exploring = typeof arg === "object" && arg !== null && arg.explore !== undefined;
-        if (exploring && (arg.explore !== explore.version || arg.combat !== explore.combat))
+        if (exploring && (arg.explore !== explore.version || !explore.combats.includes(arg.combat)))
           return fail("탐험 규칙을 확인하세요.");
         if (exploring && !retry && explore.validLedger(w.exploration) && !Number.isSafeInteger(w.exploration.consumed + 1))
           return fail("탐험 기록 한도에 도달했습니다. 저장 기록을 확인해 주세요.");
         if (exploring && !Number.isSafeInteger(s.forestFiber + forestYield(rank)))
           return fail("섬유 보관 한도에 도달했습니다. 사냥을 시작할 수 없습니다.");
         const clearedBefore = bladeBattle ? blades.state(s).cleared : 0;
-        const st = bladeBattle ? blades.skills(s) : trailBattle ? huntStats(s) : stats(s),
+        const st = bladeBattle ? blades.skills(s, undefined, undefined, undefined, undefined, !timedBattle) : trailBattle ? huntStats(s) : stats(s),
           enemyHp = 90 + Math.round(36 * (rank - 1) ** 1.65);
         const enemy = huntEnemy(rank);
         const task = routeTask(s);
@@ -1738,7 +1781,7 @@ const Game = (() => {
         };
         // Explicit per-battle model: old saves and untagged legacy callers retain their rules.
         if (arg?.combat === "dice-v1" || trailBattle) {
-          s.hunt.diceVersion=d20Battle ? 2 : 1;s.hunt.skillVersion=1;s.hunt.skillCooldowns={heavyStrike:0,counter:0};
+          s.hunt.diceVersion=timedBattle ? asc.diceVersion : d20Battle ? 2 : 1;s.hunt.skillVersion=1;s.hunt.skillCooldowns={heavyStrike:0,counter:0};
           s.hunt.enemySkillState={cooldown:enemy.first,interval:enemy.interval,power:enemy.power};
         }
         if (trailBattle) {
@@ -1765,7 +1808,14 @@ const Game = (() => {
           if (journeyBattle && rank % 5 === 0)
             s.hunt.armorDamageMultiplier = bossDamageMultiplier(s.armor.level, rank);
           trail.enter(s.hunt, 0);
-          if (d20Battle && arg.power === power.version) {
+          if (timedBattle) {
+            // The rule clock replaces the turn counters; the power guard is part of these rules.
+            asc.begin(s.hunt);
+            delete s.hunt.waveTurn;
+            delete s.hunt.skillCooldowns;
+            Object.assign(s.hunt, { elapsed: 0, attacks: 0, powerVersion: asc.powerVersion, skillVersion: 3 });
+            holdStrongerOpponent(s);
+          } else if (d20Battle && arg.power === power.version) {
             s.hunt.powerVersion = power.version;
             s.hunt.skillVersion = 3; // Older tabs must not resume a fight without the preparation guard.
             holdStrongerOpponent(s);
@@ -1827,7 +1877,11 @@ const Game = (() => {
         if (h?.exploration) return fail("탐험 보상을 먼저 고르세요.");
         if (!trail.awaitingNext(h) || arg?.id !== h.id || arg.wave !== h.wave ||
             h.wave + 1 >= trail.lineup(h.territoryRank || h.rank, h.bonusEncounter).length) return fail("이어질 조우가 없습니다.");
-        trail.enter(h, h.wave + 1);
+        if (onRuleClock(h)) {
+          h.elapsed = (h.elapsed || 0) + h.clock;
+          asc.advance(h);
+          delete h.waveTurn;
+        } else trail.enter(h, h.wave + 1);
         holdStrongerOpponent(s);
         return { ok: true, message: h.last, kind: "info" };
       }
@@ -1836,9 +1890,10 @@ const Game = (() => {
         if (!h?.powerHeld || arg?.id !== h.id || arg.wave !== h.wave)
           return fail("준비 중인 조우가 바뀌었습니다.");
         const ready = preparedHunt(s);
-        const estimate = power.estimate(ready);
+        const estimate = (onRuleClock(h) ? asc : power).estimate(ready);
         if (estimate.blocked) return fail(estimate.unavailable ? "전투력을 계산할 수 없습니다." : "적의 전투력이 아직 더 높습니다.");
         bindBladeCombat(s, h, blades.current(s), blades.currentArmor(s), ready.bladeCombat.style, ready.bladeCombat);
+        if (onRuleClock(h)) asc.rebind(h);
         Object.assign(h, { fieldKit: ready.fieldKit, hp: ready.hp, maxHp: ready.maxHp });
         delete h.powerHeld;
         return success("같은 상대에게 도전합니다.");
@@ -1860,6 +1915,18 @@ const Game = (() => {
         if (trail.awaitingNext(h)) return fail("다음 적을 기다리고 있습니다.");
         if (h.powerHeld) return fail("대장간에서 준비하거나 조우를 넘기세요.");
         if (holdStrongerOpponent(s)) return success("적의 전투력이 더 높아 사냥을 멈췄습니다.");
+        if (onRuleClock(h)) {
+          // One command resolves one event; the resolver commits it to the hunt (hand-over §3).
+          const event = asc.step(h, random);
+          if (event.actor === "player") h.attacks = (h.attacks || 0) + 1;
+          const impact = { kind: event.move === "counter" ? "counter" : "slash", damage: event.damage || 0, taken: event.taken || 0 };
+          if (event.actor === "enemy" && h.rank === 5 && event.taken > (h.strongestHit?.taken || 0))
+            h.strongestHit = { kind: h.enemyKind, skill: event.move === "attack" ? null : event.move, taken: event.taken };
+          if (h.ended === "enemy" && !asc.hasNext(h)) return victory(null, impact, event);
+          if (h.ended === "player") return defeat(null, impact, event);
+          h.last = event.actor === "escape" ? "고블린 도주" : "공격속도 전투";
+          return { ok: true, message: "", kind: "info", impact, event };
+        }
         // Existing dice saves acquire optional skill state on their next committed turn.
         if(h.diceVersion===1){
           h.skillVersion=h.trailVersion ? 2 : 1;
@@ -1885,8 +1952,6 @@ const Game = (() => {
         };
         if (roll?roll.skill==='counter':!block&&h.counter) h.ripostes = (h.ripostes || 0) + 1;
         h.enemyHp = Math.max(0, h.enemyHp - damage);
-        const trailResult = h.trailVersion ? {trailVersion:1, wave:h.wave, bonusEncounter:h.bonusEncounter} : {};
-        if (h.bladeCombat) Object.assign(trailResult,{bladeCombat:h.bladeCombat,armorId:h.armorId,wounds:h.wounds,territoryRank:h.territoryRank,fieldKit:h.fieldKit});
         if (!h.enemyHp) {
           if (h.trailVersion && h.wave + 1 < trail.lineup(h.territoryRank || h.rank, h.bonusEncounter).length) {
             if (h.enemyKind === "goblin") h.goblinCaught = true;
@@ -1894,6 +1959,11 @@ const Game = (() => {
             h.turn++;
             return { ok:true, message:"", kind:"info", impact };
           }
+          return victory(roll, impact);
+        }
+        // The last enemy fell: the chest, the loot and the result. Shared by turn fights and the rule clock.
+        function victory(roll, impact, event) {
+          const trailResult = huntTrailResult(h);
           const base = h.bladeCombat ? bladePrizeGold(h.rank,t) : h.journeyBattle ? journey.area(h.rank, t).prize : live.forestGold(h.rank, t);
           const bonus = !h.bladeCombat && !h.journeyBattle && h.ripostes ? base / 4 : 0;
           const chest = awardChest(s, "forest", h.rank, base, bonus, int, !!h.journeyBattle);
@@ -1907,12 +1977,12 @@ const Game = (() => {
           s.lastHunt = {
             ...trailResult,
             id: h.id, ticketSource: h.ticketSource,
-            ...(roll ? {diceVersion:h.diceVersion, lastDice:roll} : {}),
+            ...huntRecord(h, roll),
             health: huntHealth(h),
             blade: huntBladeState(s, h),
             rank: h.rank,
             enemyKind: huntEnemy(h).kind,
-            turns: h.turn,
+            ...(onRuleClock(h) ? {} : { turns: h.turn }),
             damageTaken: h.maxHp - h.hp,
             ripostes: h.ripostes || 0,
             chestId: chest.id,
@@ -1944,7 +2014,7 @@ const Game = (() => {
                 (trained ? " · 전승 수련 달성" : ""),
               "win",
             ),
-            impact,
+            impact, ...(event ? { event } : {}),
           };
         }
         impact.taken = Math.min(taken, h.hp);
@@ -1953,26 +2023,28 @@ const Game = (() => {
         h.hp = Math.max(0, h.hp - taken + (taken && h.bladeCombat ? roll.healed : 0));
         if (roll && (h.waveTurn ?? h.turn) >= 40) h.hp = 0;
         h.counter = roll?roll.counter:block && charge;
-        if (!h.hp) {
+        if (!h.hp) return defeat(roll, impact);
+        function defeat(roll, impact, event) {
+          const trailResult = huntTrailResult(h);
           if (h.bladeCombat && h.rank === 5 && s.bladeForge.cleared < 5 && !s.bladeForge.firstBossRetry)
             s.bladeForge.firstBossRetry = "ready";
           s.lastHunt = {
             ...trailResult,
             ...(h.strongestHit ? { strongestHit: h.strongestHit } : {}),
             id: h.id, ticketSource: h.ticketSource,
-            ...(roll ? {diceVersion:h.diceVersion, lastDice:roll} : {}),
+            ...huntRecord(h, roll),
             health: huntHealth(h),
             blade: huntBladeState(s, h),
             rank: h.rank,
             enemyKind: huntEnemy(h).kind,
-            turns: h.turn,
+            ...(onRuleClock(h) ? {} : { turns: h.turn }),
             damageTaken: h.maxHp,
             ripostes: h.ripostes || 0,
             reward: 0,
             bonus: 0,
           };
           s.hunt = null;
-          return { ...success("사냥 실패 · 장비를 챙겨 야영지로 돌아왔습니다.", "loss"), impact };
+          return { ...success("사냥 실패 · 장비를 챙겨 야영지로 돌아왔습니다.", "loss"), impact, ...(event ? { event } : {}) };
         }
         h.turn++;
         if (h.trailVersion) h.waveTurn++;
@@ -2332,6 +2404,7 @@ const Game = (() => {
     huntCharge,
     huntEnemy,
     huntPower,
+    huntTimed: onRuleClock,
     huntOutcome,
     explorationPreview,
     artisanEligible,

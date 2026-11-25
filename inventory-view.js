@@ -46,7 +46,14 @@ const GearCompareView = (() => {
     const outfit = type === "outfit";
     const columns = [outfit ? "장비 자체" : "능력치", outfit ? "수치" : equipped ? "현재" : "장착 시"];
     if (!equipped) columns.push("증감");
+    // The attack interval is neither better nor worse by itself: seconds, and a change without a tone (hand-over §7.5).
+    function interval(stat) {
+      const change = Math.round(stat.value / 10) - Math.round(stat.before / 10);
+      return itemRow(stat.label, HuntStrikes.interval(stat.value), change && stat.before ?
+        '<span class="gear-equal">' + (change < 0 ? "−" : "+") + Math.abs(change) / 100 + '초</span>' : '<span class="gear-equal" aria-label="변화 없음">—</span>');
+    }
     const individual = itemRow(outfit ? "장비 전투력" : "전투력", number(score), difference(delta, "")) + rows.map(stat =>
+      stat.format === "interval" ? interval(stat) :
       itemRow(stat.label, number(stat.value) + stat.unit, difference(stat.delta, stat.deltaUnit))).join("");
     let body = table(columns, individual, "gear-item-stats");
     if (totals.length) {

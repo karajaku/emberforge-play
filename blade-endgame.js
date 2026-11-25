@@ -8,7 +8,7 @@ const BladeEndgame = (() => {
       key: "heavy",
       name: "관통 일격",
       cost: 3,
-      detail: "기세 일격이 방어를 관통하고 재사용 대기가 1턴 늘어납니다.",
+      detail: "기세 일격이 방어를 관통하고 재사용 대기가 2초 늘어납니다.",
     },
     counter: {
       key: "counter",
@@ -20,7 +20,7 @@ const BladeEndgame = (() => {
       key: "rupture",
       name: "잔상 파열",
       cost: 3,
-      detail: "적마다 첫 파열 타격 피해가 25% 줄고, 파열 후 상처 1겹이 남습니다.",
+      detail: "적마다 첫 파열 타격 피해가 25% 줄고, 파열 후 상처 1개가 남습니다.",
     },
   };
   const armorTransform = {

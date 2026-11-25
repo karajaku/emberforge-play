@@ -330,8 +330,9 @@ function notify(msg, kind = "info", forgeItem = false, title = "") {
   el("noticeText").scrollTop = 0;
   placeToast();
 }
-function sound(kind, delay = 0) {
-  if (prefs.sound && !document.hidden) GameSound.play(kind, delay);
+// `layered`: the sound joins the ones still playing instead of ending them (two strikes of one instant).
+function sound(kind, delay = 0, layered = false) {
+  if (prefs.sound && !document.hidden) GameSound.play(kind, delay, layered);
 }
 function syncMusic() {
   if (!state) return;
@@ -446,8 +447,11 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
       if (!next) { render(); return; }
       action = next.action; arg = next.arg;
     }
-    Feedback.clear();
-    GameSound.stop();
+    // A strike of the forest scene is one event among others still playing: its command ends no sound or motion (M1-d).
+    if (!(automaticGuard && HuntWatch.active)) {
+      Feedback.clear();
+      GameSound.stop();
+    }
     const goldBefore = state.gold;
     const breaksBefore = state.breaks;
     const actionLevel = () => {
@@ -464,7 +468,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     const strong = sparring && Swordcraft.heavy(workWeapon.work);
     const beforeHunt = state.hunt;
     const beforeHuntHealth = state.hunt && {...state.hunt};
-    if (action === "huntStart" && arg && typeof arg === "object" && !arg.combat) arg = { ...arg, combat: "blade-d20-v1" };
+    if (action === "huntStart" && arg && typeof arg === "object" && !arg.combat) arg = { ...arg, combat: Game.exploration.combat };
     const destroyBefore = action === "forgeItemEnhance" ? Game.forgeItems.quote(state,arg.id)?.destroy : 0;
     const result = Game.perform(state, action, arg, undefined, undefined, pressedAt);
     // The rules refuse an unannounced hit that could reset the item. Nothing changed, so show the notice.
@@ -560,13 +564,15 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
       battle = { ...result.battle, start: performance.now(), message: result.message };
       modal = "battle";
     }
-    render();
-    if (modal) {
-      // Keep the receipt, keyboard focus and expanded comparisons stable between automatic turns.
-      if (!(automaticGuard || repeatGuard) || !HuntLootView.isReader(modal)) displayModal();
-    } else closeModal(inventoryAction);
-    const stagedHit = result.impact && beforeHuntHealth && HuntEffects.play(result.impact, beforeHuntHealth,
-      [1, 2].includes(beforeHuntHealth.diceVersion) ? (state.hunt?.lastDice || state.lastHunt?.lastDice) : null);
+    // The forest scene shows its own strikes event by event and is not redrawn for them (hand-over §7.2 M1-a).
+    const stagedHit = HuntWatch.present(beforeHuntHealth, action, result);
+    if (!stagedHit) {
+      render();
+      if (modal) {
+        // Keep the receipt, keyboard focus and expanded comparisons stable between automatic turns.
+        if (!(automaticGuard || repeatGuard) || !HuntLootView.isReader(modal)) displayModal();
+      } else closeModal(inventoryAction);
+    }
     if (result.impact && !stagedHit) showHuntDamage(document.querySelector("#screen .combat-hud"), result.impact, motionEnabled());
     if (result.ok && motionEnabled()) {
       const stage = document.querySelector("#screen .scene");
@@ -755,6 +761,7 @@ function render() {
   document.body.append(el("noticeSlot"));
   screen.innerHTML = view;
   if (huntButtonFocused) screen.querySelector(".watch-start")?.focus({ preventScroll: true });
+  HuntWatch.afterRender();
   bindOutfitQuotes(screen);
   renderLesson();
   GameUI.shell();
@@ -786,7 +793,7 @@ function syncLesson() {
 // Forge: centred just under the slot pager (or filter row) between the side rails, below any notice.
 // Forest hunt page: centred just above the hunt button. Other pages keep the CSS corner placement.
 function placeLesson() {
-  const lessonAvoid = ".watch-arena :is(.hp-meter,.watch-action,.watch-skills,.watch-enemy-skill,.watch-upper-dice," +
+  const lessonAvoid = ".watch-arena :is(.hp-meter,.watch-skills,.watch-enemy-skill," +
     ".watch-impact-number,.watch-report,.watch-reward,.watch-loot,.watch-recent-loot,.watch-status)";
   const host = el("apprentice");
   const box = node => {
@@ -1114,7 +1121,7 @@ function modalDataContent() {
         ) +
           row(
             "애니메이션",
-            !prefs.motion ? "게임 설정에서 움직임을 껐습니다" : !motionEnabled() ? "PC의 동작 줄이기 설정으로 정지 중입니다" : "주사위·공격·피격 연출이 켜져 있습니다",
+            !prefs.motion ? "게임 설정에서 움직임을 껐습니다" : !motionEnabled() ? "PC의 동작 줄이기 설정으로 정지 중입니다" : "공격·피격 연출이 켜져 있습니다",
             preferenceSwitch("motion", "애니메이션"),
           ) +
           ((reducedMotion.matches || prefs.motionOverride) ? row("연출 적용 방식", prefs.motionOverride ? "이 게임에서는 전체 연출을 사용합니다" : "기기 설정과 관계없이 이 게임의 연출을 켤 수 있습니다", '<button class="mini" data-motion-policy="'+(prefs.motionOverride?'system':'full')+'">'+(prefs.motionOverride?'기기 설정 따르기':'이 게임에서 연출 켜기')+'</button>') : '') +
@@ -1271,6 +1278,7 @@ function modalDataContent() {
         s.guild
           ? desc(s.guild.name + " · 대표 유물 효과가 적용됩니다.") +
             line("레이드 공격력", fmt(Game.bladeAttributes(s, false, true).attack)) + line("제한", "10턴") +
+            desc("탑과 길드 표적은 다음 업데이트까지 이전 무기 수치로 싸웁니다.") +
             btn("raid", "일일 레이드 도전", "", "primary", s.guild.last === Game.day(Date.now()))
           : desc("길드 징표 10개와 30억 G로 개인 길드를 창설합니다.") +
             line("징표", s.marks + " / 10") +
@@ -1290,11 +1298,21 @@ function modalDataContent() {
       return ["사냥 구역", HuntWatch.planView(s)];
     case "huntRules":
       // A waiting cart is not a battle; it reads the current forest rules and exploration odds.
-      if (!s.hunt || s.hunt.exploration || s.hunt.diceVersion === 2) return ["숲 사냥",
+      // A new hunt runs on the rule clock (AS1-1). A d20 hunt that was under way at the update keeps its turns.
+      if (!s.hunt || s.hunt.exploration || Game.huntTimed(s.hunt)) return ["숲 사냥",
+        desc("사냥 버튼을 짧게 누르면 이번 단계를 끝내고, 1초 꾹 누르면 다음 단계까지 이어서 사냥합니다. 사냥 중에 다시 누르면 멈춥니다.") +
+        HuntWatch.exploreRules(s) +
+        line("공격 간격", "무기 종류와 공격속도 옵션이 정합니다 · 적은 2초마다") +
+        line("공격 굴림", "1은 빗나감 · 20은 치명타") +
+        line("상처", "상처를 다 채우면 파열(단검 4개, 그 밖 3개)") +
+        desc("양쪽이 자기 간격마다 공격하고, 타격 순간에 맞은 쪽 머리 위에 결과를 표시합니다. 공격 굴림과 기술 보정의 합이 방어 굴림으로 정한 목표 이상이면 명중하며, 명중한 공격에는 무기의 치명타 확률이 적용됩니다. 예고된 적 기술에는 방어 보정이 붙고 반격 검술은 보정이 더 큽니다. 굴림과 목표는 사냥을 중단한 뒤 사냥 구역에서 확인할 수 있습니다.") +
+        desc("적 기술은 적의 공격 횟수로 셉니다. 황금 고블린은 4초에 달아나며, 그 전에 잡으면 상자에 기본 골드 +50%를 더합니다. 한 조우가 80초를 넘기면 패배합니다.") +
+        desc("사냥에 나갈 때 식량을 1개 씁니다. 진행 중인 사냥은 식량이 없어도 재개할 수 있습니다. 다섯 단계마다 우두머리를 만납니다. 무기와 방어구는 보관함에서 비교하고 장착합니다.") + openBtn("bladeStyles","검술과 능력 확인")];
+      if (s.hunt.diceVersion === 2) return ["숲 사냥",
         desc("사냥 버튼을 짧게 누르면 이번 단계를 끝내고, 1초 꾹 누르면 다음 단계까지 이어서 사냥합니다. 사냥 중에 다시 누르면 멈춥니다.") +
         HuntWatch.exploreRules(s) +
         line("공격 d20", "1은 빗나감 · 20은 치명타") +
-        desc("타격 순간에 공격 눈과 판정, 피해를 표시합니다. 공격 주사위와 기술 보정의 합이 방어 d6으로 정한 목표 이상이면 명중하며, 명중한 공격에는 무기의 치명타 확률이 적용됩니다. 예고된 적 기술에는 방어 보정이 붙고 반격 검술은 보정이 더 큽니다. 우두머리의 기술을 완전히 막으면 두 굴림을 중앙에 잠깐 표시합니다. 방어 눈과 목표는 사냥을 중단한 뒤 사냥 구역에서 확인할 수 있습니다.") +
+        desc("이 사냥은 업데이트 전에 시작해 턴 규칙으로 끝까지 진행합니다. 한 턴에 내 공격과 적의 응답을 차례로 보여 주고, 타격 순간에 맞은 쪽 머리 위에 결과를 표시합니다. 공격 주사위와 기술 보정의 합이 방어 d6으로 정한 목표 이상이면 명중하며, 명중한 공격에는 무기의 치명타 확률이 적용됩니다. 예고된 적 기술에는 방어 보정이 붙고 반격 검술은 보정이 더 큽니다. 공격 눈과 방어 눈, 목표는 사냥을 중단한 뒤 사냥 구역에서 확인할 수 있습니다.") +
         desc("사냥에 나갈 때 식량을 1개 씁니다. 진행 중인 사냥은 식량이 없어도 재개할 수 있습니다. 다섯 단계마다 우두머리를 만납니다. 무기와 방어구는 보관함에서 비교하고 장착합니다.") + openBtn("bladeStyles","검술과 능력 확인")];
       if (s.hunt.bladeCombat) return ["숲 사냥", line("주사위", "1~3 타격 · 4~5 방어 · 6 강타") +
         desc("강공 검술은 기세 2를 써서 일격, 반격 검술은 적 스킬 방어 뒤 반격, 상처 검술은 상처 3겹부터 파열을 발동합니다.") +

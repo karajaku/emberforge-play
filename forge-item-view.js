@@ -231,7 +231,8 @@ const ForgeItemView = (() => {
     const c = Game.compareGear(s,q.item,q.type);
     const delta = c.delta === 0 ? "0" : (c.delta < 0 ? "−" : "+") + fmt(Math.abs(c.delta));
     const baseline = q.kind === "ring" ? slotName(c.slot) + " 대비" : "착용 대비";
-    const grade = Game.blades.itemRarity(q.item).name + " · " + Game.blades.baseGradeNames[q.item.grade];
+    // A weapon's interval and one hit open the summary (hand-over §7.5).
+    const grade = (q.type === "blade" ? BladeView.hitMark(q.item) + " · " : "") + Game.blades.itemRarity(q.item).name + " · " + Game.blades.baseGradeNames[q.item.grade];
     const status = q.wornSlot ? (q.kind === "ring" ? slotName(q.wornSlot) + " 착용" : "착용 중") : (q.disposeBlocked ? "미착용 · " + q.disposeBlocked : "미착용");
     return '<div class="forge-item-summary"><span>' + grade + ' · ' + status + '</span><span>전투력 <b>' +
       fmt(c.score) + '</b> <i data-tone="' + (c.delta > 0 ? "up" : c.delta < 0 ? "down" : "same") + '">' +

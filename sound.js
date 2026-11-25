@@ -60,10 +60,11 @@ const GameSound = (() => {
       tone(hz * 1.47, time, 0.09, 0.025);
     }
   }
-  function play(kind, delay = 0) {
+  // `layered` keeps the voices that are still sounding: forest strikes can land in the same instant.
+  function play(kind, delay = 0, layered = false) {
     unlock();
     if (!context) return;
-    stop();
+    if (!layered) stop();
     try {
       const at = context.currentTime + delay;
       if (kind.startsWith("forge")) {

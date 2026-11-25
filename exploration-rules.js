@@ -4,7 +4,11 @@
 const ExplorationRules = (() => {
   const trail = typeof module !== "undefined" ? require("./hunt-trail.js") : HuntTrail;
   const version = "explore-v1";
-  const combat = "blade-d20-v1";
+  // The rules a new forest hunt starts on. "blade-as-v1": the rule clock of attack-speed-combat.js.
+  // Putting "blade-d20-v1" back here starts new hunts on the turn rules again (hand-over §4.4, R-다).
+  const combat = "blade-as-v1";
+  // Both forest rule sets may explore: a start on the turn rules still works when `combat` is put back.
+  const combats = Object.freeze(["blade-as-v1", "blade-d20-v1"]);
   const artisanChance = 0.10;
   const artisanCost = 2;
   const artisanName = "봉인된 장인의 보물함";
@@ -46,7 +50,7 @@ const ExplorationRules = (() => {
     return rank % 5 === 0 || (rank > cleared && rank % 5 === 1);
   }
   function eligible({ explore, combat: model, source, rank, cleared }) {
-    return explore === version && model === combat && sources.includes(source) &&
+    return explore === version && combats.includes(model) && sources.includes(source) &&
       validRank(rank) && Number.isInteger(cleared) && rank <= cleared + 1 && !protectedStage(rank, cleared);
   }
   function tableKey(stagePhase, foodOK, cooling) {
@@ -122,7 +126,7 @@ const ExplorationRules = (() => {
   }
 
   return {
-    version, combat, artisanChance, artisanCost, artisanName, kinds, tables, cartTables, names, cartName, cartCooldownStarts, sources, choices, recordLimit,
+    version, combat, combats, artisanChance, artisanCost, artisanName, kinds, tables, cartTables, names, cartName, cartCooldownStarts, sources, choices, recordLimit,
     phase, protectedStage, eligible, tableKey, ranges, pick, cooldownAfter,
     freshLedger, validLedger, foodPossible, region, findName, validPlan, validRecord,
   };

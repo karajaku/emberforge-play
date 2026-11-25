@@ -567,6 +567,8 @@ body:has(#shade:is([data-modal^="blade"],[data-modal^="outfit:"],[data-modal^="i
 .gear-score small { color:inherit; font-size:.85em; font-weight:500; }
 .gear-score b { font-weight:750; }
 .gear-score i { font-size:.77em; font-style:normal; }
+/* A weapon's interval and one hit read as one phrase ("1.5초마다 59–72"): it wraps as a whole. */
+.gear-pace, .forge-item-browser .forge-item-summary .gear-pace { white-space:nowrap; }
 .bag-slot .gear-score { flex-wrap:wrap; gap:0 3px; max-width:100%; margin-top:2px; font-size:11px; color:#efdfbc; }
 .bag-slot .gear-score[data-tone="up"] { color:#a1ffc2; }
 .bag-slot .gear-score[data-tone="down"] { color:#ffb7b1; }

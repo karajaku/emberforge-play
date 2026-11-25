@@ -51,7 +51,7 @@ const BladeRules = (() => {
   define("prefix", "rupture", "파열 피해", damage);
   define("prefix", "finish", "체력 30% 이하 적 피해", damage);
   define("suffix", "momentum", "일반 타격 추가 기세 확률", utility);
-  define("suffix", "cooldown", "강공 대기 1턴 단축 확률", utility);
+  define("suffix", "cooldown", "강공 대기 2초 단축 확률", utility);
   define("suffix", "guard", "스킬 방어 시 최대 체력 회복", [
     [1, 1],
     [2, 2],
@@ -66,33 +66,53 @@ const BladeRules = (() => {
     [5, 6],
     [7, 8],
   ]);
+  // AS1-1: shortens the own attack interval in forest hunts on the rule clock (hand-over §2.2).
+  define("suffix", "haste", "공격속도", [
+    [2, 2],
+    [3, 4],
+    [5, 6],
+    [7, 8],
+  ]);
   const weaponKeys = Object.keys(modDefs);
   Object.assign(modDefs,loot.armorDefs);
   const armorNames = ["순철 흉갑", ...names.map(n=>n+" 흉갑")];
   const value = (item, key) => item.mods.find((m) => m.key === key)?.value || 0;
   const craft = typeof module !== "undefined" ? require("./swordcraft.js") : Swordcraft;
   const marks = (item, key) => (item.marks || []).filter((mark) => mark === key).length;
+  // Kind numbers of AS1-1 (hand-over §2.1): new forest hunts and every gear display. `interval` is the own
+  // attack interval in ms; a hit is scaled by interval / 2000 inside the event resolver only.
   const weaponProfiles = {
-    sword: {name:"한손검", trait:"일정한 타격 피해", power:1, spread:0, critChance:5},
-    axe: {name:"도끼", trait:"강공 피해 +12%", power:.97, spread:.30, critChance:5, heavyMultiplier:1.12},
-    mace: {name:"철퇴", trait:"방어하는 적에게 피해 40% 전달", power:.98, spread:.16, critChance:3, blockedDamagePercent:40},
-    dagger: {name:"단검", trait:"치명타 확률 24%", power:.92, spread:.1, critChance:24},
+    // `trait` and `trait2` are the two lines of the weapon detail (hand-over §7.4). Deep wounds: the chance,
+    // on a hit, of one more wound; the wording names the chance so that it cannot read as "always".
+    sword: {name:"한손검", trait:"일정한 타격 피해", power:1, spread:0, critChance:5, interval:2000},
+    axe: {name:"도끼", trait:"강공 피해 +8%", trait2:"깊은 상처 · 맞힐 때 35% 확률로 상처 하나 더", power:1.01, spread:.30, critChance:5, heavyMultiplier:1.08, interval:2400, deepWounds:35},
+    mace: {name:"철퇴", trait:"막힌 타격의 35% 전달", trait2:"깊은 상처 · 맞힐 때 45% 확률로 상처 하나 더", power:.96, spread:.16, critChance:3, blockedDamagePercent:35, passesBlocks:true,
+      interval:2600, deepWounds:45},
+    dagger: {name:"단검", trait:"치명타 확률 24% · 치명타 피해 150%", trait2:"상처 4개에서 파열", power:.92, spread:.1, critChance:24, interval:1500, woundGain:.75, ruptureAt:4},
+  };
+  // The numbers shipped before AS1-1. The tower, the guild target and hunts on the turn rules keep them
+  // until AS1-2 (hand-over §2.1, R8, R9); dice-combat.js tells the mace by its 40.
+  const legacyProfiles = {
+    sword: {...weaponProfiles.sword},
+    axe: {...weaponProfiles.axe, power:.97, heavyMultiplier:1.12},
+    mace: {...weaponProfiles.mace, power:.98, blockedDamagePercent:40},
+    dagger: {...weaponProfiles.dagger},
   };
   const weaponKinds = Object.keys(weaponProfiles);
-  const weaponProfile = item => weaponProfiles[item.weaponKind ?? "sword"];
+  const weaponProfile = (item, legacy=false) => (legacy ? legacyProfiles : weaponProfiles)[item.weaponKind ?? "sword"];
   const name = item => item.type === "armor" ? armorNames[item.base] :
     (item.base ? names[item.base - 1] : "순철") + " " + weaponProfile(item).name;
-  const attack = (item, level = item.level) =>
+  const attack = (item, level = item.level, legacy = false) =>
     Math.round(
-      bases[item.base].power * weaponProfile(item).power *
+      bases[item.base].power * weaponProfile(item, legacy).power *
         (1 + 0.08 * level) *
         (1 + value(item, "power") / 100) *
         (1 + 0.02 * marks(item, "edge")) *
         (1 + craft.grindBonus(item.grind, 2) / 100),
     );
-  function weaponStats(item, level=item.level) {
-    const power = attack(item,level);
-    const profile = weaponProfile(item);
+  function weaponStats(item, level=item.level, legacy=false) {
+    const power = attack(item,level,legacy);
+    const profile = weaponProfile(item,legacy);
     const spread = Math.round(power * profile.spread);
     return {attack:power, minDamage:power-spread, maxDamage:power+spread, critChance:profile.critChance};
   }
@@ -187,10 +207,11 @@ const BladeRules = (() => {
     const defense=Math.min(45,baseDefense+Math.ceil(armor.base/3)+value(armor,"plating")+3*marks(armor,"ward"));
     return {hp,defense,armorRating:armorRating(armor,level)+outfitRating, outfitArmorRating:outfitRating};
   }
-  function skills(s, item=current(s), armor=currentArmor(s), style=state(s).style, outfitRating) {
+  // `legacy`: the kind numbers shipped before AS1-1 and none of the bound kind traits.
+  function skills(s, item=current(s), armor=currentArmor(s), style=state(s).style, outfitRating, legacy=false) {
     const family = bases[item.base].family,
-      weapon = weaponStats(item), a = weapon.attack;
-    const profile = weaponProfile(item);
+      weapon = weaponStats(item, item.level, legacy), a = weapon.attack;
+    const profile = weaponProfile(item, legacy);
     const mods=Object.fromEntries(item.mods.map(m=>[m.key,m.value]));
     const combined={
       guard:value(armor,"parryHeal"), recovery:value(armor,"mending")+marks(armor,"yield")+(armor.grind||[]).filter(z=>z===1).length,
@@ -215,6 +236,9 @@ const BladeRules = (() => {
       armorAscension: armor.ascended?.style,
       guardBonus: (1-blockBonus)*100,
       mods,
+      // Kind traits bound to a hunt on the rule clock (hand-over §4.3).
+      ...(legacy ? {} : { hitScale: profile.interval / 2000, woundGain: profile.woundGain ?? 1, ruptureAt: profile.ruptureAt ?? 3,
+        deepWounds: profile.deepWounds ?? 0, passesBlocks: !!profile.passesBlocks }),
     };
   }
   const anchors = [

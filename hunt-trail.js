@@ -69,7 +69,7 @@ const HuntTrail = (() => {
     delete h.lastDice;
   }
   function awaitingNext(h) {
-    return h?.trailVersion === 1 && (h.enemyHp === 0 || h.lastDice?.enemySkill === "escape");
+    return h?.trailVersion === 1 && (h.enemyHp === 0 || h.lastDice?.enemySkill === "escape" || h.ended === "escape");
   }
   return { region, lineup, enemy, opponent, enter, awaitingNext };
 })();

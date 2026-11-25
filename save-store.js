@@ -38,16 +38,82 @@ const SaveStore = (() => {
       roll.critical === (roll.attackCheck.outcome === "critical") &&
       (replyExpected ? roll.enemy === "strike" && validAttackCheck(roll.replyCheck, roll.enemyFace, replyBase, 0) : noReply);
   }
-  function validEquipmentStats(stats) {
+  // `timed`: a hunt on the rule clock binds its kind values, checked by range so that a later build may
+  // adjust the numbers while a hunt started on the old ones is still running (hand-over §4.3).
+  function validEquipmentStats(stats, timed = false) {
     const fields = ["minDamage","maxDamage","critChance","blockedDamagePercent","armorRating","outfitArmorRating"];
-    if (fields.every(key => stats[key] === undefined)) return true;
+    if (!timed && fields.every(key => stats[key] === undefined)) return true;
+    const passed = timed ? stats.blockedDamagePercent >= 25 && stats.blockedDamagePercent <= 40 :
+      [25,40].includes(stats.blockedDamagePercent);
     return fields.every(key => Number.isSafeInteger(stats[key]) && stats[key] >= 0) &&
       stats.minDamage > 0 && stats.minDamage <= stats.attack && stats.attack <= stats.maxDamage &&
-      stats.critChance <= 100 && [25,40].includes(stats.blockedDamagePercent) &&
-      stats.outfitArmorRating <= stats.armorRating;
+      stats.critChance <= 100 && passed &&
+      stats.outfitArmorRating <= stats.armorRating && (!timed || validKindTraits(stats));
+  }
+  function validKindTraits(stats) {
+    const haste = stats.mods?.haste;
+    return Number.isFinite(stats.hitScale) && stats.hitScale >= .5 && stats.hitScale <= 1.5 &&
+      Number.isFinite(stats.woundGain) && stats.woundGain >= .5 && stats.woundGain <= 1 &&
+      Number.isInteger(stats.ruptureAt) && stats.ruptureAt >= 2 && stats.ruptureAt <= 5 &&
+      Number.isInteger(stats.deepWounds) && stats.deepWounds >= 0 && stats.deepWounds <= 50 &&
+      typeof stats.passesBlocks === "boolean" &&
+      (haste === undefined || (Number.isInteger(haste) && haste >= 0 && haste <= 25));
+  }
+  // One side's latest attack of a fight on the rule clock (the d20 fights keep theirs in lastDice).
+  function validStrike(strike, side, h, latest) {
+    if (strike === null || strike === undefined) return true;
+    const whole = n => Number.isSafeInteger(n) && n >= 0;
+    if (!object(strike) || !whole(strike.at) || strike.at > latest || !object(strike.check) ||
+        ![strike.damage, strike.bleed, strike.taken].every(whole) ||
+        ![strike.partial, strike.critical, strike.guarded].every(flag => typeof flag === "boolean") ||
+        strike.critical !== (strike.check.outcome === "critical")) return false;
+    if (side === "player") {
+      const bonus = strike.check.bonus;
+      return ["strike", "heavyStrike", "counter", "rupture"].includes(strike.move) && strike.taken === 0 && !strike.guarded &&
+        (strike.move === "rupture" ? bonus === 2 : bonus === 0 || (strike.move === "heavyStrike" && bonus === 2)) &&
+        validAttackCheck(strike.check, strike.check.roll, 2, bonus, true);
+    }
+    const skill = strike.move === "attack" ? null : strike.move;
+    return (skill === null || skill === game.huntEnemy(h).skill) && strike.damage === 0 && strike.bleed === 0 && !strike.partial &&
+      strike.guarded === (strike.check.outcome === "blocked") &&
+      validAttackCheck(strike.check, strike.check.roll, dice.replyDefenseBase(h.bladeCombat.style, skill), 0);
+  }
+  function validStrikes(h, latest) {
+    const strikes = h.lastStrikes;
+    return object(strikes) && Object.keys(strikes).every(key => key === "player" || key === "enemy") &&
+      validStrike(strikes.player, "player", h, latest) && validStrike(strikes.enemy, "enemy", h, latest);
+  }
+  // A running hunt on the rule clock (diceVersion 3, hand-over §4.2).
+  function validTimedHunt(h) {
+    const whole = n => Number.isSafeInteger(n) && n >= 0, goblin = h.enemyKind === "goblin";
+    if (h.waveTurn !== undefined || h.skillCooldowns !== undefined || h.lastDice !== undefined) return false;
+    if (!whole(h.clock) || h.clock > 80000 || !whole(h.events) || !Number.isSafeInteger(h.turn) || h.turn < 1 ||
+        !whole(h.elapsed) || !whole(h.attacks) ||
+        !Number.isInteger(h.interval) || h.interval < 1000 || h.interval > 2600 || h.enemyInterval !== 2000 ||
+        !Number.isSafeInteger(h.playerAt) || h.playerAt < h.clock ||
+        (goblin ? h.enemyAt !== null : !Number.isSafeInteger(h.enemyAt) || h.enemyAt < h.clock)) return false;
+    const ready = h.skillReady, floor = -(h.wave + 1) * 82600, ceiling = h.clock + 9000 + h.interval;
+    if (!object(ready) || Object.keys(ready).length !== 2 ||
+        ![ready.heavyStrike, ready.counter].every(at => Number.isSafeInteger(at) && at >= floor && at <= ceiling)) return false;
+    if (!(h.lastMove === null || ["strike", "heavyStrike", "counter", "rupture"].includes(h.lastMove)) ||
+        !(h.lastAttackAt === null || (whole(h.lastAttackAt) && h.lastAttackAt <= h.clock)) ||
+        !validStrikes(h, h.clock)) return false;
+    // A saved hunt has not been lost; an ended encounter waits for the next one.
+    if (h.ended !== undefined && !(h.ended === "enemy" ? h.enemyHp === 0 : h.ended === "escape" && goblin)) return false;
+    return h.enemyHp !== 0 || h.ended === "enemy";
+  }
+  // Without the format-12 mark a save holds nothing an earlier build cannot read (hand-over §4.1).
+  function needsAttackSpeedMark(data) {
+    const fight = h => !!h && (h.diceVersion === 3 || h.powerVersion === 2 || h.duration !== undefined || h.attacks !== undefined ||
+      h.lastStrikes !== undefined || (object(h.bladeCombat) && (h.bladeCombat.mods?.haste !== undefined ||
+        ![undefined, 25, 40].includes(h.bladeCombat.blockedDamagePercent))));
+    return fight(data?.hunt) || fight(data?.lastHunt) ||
+      (Array.isArray(data?.bladeForge?.items) && data.bladeForge.items.some(i => Array.isArray(i?.mods) && i.mods.some(m => m?.key === "haste")));
   }
   // Format 9 marks exploration state; earlier builds compute at most 8 and reject it as future.
   function saveFormat(state) {
+    // Format 12 marks a save that has met the rule-clock forest combat or an attack-speed affix.
+    if (state?.attackSpeed !== undefined) return 12;
     // Format 11 marks a save whose player has seen the destroy notice; earlier builds reject it as future.
     if (state?.forgeRisk !== undefined) return 11;
     if (state?.artisanCache !== undefined) return 10;
@@ -177,6 +243,10 @@ const SaveStore = (() => {
     if (outfit?.version>1) throw fault("future");
     if (data?.version > 2 || data?._save?.format > maxFormat || data?.hunting?.version > 1 || data?.bladeForge?.version>1) throw fault("future");
     if (data?.artisanCache?.version > 1) throw fault("future");
+    if (data?.attackSpeed?.version > 1) throw fault("future");
+    if (data?.attackSpeed !== undefined && (!object(data.attackSpeed) || data.attackSpeed.version !== 1 ||
+        Object.keys(data.attackSpeed).length !== 1)) throw fault("corrupt");
+    if (data?.attackSpeed === undefined && needsAttackSpeedMark(data)) throw fault(data?.hunt?.diceVersion > 3 ? "future" : "corrupt");
     const risk = data?.forgeRisk;
     if (risk?.version > 1) throw fault("future");
     if (risk !== undefined && (risk === null || typeof risk !== "object" || Array.isArray(risk) ||
@@ -213,30 +283,32 @@ const SaveStore = (() => {
           (h.journeyForce !== undefined && !(Number.isFinite(h.journeyForce) && h.journeyForce > 0)) ||
           (h.journeyTrait !== undefined && ![0,1,2,3].includes(h.journeyTrait)))) throw fault("corrupt");
       if (h?.trailVersion > 1) throw fault("future");
-      if (h?.diceVersion > 2) throw fault("future");
-      if (h?.powerVersion > 1) throw fault("future");
-      if (h?.powerVersion !== undefined && (h !== data.hunt || h.powerVersion !== 1 || h.diceVersion !== 2)) throw fault("corrupt");
-      if (h?.powerHeld !== undefined && (h.powerHeld !== true || h.powerVersion !== 1 || h.waveTurn !== 1 ||
+      if (h?.diceVersion > 3) throw fault("future");
+      if (h?.powerVersion > 2) throw fault("future");
+      const timed = h?.diceVersion === 3;
+      if (h?.powerVersion !== undefined && (h !== data.hunt || h.powerVersion !== (timed ? 2 : 1) || ![2,3].includes(h.diceVersion))) throw fault("corrupt");
+      if (h?.powerHeld !== undefined && (h.powerHeld !== true || h.powerVersion === undefined || (timed ? h.events !== 0 : h.waveTurn !== 1) ||
           h.enemyKind === "goblin" || h.enemyHp !== h.enemyMax || game.trail.awaitingNext(h))) throw fault("corrupt");
-      if (h?.diceVersion === 2 && (h.trailVersion !== 1 || !object(h.bladeCombat))) throw fault("corrupt");
-      const skillVersion = h?.powerVersion === 1 ? 3 : h?.trailVersion === 1 ? 2 : 1;
+      if ([2,3].includes(h?.diceVersion) && (h.trailVersion !== 1 || !object(h.bladeCombat))) throw fault("corrupt");
+      if (timed && h === data.hunt && h.powerVersion !== 2) throw fault("corrupt");
+      const skillVersion = h?.powerVersion !== undefined ? 3 : h?.trailVersion === 1 ? 2 : 1;
       if (h?.skillVersion > skillVersion) throw fault("future");
       if (h?.trailVersion !== undefined) {
-        if (h.trailVersion !== 1 || ![1,2].includes(h.diceVersion) || !Number.isInteger(h.rank) || h.rank < 1 || h.rank > 60 ||
+        if (h.trailVersion !== 1 || ![1,2,3].includes(h.diceVersion) || !Number.isInteger(h.rank) || h.rank < 1 || h.rank > 60 ||
             typeof h.bonusEncounter !== "boolean" || !Number.isInteger(h.wave)) throw fault("corrupt");
         if (h.territoryRank!==undefined && (!h.bladeCombat || h.rank!==60 || ![45,50,55,60].includes(h.territoryRank))) throw fault("corrupt");
         if (h.bladeCombat && (!data.bladeForge || !Object.hasOwn(game.blades.styles,h.bladeCombat.style) ||
-            !validEquipmentStats(h.bladeCombat) ||
+            !validEquipmentStats(h.bladeCombat, timed) ||
             (h.bladeCombat.armorAscension !== undefined && (data.bladeForge.soul?.version!==2 || !Object.hasOwn(game.endgame.armorTransform,h.bladeCombat.armorAscension))) ||
             (h.bladeCombat.ascension !== undefined && !Object.hasOwn(game.blades.styles,h.bladeCombat.ascension)) ||
             !object(h.bladeCombat.mods) || !["attack","hp","defense","heavy","counter","rupture","strike","opening","finish"].every(k=>Number.isFinite(h.bladeCombat[k]) && h.bladeCombat[k]>=0) ||
             (h.armorId!==undefined && (typeof h.armorId!=="string" || !/^a[1-9]\d*$/.test(h.armorId) || (h===data.hunt && !data.bladeForge.armors?.some(i=>i.id===h.armorId)))) ||
             (h===data.hunt && !data.bladeForge.items.some(i=>i.id===h.bladeId)) ||
-            !Number.isInteger(h.wounds) || h.wounds<0 || h.wounds>4)) throw fault("corrupt");
+            !Number.isInteger(h.wounds) || h.wounds<0 || h.wounds>(timed ? h.bladeCombat.ruptureAt + 1 : 4))) throw fault("corrupt");
         const pack = game.trail.lineup(h.territoryRank || h.rank, h.bonusEncounter);
         if (h.wave < 0 || h.wave >= pack.length || pack[h.wave] !== h.enemyKind) throw fault("corrupt");
         if (h === data.hunt) {
-          if (h.skillVersion !== skillVersion || !Number.isInteger(h.waveTurn) || h.waveTurn < 1 || h.waveTurn > 40 ||
+          if (h.skillVersion !== skillVersion || (timed ? !validTimedHunt(h) : !Number.isInteger(h.waveTurn) || h.waveTurn < 1 || h.waveTurn > 40) ||
               typeof h.goblinCaught !== "boolean" || h.enemySkillState?.key !== game.huntEnemy(h).skill) throw fault("corrupt");
           if ((h.lastDice?.enemySkill === "escape" && h.enemyKind !== "goblin") ||
               (game.trail.awaitingNext(h) && h.wave === pack.length - 1)) throw fault("corrupt");
@@ -246,8 +318,15 @@ const SaveStore = (() => {
       const heavyMax = h?.trailVersion === 1 ? 4 : 3;
       if(h?.skillCooldowns!==undefined&&(!object(h.skillCooldowns)||Object.entries(h.skillCooldowns).some(([key,n])=>!['heavyStrike','counter'].includes(key)||!Number.isInteger(n)||n<0||n>(key==='counter'?2:heavyMax))))throw fault("corrupt");
       if(h?.enemySkillState!==undefined&&(!object(h.enemySkillState)||!Number.isInteger(h.enemySkillState.cooldown)||h.enemySkillState.cooldown<0||h.enemySkillState.cooldown>4||![2,3,4].includes(h.enemySkillState.interval)||![2,3,4].includes(h.enemySkillState.power)))throw fault("corrupt");
-      if (h?.diceVersion !== undefined && ![1,2].includes(h.diceVersion)) throw fault("corrupt");
-      if (h?.diceVersion === 2) {
+      if (h?.diceVersion !== undefined && ![1,2,3].includes(h.diceVersion)) throw fault("corrupt");
+      if (timed) {
+        // The result of a fight on the rule clock keeps its rule time and own attacks in place of `turns`.
+        if (h.lastDice !== undefined || (h === data.lastHunt && (h.turns !== undefined || !validStrikes(h, 80000) ||
+            ![h.duration, h.attacks].every(n => Number.isSafeInteger(n) && n >= 0)))) throw fault("corrupt");
+      } else if (h?.lastStrikes !== undefined || h?.duration !== undefined || h?.attacks !== undefined ||
+          h?.clock !== undefined || h?.events !== undefined || h?.skillReady !== undefined) {
+        throw fault("corrupt");
+      } else if (h?.diceVersion === 2) {
         if (h.lastDice !== undefined && (!object(h.lastDice) || !validD20Roll(h))) throw fault("corrupt");
       } else if (h?.lastDice && (!object(h.lastDice) ||
           ![h.lastDice.playerFace, h.lastDice.enemyFace].every(n => dieValue(n, 6)))) throw fault("corrupt");
@@ -481,6 +560,8 @@ const SaveStore = (() => {
       // generation). No new game/action/random roll is executed on retry.
       if (!pending) {
         const generation = mode === "reset" || !state._save ? id() : state._save.generation;
+        // The last gate of the format-12 invariant: content of AS1-1 is never written without its mark.
+        if (state.attackSpeed === undefined && needsAttackSpeedMark(state)) state = { ...state, attackSpeed: { version: 1 } };
         const value = { ...state, version: 2, _save: { format: saveFormat(state), revision: (state._save?.revision || 0) + 1,
           generation, savedAt: Date.now() } };
         const raw = JSON.stringify(value);
@@ -561,6 +642,6 @@ const SaveStore = (() => {
       });
     };
   }
-  return { keys: standardKeys, decode, create, createLock, saveFormat };
+  return { keys: standardKeys, decode, create, createLock, saveFormat, needsAttackSpeedMark };
 })();
 if (typeof module !== "undefined") module.exports = SaveStore;

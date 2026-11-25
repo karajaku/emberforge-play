@@ -1,10 +1,19 @@
 /* Session-only spectator controller. Durable operations use act() and the save lock. */
 const HuntWatch=(()=>{
   let active=false,generation=0,timer=null,busy=false,reward=null,reason='',lastRound=null;
-  let mode = 'progress', fixedRank = 1, replayRank = 0, saveGeneration = null, nextStrikeAt = 0;
+  let mode = 'progress', fixedRank = 1, replayRank = 0, saveGeneration = null;
   let run = null, endgameRepeatSelected = false, revealEntry = '', revealUntil = 0;
-  const names={strike:'공격',block:'방어',heavyStrike:'강타'};
-  const icons={strike:'sword',block:'shield',heavyStrike:'hammer'};
+  // Rule-clock playback (hand-over §2.3). `beat` ties one rule time of the encounter on screen to a real time;
+  // every contact shown renews it, so a late timer moves the next event instead of bunching events up.
+  // `turnAt` is the same for an older fight's next turn. `shown` is the hunt state the scene last painted.
+  // None of this is saved.
+  let beat = null, turnAt = 0, shown = null, standing = [];
+  const FIRST = 400, START = 650, AHEAD = 30, MIN_LEAD = 60, GAP = 900;
+  const sides = ['player','enemy'];
+  const timedHunt = h => Game.huntTimed(h);
+  const checkLabel = (outcome, side) => ({miss:'빗나감',blocked:side==='player'?'막힘':'방어',hit:'명중',critical:'치명타'})[outcome];
+  const styleKey = {heavy:"heavyStrike",counter:"counter",wound:"rupture"};
+  const sceneArena = () => document.querySelector('#screen .watch-arena[data-strikes]');
   const allowed=()=>ready&&!storageError&&!restarting&&!document.hidden&&(!modal || HuntLootView.isReader(modal))&&current()==='forest'&&phonePage('forest')==='hunt';
   const live = token => token === generation && active && allowed() && state._save?.generation === saveGeneration;
   const pending=()=>!state.hunt&&state.chests.find(c=>c.id===state.lastHunt?.chestId&&c.source==='forest');
@@ -159,18 +168,27 @@ const HuntWatch=(()=>{
     const weak = Game.outfit.preferredElement(territory);
     return region.name+' · '+Game.outfit.elements[weak]+' 속성 장비 획득에 유리';
   }
+  // The two latest checks: each side's last attack of a fight on the rule clock (M8), or the last turn of an older fight.
+  const recentStrikes = record => {
+    const strikes = timedHunt(record) ? record.lastStrikes : null;
+    return strikes?.player || strikes?.enemy ? strikes : null;
+  };
+  const hasRecentCheck = s => !!(recentStrikes(s.hunt || s.lastHunt) || (s.hunt || s.lastHunt)?.lastDice?.attackCheck);
   function recentCheck(s) {
-    const roll = (s.hunt || s.lastHunt)?.lastDice;
-    if (!roll?.attackCheck) return '';
-    function row(label, face, check, side, damage) {
+    const record = s.hunt || s.lastHunt, strikes = recentStrikes(record), roll = record?.lastDice;
+    if (!strikes && !roll?.attackCheck) return '';
+    function row(label, face, check, side, damage, bleed = 0) {
       const total = face + check.bonus;
       return line('<span class="hunt-check-side">' + label + '</span>', 'd20 ' + face + (check.bonus ? ' + ' + check.bonus + ' = ' + total : '') +
         ' · 방어 d6 ' + check.defense + ' · 목표 ' + check.target + ' · ' +
-        HuntEffects.checkLabel(check.outcome, side) + ' · 피해 ' + fmt(damage));
+        checkLabel(check.outcome, side) + ' · 피해 ' + fmt(damage) + (bleed ? ' (출혈 ' + fmt(bleed) + ' 포함)' : ''));
     }
-    return '<section class="hunt-recent-check"><h4>최근 판정</h4>' +
-      row('내 공격', roll.playerFace, roll.attackCheck, 'player', roll.damage) +
-      (roll.replyCheck ? row('적 공격', roll.enemyFace, roll.replyCheck, 'enemy', roll.taken) : '') + openBtn('huntRules','사냥 규칙') + '</section>';
+    const rows = strikes
+      ? (strikes.player ? row('내 공격', strikes.player.check.roll, strikes.player.check, 'player', strikes.player.damage, strikes.player.bleed) : '') +
+        (strikes.enemy ? row('적 공격', strikes.enemy.check.roll, strikes.enemy.check, 'enemy', strikes.enemy.taken) : '')
+      : row('내 공격', roll.playerFace, roll.attackCheck, 'player', roll.damage) +
+        (roll.replyCheck ? row('적 공격', roll.enemyFace, roll.replyCheck, 'enemy', roll.taken) : '');
+    return '<section class="hunt-recent-check"><h4>최근 판정</h4>' + rows + openBtn('huntRules','사냥 규칙') + '</section>';
   }
   function planView(s) {
     const repeat = mode === 'repeat';
@@ -212,7 +230,7 @@ const HuntWatch=(()=>{
           value(fmt(b.armorStats(s,current).hp),fmt(b.armorStats(s,item).hp));
       } else {
         const worn = b.weaponStats(current), stats = b.weaponStats(item);
-        numbers = '물리 '+value(BladeView.damageRange(worn),BladeView.damageRange(stats))+' · 치명타 '+
+        numbers = value(BladeView.hitMark(current),BladeView.hitMark(item))+' · 치명타 '+
           value(pct(worn.critChance),pct(stats.critChance));
       }
       const mods = item.mods.map(m => b.modDefs[m.key].name+' +'+m.value+(m.key === 'plating' ? '%p' : '%'));
@@ -270,7 +288,7 @@ const HuntWatch=(()=>{
     return '<span class="watch-ticket-bar" data-departure="' + departure + '" data-empty="' + meter.empty + '"><span class="watch-ticket-fill" aria-hidden="true" style="width:' +
       meter.width + '%"></span><span class="watch-ticket-text">' + meter.text + '</span></span>';
   }
-  function stop(why='',paint=true) {active=false;run=null;generation++;clearTimeout(timer);timer=null;nextStrikeAt=0;reason=why;if(paint&&state)render();}
+  function stop(why='',paint=true) {active=false;run=null;generation++;clearTimeout(timer);timer=null;beat=null;turnAt=0;reason=why;if(paint&&state)render();}
   function restoreReceipt() {
     mode = 'progress'; fixedRank = 1; replayRank = 0; endgameRepeatSelected = false;
     reward = null;
@@ -292,42 +310,66 @@ const HuntWatch=(()=>{
     const receipt=(started||chosen)&&explorationReceipt(state);
     if(receipt){reward=receipt;lastRound=null;reason='';if(started){revealEntry=last.id;revealUntil=performance.now()+450;}}
   }
-  function d20(side, face, check) {
-    const label = check ? HuntEffects.checkLabel(check.outcome, side) : '';
-    const actor = side === 'player' ? '내 공격' : '적 공격';
-    const description = check ? actor + ' d20 ' + face : actor + ' 주사위 대기';
-    return '<div class="watch-roll" data-die="' + side + '" data-d20="true"' +
-      (check ? ' data-outcome="' + check.outcome + '"' : '') +
-      '><b class="watch-d20-owner" aria-hidden="true">' + actor +
-      '</b><div class="watch-die" data-action="' + (check ? 'strike' : '') +
-      '" role="img" aria-label="' + description + '">' + (check ? face : '') +
-      '</div><span class="watch-verdict">' + label + '</span></div>';
+  // Names for a result's accessible name and for the skill callout.
+  function moveName(h, move) {
+    const st = h.bladeCombat;
+    if (!st) return DiceCombat.skills[move]?.name;
+    if (st.ascension === st.style && styleKey[st.style] === move) return Game.endgame.transform[st.style].name;
+    return {heavyStrike:"일격",counter:"반격",rupture:"파열"}[move];
   }
-  function impactNumber(side, roll) {
-    const check = side === 'enemy' ? roll?.attackCheck : roll?.replyCheck;
-    const damage = check ? (side === 'enemy' ? roll.damage : roll.taken) : 0;
-    const bleed = damage && check.outcome === 'miss';
-    const critical = damage && check.outcome === 'critical';
-    return '<b class="watch-impact-number" data-impact-target="' + side + '"' +
-      (bleed ? ' data-bleed' : '') + (critical ? ' data-critical' : '') +
-      (damage ? ' title="' + (bleed ? '출혈 피해 ' : '피해 ') + fmt(damage) + '"' : '') + '>' +
-      (damage ? HuntEffects.damageLabel(damage, check.outcome) : '') + '</b>';
+  function strikeContext(h, event) {
+    if (event.actor === 'enemy') return {elite:!!Game.huntEnemy(h).elite, skillName:DiceCombat.enemySkills[event.move]?.name};
+    return {moveName:moveName(h, event.move)};
   }
-  function die(face,action,side) {
-    return '<div class="watch-roll" data-die="'+side+'"><div class="watch-die" data-action="'+(action||'')+'" role="img" aria-label="'+(face?names[action]+' 주사위':'주사위 대기')+'">'+icon(icons[action]||'sword')+'</div><span>'+(face?names[action]:'')+'</span></div>';
+  function flareOf(h, event) {
+    if (event.actor === 'enemy') {
+      const def = DiceCombat.enemySkills[event.move];
+      return def ? {key:event.move, name:def.name, icon:def.icon} : null;
+    }
+    const name = ['heavyStrike','counter','rupture'].includes(event.move) && moveName(h, event.move);
+    return name ? {key:event.move, name, icon:{heavyStrike:'hammer',counter:'shield',rupture:'sword'}[event.move]} : null;
+  }
+  // One saved turn of an older fight as its two events (R12); a fight on the rule clock keeps one strike a side.
+  const turnEvents = (h, roll, enemyDown) => HuntStrikes.fromRoll(roll, {passesBlocks:h.bladeCombat?.blockedDamagePercent === 40, enemyDown});
+  // The results standing beside the two fighters of the encounter on screen: stopped, restored or redrawn.
+  // Between encounters and on a result the centre text takes their place (M2).
+  function sceneResults(s) {
+    const h = s.hunt;
+    if (!h || h.exploration || h.powerHeld || Game.trail.awaitingNext(h)) return [];
+    const events = timedHunt(h) ? sides.map(actor => h.lastStrikes?.[actor] && {actor, ...h.lastStrikes[actor]}).filter(Boolean) :
+      turnEvents(h, h.lastDice, h.enemyHp <= 0);
+    return events.filter(event => event.actor !== 'escape').map(event => HuntStrikes.result(event, strikeContext(h, event)));
+  }
+  // The clock the waits are counted from (M3-a): the last shown event's rule time plus the real time since,
+  // never past the next event. A stopped screen stays on the saved clock.
+  function displayClock(h) {
+    if (!active || !beat || h.ended || beat.id !== h.id || beat.wave !== h.wave) return h.clock;
+    const next = AttackSpeedCombat.upcoming(h);
+    return Math.max(h.clock, Math.min(next ? next.at : h.clock, beat.rule + performance.now() - beat.real));
   }
   function skills(h){
-    if(!h || ![1,2].includes(h.diceVersion))return '';
+    const timed = timedHunt(h);
+    if(!h || !(timed || [1,2].includes(h.diceVersion)))return '';
     if (h.bladeCombat) {
-      const style = h.bladeCombat.style, key = {heavy:"heavyStrike",counter:"counter",wound:"rupture"}[style];
-      const cd = Math.max(0,(h.skillCooldowns?.[key] || 0) - 1);
+      const st = h.bladeCombat, style = st.style, key = styleKey[style];
       const charge = style === "heavy" ? h.momentum ?? 1 : style === "wound" ? h.wounds || 0 : Number(!!h.counter);
-      const need = style === "heavy" ? 2 : style === "wound" ? 3 : 1;
-      const ready = !cd && charge >= need;
-      const label = h.bladeCombat.ascension === style ? Game.endgame.transform[style].name : {heavy:"일격",counter:"반격",wound:"파열"}[style];
-      const hint = h.lastDice?.skill === key && !motionEnabled() ? "발동" : cd ? cd + "턴 대기" : ready ? "준비 완료" : style === "heavy" ? "기세 "+charge+"/2" :
-        style === "wound" ? "상처 "+charge+"/3" : "방어 대기";
-      const meter = Array.from({length:need},(_,i)=>'<i'+(i < charge && !cd ? ' class="filled"' : '')+'></i>').join("");
+      // A fight on the rule clock counts wound marks against its bound kind value (the dagger's four).
+      const need = style === "heavy" ? 2 : style === "wound" ? (timed ? st.ruptureAt ?? 3 : 3) : 1;
+      let wait = '';
+      if (timed) {
+        // fireAt (hand-over §2.6): the own attack the wait ends on. It moves only on events; the seconds count down between them.
+        const fire = style !== "wound" && h.skillReady ? AttackSpeedCombat.fireAt(h, key) : null;
+        if (fire?.beats) wait = HuntStrikes.wait(fire.at, displayClock(h));
+      } else {
+        const cd = Math.max(0,(h.skillCooldowns?.[key] || 0) - 1);
+        if (cd) wait = cd + "턴 대기";
+      }
+      const ready = !wait && charge >= need;
+      const label = moveName(h, key);
+      const fired = !motionEnabled() && (timed ? h.lastMove === key : h.lastDice?.skill === key);
+      const hint = fired ? "발동" : wait ? wait : ready ? "준비 완료" : style === "heavy" ? "기세 "+charge+"/2" :
+        style === "wound" ? "상처 "+charge+"/"+need : "방어 대기";
+      const meter = Array.from({length:need},(_,i)=>'<i'+(i < charge && !wait ? ' class="filled"' : '')+'></i>').join("");
       return '<div class="watch-skills"><span class="watch-skill" data-skill="'+key+'" data-ready="'+ready+'" aria-label="'+label+' · '+hint+'"><span class="watch-skill-heading">'+
         icon({heavy:"hammer",counter:"shield",wound:"sword"}[style])+'<b>'+label+'</b><em>'+hint+'</em></span><span class="watch-skill-clock" aria-hidden="true">'+meter+'</span></span></div>';
     }
@@ -343,16 +385,55 @@ const HuntWatch=(()=>{
       return '<span class="watch-skill" data-skill="'+key+'" data-ready="'+ready+'" data-state="'+(locked?'locked':ready?'ready':s.cooldown>1?'cooldown':'condition')+'" aria-label="'+label+'"><span class="watch-skill-heading">'+icon(def.icon)+'<b>'+def.name+'</b><em>'+status+'</em></span><span class="watch-skill-clock" aria-hidden="true">'+Array.from({length:def.cooldown},(_,i)=>'<i'+(i<filled?' class="filled"':'')+'></i>').join('')+'</span></span>';
     }).join('')+'</div>';
   }
+  // Enemy skill hints of a fight on the rule clock: seconds and attack counts instead of turns.
+  const timedHints = {
+    breath:'내 직전 공격이 일격이면 숨결 피해가 1.5배가 됩니다.',
+    dust:'적중하면 기세를 1 잃습니다.',
+    bind:'적중하면 일격의 대기가 2초 늘어납니다. 최소 3초, 최대 7초입니다.',
+    escape:'조우 4초에 달아납니다.',
+  };
   function enemySkill(h){
     if(!h?.enemySkillState)return '';
+    const timed=timedHunt(h);
     const s=h.enemySkillState,def=DiceCombat.enemySkills[s.key || 'charge'],ready=s.cooldown<=1;
-    const status=h.diceVersion===2 && !motionEnabled() && h.lastDice?.enemySkill===s.key ? '발동' : s.key==='escape'?(h.waveTurn>=2?'이번 턴':'2턴째 도주'):ready?'다음 공격':s.cooldown+'턴';
-    const hint = h.diceVersion===2 ? {
+    const fired=!motionEnabled() && (timed ? h.lastStrikes?.enemy?.move===s.key : h.diceVersion===2 && h.lastDice?.enemySkill===s.key);
+    // The enemy's skill is counted in its own attacks (M3); the goblin leaves on the rule clock (M3-a).
+    const status=fired ? '발동' : s.key==='escape' ? (timed ? HuntStrikes.goblinEscape(h.clock) : h.waveTurn>=2?'이번 턴':'2턴째 도주') :
+      timed ? HuntStrikes.forecast(Math.max(1,s.cooldown)) : ready?'다음 공격':s.cooldown+'턴';
+    const hint = timed ? timedHints[s.key] || def.hint : h.diceVersion===2 ? {
       breath:'일격을 시도한 턴에는 숨결 피해가 1.5배가 됩니다.',
       dust:'적중하면 기세를 1 잃습니다.',
       bind:'적중하면 일격의 대기시간이 늘어납니다.',
     }[s.key] || def.hint : def.hint;
     return '<span class="watch-enemy-skill" data-ready="'+ready+'" title="'+hint+'" aria-label="적 '+def.name+' · '+status+'"><span>'+icon(def.icon)+'<b>'+def.name+'</b><em>'+status+'</em></span><span class="watch-skill-clock" aria-hidden="true">'+Array.from({length:s.interval},(_,i)=>'<i'+(i<(ready?s.interval:s.interval-s.cooldown)?' class="filled"':'')+'></i>').join('')+'</span></span>';
+  }
+  // Readouts are corrected in place: the scene's elements stay the same elements for the whole encounter (M1-a).
+  const ownKids = node => [...node.childNodes].filter(kid => !kid.classList?.contains('watch-skill-flare'));
+  function sameShape(a, b) {
+    if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName) return false;
+    if (a.nodeType !== 1) return true;
+    const kids = ownKids(a);
+    return kids.length === b.childNodes.length && kids.every((kid, i) => sameShape(kid, b.childNodes[i]));
+  }
+  function copyInto(a, b) {
+    if (a.nodeType !== 1) { if (a.data !== b.data) a.data = b.data; return; }
+    for (const attr of [...a.attributes]) if (!b.hasAttribute(attr.name)) a.removeAttribute(attr.name);
+    for (const attr of b.attributes) if (a.getAttribute(attr.name) !== attr.value) a.setAttribute(attr.name, attr.value);
+    ownKids(a).forEach((kid, i) => copyInto(kid, b.childNodes[i]));
+  }
+  function correct(target, html) {
+    if (!target || !html) return;
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    const source = template.content.firstElementChild;
+    if (sameShape(target, source)) copyInto(target, source);
+    else target.replaceWith(source); // the readout changed shape; not the case inside one encounter
+  }
+  function paintReadouts(h) {
+    const arena = sceneArena();
+    if (!arena || !h) return;
+    correct(arena.querySelector('.player .watch-skills'), skills(h));
+    correct(arena.querySelector('.enemy .watch-enemy-skill'), enemySkill(h));
   }
   function encounterHint(h, result, enemy, rank, pack) {
     if (Game.trail.awaitingNext(h)) {
@@ -360,7 +441,8 @@ const HuntWatch=(()=>{
       if (enemy.kind === 'goblin') event = h.goblinCaught ? (h.journeyBattle ? '황금 고블린 격파' : '돈주머니 획득') : '황금 고블린이 달아났습니다';
       return event + ' · 다음은 ' + Game.trail.enemy(h.territoryRank || rank, pack[h.wave + 1]).name;
     }
-    if (h?.enemyKind === 'goblin') return h.journeyBattle ? '황금 고블린이 두 번째 턴에 도주합니다' : '두 턴 안에 잡으면 상자에 기본 골드 +50%';
+    if (h?.enemyKind === 'goblin') return h.journeyBattle ? '황금 고블린이 두 번째 턴에 도주합니다' :
+      timedHunt(h) ? '4초 안에 잡으면 상자에 기본 골드 +50%' : '두 턴 안에 잡으면 상자에 기본 골드 +50%';
     if (!h && !result && rank % 5 === 0) return '조우 첫 타격 주의';
     return '';
   }
@@ -390,9 +472,6 @@ const HuntWatch=(()=>{
     const bossKind = enemy.kind === 'crown' ? 'tusk' : enemy.kind;
     const territory = trail ? targetRank && rank % 5 === 0 && area.id : enemy.elite && 'moss';
     const st=encounter?.bladeCombat || (encounter && !encounter.blade ? Game.huntStats(s) : Game.blades.skills(s));
-    const roll=encounter?.lastDice;
-    const useD20=!encounter || encounter.diceVersion===2;
-    const useDice=encounter?.diceVersion===1;
     const item=Game.blades.current(s);
     // A held fight is compared against the gear worn now, so its name tag shows that gear as well.
     const blade=encounter && !encounter.powerHeld ? Game.huntBlade(s,encounter) : {name:Game.blades.name(item),level:item.level,weaponKind:item.weaponKind,stage:Game.bladeStage({level:item.level,grade:0})};
@@ -411,10 +490,10 @@ const HuntWatch=(()=>{
       const actor = elite ? '<img class="trail-creature boss-creature" src="assets/hunt/boss-'+bossKind+'.webp" alt="">' : ['wolf','moth','tree','goblin'].includes(asset)
         ? '<img class="trail-creature" src="assets/hunt/'+asset+'.webp" alt="">'
         : '<canvas width="'+width+'" height="144" data-sprite="'+asset+'" aria-hidden="true"></canvas>';
-      const action = useDice ? die(roll?.[side+'Face'],roll?.[side],side) : '';
-      return '<div class="watch-fighter '+side+'"'+(elite?' data-elite="true" data-boss="'+bossKind+'"':'')+' data-action="'+(roll?.[side]||'')+'">'+
+      // No roll is drawn (M2): the readout is the health meter and the skill or forecast line under it.
+      return '<div class="watch-fighter '+side+'"'+(elite?' data-elite="true" data-boss="'+bossKind+'"':'')+'>'+
         '<div class="watch-readout">'+healthMeter(side,label,current,maxHp,level,side==='player' ? fightingItem : null)+
-        '<div class="watch-action">'+action+'</div>'+(side==='player'?skills(skillState):enemySkill(skillState))+'</div>'+
+        (side==='player'?skills(skillState):enemySkill(skillState))+'</div>'+
         '<div class="watch-actor'+(asset==='moth'?' airborne':'')+'"'+(current<=0?' data-defeated="true"':'')+'>'+
         actor+'<div class="watch-ward" aria-hidden="true">'+icon('shield')+'</div></div></div>';
     }
@@ -428,6 +507,9 @@ const HuntWatch=(()=>{
       held ? '진행 재개' :
       empty ? '식량 부족' : retry ? '지원 재도전' : cleared(s) >= 60 && mode !== 'repeat' ? '1회 재도전' : stageLabel;
     const detail = encounterHint(h,result,enemy,rank,pack);
+    // The centre of the clearing holds either text or the two standing results, never both (M2).
+    const reasonShown = !powerHeld&&reason&&!(h&&reason==='일시 중단');
+    standing = !received && !defeated && !reasonShown ? sceneResults(s) : [];
     const kit = h ? h.fieldKit : !result && targetRank ? Game.outfit.build(s) : null;
     const home = !active && (!encounter || location.hash === '#world');
     const canToggle = !powerHeld && (active || (!finished && !empty));
@@ -445,16 +527,15 @@ const HuntWatch=(()=>{
     return '<section class="watch-view watch-ground' + (home ? ' watch-home' : '') + '"' + (territory ? ' data-boss-territory="'+territory+'"' : '') + '><div class="watch-stage">' +
       '<span class="watch-stage-name">'+(territory ? icon('crown')+'우두머리 영역' : icon('trees')+'사냥터')+'</span> · <b>'+rank+'단계'+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+'<small class="watch-version">v'+UpdateNotice.version()+'</small>'+(h?.ripostes>0 && !h.journeyBattle && !h.bladeCombat?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+
       (kit ? '<div class="outfit-enemy-line">' + OutfitView.encounterChip(terrain,enemy.kind,kit,!!h) + '</div>' : '') + '</div>' +
-      '<div class="scene watch-arena combat-hud" data-region="'+area.id+'"'+(powerHeld?' data-power-held':'')+(power?' data-power-check':'')+'>'+fighter('player',blade.name,'+'+fmt(blade.level),sprite,128,hp,max)+fighter('enemy',enemy.name,'Lv.'+rank,enemy.sprite||'boar',144,enemyHp,total)+
+      '<div class="scene watch-arena combat-hud" data-strikes'+(standing.length?' data-struck':'')+' data-region="'+area.id+'"'+(powerHeld?' data-power-held':'')+(power?' data-power-check':'')+'>'+fighter('player',blade.name,'+'+fmt(blade.level),sprite,128,hp,max)+fighter('enemy',enemy.name,'Lv.'+rank,enemy.sprite||'boar',144,enemyHp,total)+
       powerReadout(s,power)+
-      (useD20 ? '<div class="watch-upper-dice">' + d20('player',roll?.playerFace,roll?.attackCheck) +
-        d20('enemy',roll?.enemyFace,roll?.replyCheck) + '</div>' + impactNumber('player',roll) + impactNumber('enemy',roll) : '')+
-      (!active && (s.hunt || s.lastHunt)?.lastDice?.attackCheck ? openBtn('huntPlan',icon('compass')+'사냥 구역','watch-recent-loot watch-plan-link') : '')+
+      '<b class="watch-impact-number" data-impact-target="player"></b><b class="watch-impact-number" data-impact-target="enemy"></b>'+
+      (!active && hasRecentCheck(s) ? openBtn('huntPlan',icon('compass')+'사냥 구역','watch-recent-loot watch-plan-link') : '')+
       (settled && !received ? openBtn('huntLoot',icon('backpack')+'최근 전리품','watch-recent-loot') : '')+
       '<div class="watch-report">'+
-      '<div class="watch-reward" role="status">'+(!powerHeld&&detail?'<div class="trail-detail">'+detail+'</div>':'')+(received ? HuntLootView.resultView(s,settled,active)
+      '<div class="watch-reward" role="status">'+(!powerHeld&&detail&&!standing.length?'<div class="trail-detail">'+detail+'</div>':'')+(received ? HuntLootView.resultView(s,settled,active)
         :defeated?'<b class="watch-defeat">패배</b>'+defeatSummary(result)+go('forge','장비 강화','action')
-        :!powerHeld&&reason&&!(h&&reason==='일시 중단')?'<b>'+reason+'</b>':'')+'</div>'+
+        :reasonShown?'<b>'+reason+'</b>':'')+'</div>'+
       (powerHeld ? '' : huntStatus(s, held))+'</div></div>'+controls+'</section>';
   };
   function beforeRender() {
@@ -462,6 +543,149 @@ const HuntWatch=(()=>{
     if (active && state.hunt?.powerHeld) stop('',false);
     if (active && state.artisanCache?.status === 'pending') stop('',false);
     if (active && !allowed()) stop('', false);
+  }
+  // After the scene is drawn: the standing results take their places. An enemy picture that is new to the
+  // page can have no height on its first layout, so the places are measured again when it has loaded.
+  function afterRender() {
+    const arena = sceneArena();
+    if (!arena) return;
+    shown = null;
+    HuntEffects.layout();
+    for (const result of standing) HuntEffects.show(result.side, result);
+    for (const picture of arena.querySelectorAll('.watch-actor img'))
+      if (!picture.complete || !picture.naturalHeight) picture.addEventListener('load', () => HuntEffects.layout(), {once:true});
+  }
+  // ── Playback on the rule clock ──
+  const realOf = at => beat.real + (at - beat.rule);
+  const anchor = (h, rule, real) => { beat = {id:h.id, wave:h.wave, rule, real}; };
+  const fighting = h => !!h && !h.exploration && !h.powerHeld && !Game.trail.awaitingNext(h);
+  // An older fight keeps the pace of its turn: two seconds for blade and journey fights, the earlier
+  // screens' length for the first dice fights.
+  const turnLength = h => h.journeyBattle === 1 || h.bladeCombat ? HuntStrikes.turnMs : h.diceVersion === 1 ? 4000 : 2400;
+  // Time until the command of the next event. It is issued a little before the lunge so that two events
+  // of one instant are both ready for the same contact frame.
+  function strikeDelay() {
+    const h = state.hunt, now = performance.now();
+    if (timedHunt(h)) {
+      const next = AttackSpeedCombat.upcoming(h);
+      if (!next) return 0;
+      // Start, resume or a redraw: only this first event waits less than its rule time (not less than the lunge).
+      if (!beat || beat.id !== h.id || beat.wave !== h.wave) anchor(h, next.at, now + FIRST);
+      return Math.max(0, realOf(next.at) - HuntEffects.lead - AHEAD - now);
+    }
+    // No turn is on its way (a start, a resume, or a turn the page drew the ordinary way).
+    if (!turnAt) turnAt = now + FIRST;
+    else if (turnAt < now) turnAt = now + turnLength(h);
+    return Math.max(0, turnAt - HuntEffects.lead - AHEAD - now);
+  }
+  // A new encounter was drawn during a run: its clock starts now.
+  function enterEncounter() {
+    const h = state.hunt;
+    if (!fighting(h)) return;
+    if (timedHunt(h)) anchor(h, h.clock, performance.now());
+    // An older fight: the next turn keeps its two seconds from the turn that ended the encounter before.
+    else turnAt = Math.max(performance.now() + START, turnAt);
+  }
+  // The first counter of the oldest forest fights earns its chest bonus: the stage line says so from then on.
+  function counterChip() {
+    if (!document.querySelector('.watch-ground .watch-counter-status'))
+      document.querySelector('.watch-ground .watch-version')?.insertAdjacentHTML('afterend', '<span class="watch-counter-status">승리 시 반격 +25%</span>');
+  }
+  // The readouts after an event. The comparison of combat power belongs to the moment before the first one.
+  function paintEvent(snap) {
+    const arena = sceneArena(), opening = arena?.querySelector('.watch-power-readout');
+    if (opening) { opening.remove(); arena.removeAttribute('data-power-check'); }
+    if (snap.ripostes > 0 && !snap.journeyBattle && !snap.bladeCombat) counterChip();
+    shown = snap;
+    paintReadouts(snap);
+  }
+  function handover(snap) {
+    const arena = sceneArena(), reward = arena?.querySelector('.watch-reward');
+    if (!reward) return;
+    const rank = snap.rank, terrain = snap.territoryRank || rank;
+    const text = encounterHint(snap, null, Game.huntEnemy(snap), rank, Game.trail.lineup(terrain, snap.bonusEncounter));
+    // The fallen enemy is gone: the centre text comes and both results leave (M2).
+    HuntEffects.clear();
+    reward.innerHTML = '<div class="trail-detail">' + text + '</div>';
+  }
+  // A strike this controller issued while its scene is up. The scene is not redrawn (M1-a): each event is
+  // shown at its rule time, the result and the health at the contact, the readouts corrected in place.
+  // Returns false when the page has to be drawn the ordinary way.
+  function present(before, action, result) {
+    if (!active || !['strike','heavyStrike','block'].includes(action) || !result?.ok || !result.impact || !before || before.exploration) return false;
+    if (!sceneArena()) return false;
+    const now = performance.now(), after = state.hunt, last = state.lastHunt;
+    const health = after || last.health;
+    // What the scene shows once this command's events have landed. The hunt object itself may already hold a later event.
+    const snap = after ? {...after} : {...before, hp:health.hp, enemyHp:health.enemyHp, ended:true};
+    const next = Game.trail.awaitingNext(after);
+    const cue = (event, time, hp, apply) => {
+      const foe = event.actor === 'player' ? 'enemy' : 'player';
+      const near = at => at != null && Math.abs(at - event.at) < HuntEffects.meet;
+      HuntEffects.strike({event, result:HuntStrikes.result(event, strikeContext(before, event)), at:time, hp, apply,
+        // M1-c: the other side's contact is closer than 150 ms, before or after this one.
+        meet:timedHunt(before) && (near(before.lastStrikes?.[foe]?.at) || near(event.next?.[foe + 'At'])),
+        special:event.actor === 'player' ? !['strike','block'].includes(event.move) : event.move !== 'attack',
+        charge:event.actor === 'enemy' && !!DiceCombat.enemySkills[event.move], flare:flareOf(before, event)});
+    };
+    let end;
+    if (timedHunt(before)) {
+      const event = result.event;
+      let target = beat && beat.id === before.id && beat.wave === before.wave ? realOf(event.at) : now + HuntEffects.lead;
+      if (target - now < MIN_LEAD) target = now + MIN_LEAD; // late: this event moves, and the ones after it with it
+      anchor(before, event.at, target);
+      const paint = () => {
+        // A contact that was shown late (more than a frame) becomes the base of the next event's time (hand-over §2.3).
+        const shownAt = performance.now();
+        if (beat && beat.id === before.id && beat.wave === before.wave && beat.rule <= event.at && shownAt - realOf(event.at) > 16) anchor(before, event.at, shownAt);
+        paintEvent(snap);
+      };
+      const hp = {player:event.hp, enemy:event.enemyHp};
+      if (event.actor === 'player' || event.actor === 'enemy') cue(event, target, hp, paint);
+      else if (event.actor === 'escape') HuntEffects.escape(target, paint);
+      else HuntEffects.at(target, () => { // the encounter limit: lost at eighty seconds
+        const meter = sceneArena()?.querySelector('.hp-meter[data-side="player"]');
+        if (meter) updateHealthMeter(meter, 0, Number(meter.getAttribute('aria-valuenow')), motionEnabled());
+        paint();
+      });
+      if (event.defeated) HuntEffects.fall(event.defeated, target);
+      end = target;
+    } else {
+      const roll = (after || last).lastDice, hit = result.impact;
+      // The oldest fights have no saved roll: their one impact is told apart the same way.
+      const events = roll ? turnEvents(before, roll, health.enemyHp <= 0) : HuntStrikes.fromRoll({
+        player:['block','parry'].includes(hit.kind) ? 'block' : 'strike', enemy:'strike', damage:hit.damage, taken:hit.taken,
+        skill:hit.kind === 'counter' ? 'counter' : null}, {enemyDown:health.enemyHp <= 0});
+      let target = turnAt || now + HuntEffects.lead;
+      if (target - now < MIN_LEAD) target = now + MIN_LEAD;
+      turnAt = target + turnLength(before);
+      const firstCounter = !before.journeyBattle && !before.bladeCombat && (roll ? roll.skill === 'counter' : hit.kind === 'counter') && !(before.ripostes > 0);
+      const paint = () => paintEvent(snap);
+      events.forEach((event, i) => {
+        const final = i === events.length - 1, time = target + event.at;
+        // The turn's numbers are saved together: the enemy's health changes with the own attack, the own with the reply.
+        const hp = {enemy:health.enemyHp, player:final ? health.hp : before.hp};
+        if (event.actor === 'escape') HuntEffects.escape(time, final ? paint : null);
+        else cue(event, time, hp, () => { if (final) paint(); if (firstCounter && event.actor === 'player') { HuntEffects.counterBonus(); counterChip(); } });
+      });
+      end = target + (events.at(-1)?.at || 0);
+      if (!events.length) HuntEffects.at(target, paint);
+      if (health.enemyHp <= 0) HuntEffects.fall('enemy', target);
+      else if (health.hp <= 0) HuntEffects.fall('player', end);
+    }
+    // The encounter is over: its last cue is the hand-over to the centre text, the result or the defeat.
+    if (next) HuntEffects.at(end + HuntEffects.handover, () => handover(snap));
+    else if (!after) HuntEffects.at(end + HuntEffects.handover, () => {});
+    return true;
+  }
+  // `n초 뒤` also counts down between events (M3-a). The count runs only while the hunt does: a stopped screen is fixed.
+  let countdown = null;
+  function countDown() {
+    countdown = null;
+    if (!active) return;
+    const h = state?.hunt && (shown && shown.id === state.hunt.id && shown.wave === state.hunt.wave ? shown : state.hunt);
+    if (h && !document.hidden && timedHunt(h) && fighting(state.hunt)) paintReadouts(h);
+    countdown = setTimeout(countDown, 200);
   }
   function refreshWallet() {
     if(!allowed())return;
@@ -495,9 +719,12 @@ const HuntWatch=(()=>{
     reason = '';
     reward = null;
     lastRound = null;
+    beat = null; turnAt = 0;
     generation++;
+    if (!countdown) countdown = setTimeout(countDown, 200);
     render();
-    arm(100);
+    // A fight that is already under way resumes with its first contact 400 ms from here.
+    arm(fighting(state.hunt) ? strikeDelay() : 100);
   }
   // A settled stage (opened chest or instant exploration): stop on a short press, otherwise continue.
   function finishStage() {
@@ -525,6 +752,7 @@ const HuntWatch=(()=>{
     if(token!==generation||!active)return;
     if(!live(token)){stop('일시 중단');return;}
     busy=true;
+    let closed=false;
     try {
       const h=state.hunt;
       if(state.artisanCache?.status==='pending'){stop('');return;}
@@ -537,20 +765,20 @@ const HuntWatch=(()=>{
           {action:'huntAdvance',arg:{id,wave}}:null);
         if(state.hunt?.powerHeld){stop('');return;}
         if(storageError)stop('저장 상태를 확인해 주세요');
-        else if(live(token) && state.hunt?.id===id && state.hunt.wave===wave+1 && motionEnabled()) {
-          document.querySelector('.watch-ground .boss-creature')?.animate([
-            {opacity:0, transform:'translate(12%, -9%) scale(.9)'},
-            {opacity:1, transform:'translate(-2%, 0) scale(1.035)',offset:.72},
-            {opacity:1, transform:'none'}
-          ],{duration:460,easing:'ease-out'});
+        else if(live(token) && state.hunt?.id===id && state.hunt.wave===wave+1) {
+          enterEncounter();
+          HuntEffects.entrance();
         }
       } else if(h) {
         const id=h.id,turn=h.turn,wave=h.wave;
-        if (h.journeyBattle === 1 || h.bladeCombat) nextStrikeAt = performance.now() + 2000;
+        // One command is one event of a fight on the rule clock, one whole turn of an older fight.
         await act(null,'',undefined,()=>live(token)&&state.hunt?.id===id&&state.hunt.turn===turn&&state.hunt.wave===wave?
-          ([1,2].includes(state.hunt.diceVersion)?'strike':AutoCombat.choose(Game,state.hunt)):null);
+          (timedHunt(state.hunt)||[1,2].includes(state.hunt.diceVersion)?'strike':AutoCombat.choose(Game,state.hunt)):null);
         if(storageError){stop('저장 상태를 확인해 주세요');return;}
-        await HuntEffects.finished();
+        if(token!==generation)return;
+        // The next event of a running encounter does not wait for this one's motion (M1). Only the end of
+        // an encounter waits: for its last contact, the fall and the hand-over.
+        if(!fighting(state.hunt)){closed=true;await HuntEffects.finished();}
         if(token!==generation)return;
         if(!state.hunt&&!state.lastHunt?.chestId){stop('패배 · 장비를 강화해 주세요');return;}
       } else {
@@ -587,13 +815,16 @@ const HuntWatch=(()=>{
             if(finishStage())return;
             render();
           } else if(!state.hunt){stop('사냥을 시작할 수 없습니다');return;}
+          else enterEncounter();
         }
       }
     } finally {
       busy=false;
       if (token===generation && active) {
-        const nextStrike = (state.hunt?.journeyBattle === 1 || state.hunt?.bladeCombat) && !Game.trail.awaitingNext(state.hunt);
-        const delay = nextStrike && nextStrikeAt ? Math.max(0, nextStrikeAt - performance.now()) : reward&&!state.hunt?1800:500;
+        // The next strike is set on the next event's rule time (hand-over §3). The pause after a chest and the
+        // change between steps are the shipped ones; after a fallen enemy the hand-over text stands until 900 ms.
+        const delay = fighting(state.hunt) ? strikeDelay() : reward&&!state.hunt ? 1800 :
+          closed && Game.trail.awaitingNext(state.hunt) ? GAP - HuntEffects.handover : 500;
         arm(delay);
       } else if(active)arm();
     }
@@ -787,5 +1018,5 @@ const HuntWatch=(()=>{
     if(current()!=='forest'||phonePage('forest')!=='hunt'){stop('',false);reward=null;lastRound=null;}
     else if(location.hash==='#world' && active)stop('',false);
   });
-  return {view, planView, compareLoot, selectMaster, stop, beforeRender, refreshWallet, restoreReceipt, stageOutcome, exploreRules, get active(){return active;}};
+  return {view, planView, compareLoot, selectMaster, stop, beforeRender, afterRender, present, refreshWallet, restoreReceipt, stageOutcome, exploreRules, get active(){return active;}};
 })();

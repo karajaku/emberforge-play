@@ -1,5 +1,10 @@
 "use strict";
 
+// Display helpers of the weapon rows (hand-over §7.5): the interval and the one-hit values. The score
+// below and its inputs are the shipped ones.
+const gearTiming = (typeof module !== "undefined" ? require("./attack-speed-combat.js") : AttackSpeedCombat).timing;
+const gearHits = typeof module !== "undefined" ? require("./hunt-strikes.js") : HuntStrikes;
+
 function createGearComparison({blades, outfit, endgame, craft, dice, stats}) {
   const starter = {base:0, grade:0, level:0, mods:[]};
   const starterArmor = {...starter, type:"armor"};
@@ -11,10 +16,10 @@ function createGearComparison({blades, outfit, endgame, craft, dice, stats}) {
   function profile(s, item, type) {
     const rows = new Map();
     let points = 0;
-    function stat(key, label, value, weight, unit = "") {
+    function stat(key, label, value, weight, unit = "", extra) {
       value = round(value);
       if (!value) return;
-      rows.set(key, {key, label, value, unit, deltaUnit:unit === "%" ? "%p" : unit});
+      rows.set(key, {key, label, value, unit, deltaUnit:unit === "%" ? "%p" : unit, ...extra});
       points += value * weight;
     }
     if (!item) return {rows, score:0};
@@ -42,25 +47,37 @@ function createGearComparison({blades, outfit, endgame, craft, dice, stats}) {
       // Isolate the selected part from affixes on the other equipped part.
       const build = blades.skills(s, weapon ? item : starter, weapon ? starterArmor : item, "heavy", 0);
       if (weapon) {
+        // The rows show one hit of this weapon beside its interval: the item's two-second numbers times the
+        // kind's hit scale. A skill adds the same amount over an ordinary strike for every kind, so only the
+        // strike inside it is scaled. `exact` keeps the value before the display rounding (U5).
+        const scale = build.hitScale ?? 1, hits = gearHits.hitValues(build, scale);
+        const hit = (key, label, value) => stat(key, label, Math.round(value), 0, "", {exact:value});
+        stat("interval", "공격 간격", gearTiming(item.weaponKind ?? "sword", build.mods.haste || 0).interval, 0, "", {format:"interval"});
         stat("attack", "공격력", build.attack, 0);
-        stat("minDamage", "최소 물리 피해", build.minDamage, 0);
-        stat("maxDamage", "최대 물리 피해", build.maxDamage, 0);
+        const [low, high] = gearHits.hitRange(build.minDamage, build.maxDamage, scale);
+        stat("minDamage", "한 방 최소 피해", low, 0);
+        stat("maxDamage", "한 방 최대 피해", high, 0);
         stat("critChance", "치명타 확률", build.critChance, 0, "%");
-        stat("blockedDamagePercent", "적 방어 시 전달 피해", build.blockedDamagePercent, 0, "%");
+        // Kind traits appear on the kinds that have them: the mace passes blocked hits, axe and mace wound deeper.
+        if (build.passesBlocks) stat("blockedDamagePercent", "막힌 타격 전달", build.blockedDamagePercent, 0, "%");
+        stat("deepWounds", "깊은 상처 확률", build.deepWounds || 0, 0, "%");
         // An all-style mix of normalized hit values, adjusted for 1.5x
         // criticals and the two defensive faces on the enemy die.
-        const hit = .55 * build.strike + .2 * build.heavy / 2.1 +
+        // Attack speed adds ordinary strikes only (hand-over §5).
+        const mix = .55 * build.strike * (1 + (build.mods.haste || 0) / 100) + .2 * build.heavy / 2.1 +
           .15 * build.counter / 2.8 + .1 * build.rupture / .85;
-        points += 4 * hit * (1 + build.critChance / 200) * (2 + build.blockedDamagePercent / 100) / 3;
-        stat("heavy", "강공 피해", build.heavy, 0);
-        stat("counter", "반격 피해", build.counter, 0);
-        stat("strike", "일반 타격 피해", build.strike, 0);
-        stat("rupture", "상처 1겹당 파열 피해", build.rupture, 0);
+        points += 4 * mix * (1 + build.critChance / 200) * (2 + build.blockedDamagePercent / 100) / 3;
+        hit("heavy", "강공 피해", hits.heavy);
+        hit("counter", "반격 피해", hits.counter);
+        hit("strike", "일반 타격 피해", hits.strike);
+        hit("rupture", "파열 피해", hits.rupture);
         stat("opening", "첫 타격 추가 피해", build.opening, 1, "%");
         stat("finish", blades.modDefs.finish.name, build.finish, 1, "%");
         for (const key of ["momentum", "cooldown", "wounds"]) {
           stat(key, blades.modDefs[key].name, build.mods[key] || 0, 1, "%");
         }
+        // Attack speed is already in the score through the ordinary strike above; the row names the option.
+        stat("haste", blades.modDefs.haste.name, build.mods.haste || 0, 0, "%");
       } else {
         stat("armorRating", "흉갑 방어력", build.armorRating, 4);
         stat("hp", "장착 시 체력", build.hp, 1);
