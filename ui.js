@@ -449,7 +449,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     }
     // A strike of the forest scene is one event among others still playing: its command ends no sound or motion (M1-d).
     if (!(automaticGuard && HuntWatch.active)) {
-      Feedback.clear();
+      Feedback.clear(true); // the forge hammer may stay raised and strike again (FP1 §9.3)
       GameSound.stop();
     }
     const goldBefore = state.gold;
@@ -620,7 +620,9 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
           destroyed ? "+0 · 강화 파괴" : state.breaks > breaksBefore ? "장비 파괴" : level > gearBefore ? "+" + fmt(level) + (action === "journeyForge" || action === "journeyBulk" ? " 재련 완료" : " 강화 성공") : level < gearBefore ? "+" + level + " · 하락" :
           result.kind === "win" ? "단조 완료" : "+" + level + " · 유지";
         const outcome = promotedTo ? "success" : forgeOutcome;
-        if (animate) Feedback.play("forge", stage, label, outcome, repeatStrike, promotedTo);
+        // A finished process (+7·+9·+11) or a promotion winds the hammer up further (FP1 §9.3).
+        const finale = !!promotedTo || ["craftFinish","craftInherit","bladeWorkFinish","bladeArmorWorkFinish"].includes(action);
+        if (animate) Feedback.play("forge", stage, label, outcome, repeatStrike, promotedTo, finale);
         sound(repeatStrike && outcome === "hold" ? "forge-repeat-hold" : "forge-" + outcome, animate ? Feedback.strikeMs / 1000 : 0);
       } else if (chest) {
         if (animate) {
