@@ -487,13 +487,20 @@ const HuntWatch=(()=>{
     const total=h?.enemyMax??resultHealth?.enemyMax??enemyHp;
     function fighter(side,label,level,asset,width,current,maxHp) {
       const elite = side === 'enemy' && enemy.elite;
+      const readout = '<div class="watch-readout">'+healthMeter(side,label,current,maxHp,level,side==='player' ? fightingItem : null)+
+        (side==='player'?skills(skillState):enemySkill(skillState))+'</div>';
+      // FP1 S2: the own side is the worn weapon in the foreground, one approved picture, no hand (§9.2 "전경 무기").
+      // Its wrapper cuts it off below the side buttons' middle; the hit marker and the shield stand beside the own readout.
+      if (side === 'player') return '<div class="watch-fighter player">'+readout+
+        '<div class="fp-weapon-clip" aria-hidden="true"><div class="watch-actor fp-weapon" data-weapon="'+asset+'"'+(current<=0?' data-defeated="true"':'')+'>'+
+        '<img class="fp-weapon-art" src="assets/hunt/fp-'+asset+'.webp" alt="" draggable="false"></div></div>'+
+        '<div class="fp-hurt" aria-hidden="true"></div><div class="watch-ward fp-guard" aria-hidden="true">'+icon('shield')+'</div></div>';
       const actor = elite ? '<img class="trail-creature boss-creature" src="assets/hunt/boss-'+bossKind+'.webp" alt="">' : ['wolf','moth','tree','goblin'].includes(asset)
         ? '<img class="trail-creature" src="assets/hunt/'+asset+'.webp" alt="">'
         : '<canvas width="'+width+'" height="144" data-sprite="'+asset+'" aria-hidden="true"></canvas>';
       // No roll is drawn (M2): the readout is the health meter and the skill or forecast line under it.
-      return '<div class="watch-fighter '+side+'"'+(elite?' data-elite="true" data-boss="'+bossKind+'"':'')+'>'+
-        '<div class="watch-readout">'+healthMeter(side,label,current,maxHp,level,side==='player' ? fightingItem : null)+
-        (side==='player'?skills(skillState):enemySkill(skillState))+'</div>'+
+      // The enemy faces the weapon: only its picture is mirrored (CSS), never its plate, numbers or shield.
+      return '<div class="watch-fighter '+side+'" data-fp-kind="'+(elite?bossKind:asset)+'"'+(elite?' data-elite="true" data-boss="'+bossKind+'"':'')+'>'+readout+
         '<div class="watch-actor'+(asset==='moth'?' airborne':'')+'"'+(current<=0?' data-defeated="true"':'')+'>'+
         actor+'<div class="watch-ward" aria-hidden="true">'+icon('shield')+'</div></div></div>';
     }
@@ -510,6 +517,8 @@ const HuntWatch=(()=>{
     // The centre of the clearing holds either text or the two standing results, never both (M2).
     const reasonShown = !powerHeld&&reason&&!(h&&reason==='일시 중단');
     standing = !received && !defeated && !reasonShown ? sceneResults(s) : [];
+    // FP1: the weapon is lowered out of sight on a victory's result and gone on a defeat; it rests in every other state.
+    const fpState = defeated ? 'defeat' : !h && result ? 'receipt' : powerHeld ? 'held' : active ? 'fight' : h ? 'rest' : 'idle';
     const kit = h ? h.fieldKit : !result && targetRank ? Game.outfit.build(s) : null;
     const home = !active && (!encounter || location.hash === '#world');
     const canToggle = !powerHeld && (active || (!finished && !empty));
@@ -527,7 +536,7 @@ const HuntWatch=(()=>{
     return '<section class="watch-view watch-ground' + (home ? ' watch-home' : '') + '"' + (territory ? ' data-boss-territory="'+territory+'"' : '') + '><div class="watch-stage">' +
       '<span class="watch-stage-name">'+(territory ? icon('crown')+'우두머리 영역' : icon('trees')+'사냥터')+'</span> · <b>'+rank+'단계'+'</b> <span class="trail-region">'+(trail?area.name:enemy.habitat)+'</span>'+(trail?'<span class="trail-wave">'+(enemy.elite?'우두머리 · ':'')+'조우 '+(wave+1)+' / '+pack.length+'</span>':'')+'<small class="watch-version">v'+UpdateNotice.version()+'</small>'+(h?.ripostes>0 && !h.journeyBattle && !h.bladeCombat?'<span class="watch-counter-status">승리 시 반격 +25%</span>':'')+
       (kit ? '<div class="outfit-enemy-line">' + OutfitView.encounterChip(terrain,enemy.kind,kit,!!h) + '</div>' : '') + '</div>' +
-      '<div class="scene watch-arena combat-hud" data-strikes'+(standing.length?' data-struck':'')+' data-region="'+area.id+'"'+(powerHeld?' data-power-held':'')+(power?' data-power-check':'')+'>'+fighter('player',blade.name,'+'+fmt(blade.level),sprite,128,hp,max)+fighter('enemy',enemy.name,'Lv.'+rank,enemy.sprite||'boar',144,enemyHp,total)+
+      '<div class="scene watch-arena combat-hud" data-strikes data-fp data-fp-state="'+fpState+'"'+(enemyHp<=0?' data-fp-down':'')+(standing.length?' data-struck':'')+' data-region="'+area.id+'"'+(powerHeld?' data-power-held':'')+(power?' data-power-check':'')+'>'+fighter('player',blade.name,'+'+fmt(blade.level),sprite,128,hp,max)+fighter('enemy',enemy.name,'Lv.'+rank,enemy.sprite||'boar',144,enemyHp,total)+
       powerReadout(s,power)+
       '<b class="watch-impact-number" data-impact-target="player"></b><b class="watch-impact-number" data-impact-target="enemy"></b>'+
       (!active && hasRecentCheck(s) ? openBtn('huntPlan',icon('compass')+'사냥 구역','watch-recent-loot watch-plan-link') : '')+
@@ -547,9 +556,23 @@ const HuntWatch=(()=>{
   // After the scene is drawn: the standing results take their places. An enemy picture that is new to the
   // page can have no height on its first layout, so the places are measured again when it has loaded.
   function afterRender() {
+    if (state) HuntFP.prepare(state);
     const arena = sceneArena();
     if (!arena) return;
     shown = null;
+    if (arena.hasAttribute('data-fp')) {
+      // FP1: the estimate is the third line of the enemy plate; the motion control stands right of the own readout.
+      const estimate = arena.querySelector('.watch-report .watch-estimate'), plate = arena.querySelector('.enemy > .watch-readout');
+      if (estimate && plate) plate.append(estimate);
+      const hint = arena.querySelector('.watch-report .watch-motion-hint');
+      if (hint) arena.append(hint);
+      // An encounter hint while the enemy stands (조우 첫 타격 주의, the goblin's bonus) is read with that enemy: the plate's
+      // last line, instead of the middle of the scene where the enemy now stands. It hides, keeping its room, at the first hit.
+      const reward = arena.querySelector('.watch-report .watch-reward'), detail = reward?.querySelector(':scope > .trail-detail:only-child');
+      if (detail && plate && !arena.querySelector('.enemy .watch-actor[data-defeated="true"]')) { detail.classList.add('fp-plate-hint'); plate.append(detail); }
+      // The lessons' coach is placed after the scene: measure once more when it has its place.
+      if (document.body.dataset.lesson === 'on') requestAnimationFrame(() => { if (arena.isConnected && !arena.querySelector('.watch-actor[data-attacking]')) HuntEffects.layout(); });
+    }
     HuntEffects.layout();
     for (const result of standing) HuntEffects.show(result.side, result);
     for (const picture of arena.querySelectorAll('.watch-actor img'))
@@ -594,7 +617,7 @@ const HuntWatch=(()=>{
   // The readouts after an event. The comparison of combat power belongs to the moment before the first one.
   function paintEvent(snap) {
     const arena = sceneArena(), opening = arena?.querySelector('.watch-power-readout');
-    if (opening) { opening.remove(); arena.removeAttribute('data-power-check'); }
+    if (opening) { opening.remove(); for (const name of ['data-power-check', 'data-fp-power-side', 'data-fp-compact']) arena.removeAttribute(name); }
     if (snap.ripostes > 0 && !snap.journeyBattle && !snap.bladeCombat) counterChip();
     shown = snap;
     paintReadouts(snap);

@@ -1,0 +1,173 @@
+/* FP1 S2: the forest fight in the first person (docs/first-person-view-design.md §9.2). The scene strip and the row
+   of readouts under it are one scene: the enemy in the middle with its plate above its head, the own readout at the
+   bottom left, the worn weapon in the right foreground. Places come from hunt-fp.js (custom properties, arena px).
+   No picture is drawn here: the weapon, the hit marker and the enemies are approved assets; the shield is the existing ring. */
+.ui-game .watch-ground .watch-arena[data-fp] { display:block; }
+.watch-ground .watch-arena[data-fp] .watch-readout {
+  position:absolute; z-index:5; display:grid; grid-template-columns:minmax(0,1fr); gap:3px; min-width:0;
+  grid-row:auto; grid-column:auto; column-gap:0; text-shadow:var(--readout-shadow);
+}
+.watch-ground .watch-arena[data-fp] .watch-readout > * { grid-column:1; grid-row:auto; min-width:0; }
+.watch-ground .watch-arena[data-fp] .hp-meter { grid-column:1; }
+.watch-ground .watch-arena[data-fp] .hp-name { min-width:0; max-width:100%; }
+.watch-ground .watch-arena[data-fp] .hp-identity { min-width:0; overflow:hidden; }
+.watch-ground .watch-arena[data-fp] .hp-title { min-width:0; white-space:nowrap; }
+.watch-ground .watch-arena[data-fp] .hp-level { flex:none; }
+.watch-ground .watch-arena[data-fp] .hp-count { white-space:nowrap; }
+
+/* ── The own readout: bottom left, the skill row above the name. To its right pass the weapon and the hit marker. ── */
+.watch-ground .watch-arena[data-fp] .player > .watch-readout {
+  left:6px; bottom:4px; width:var(--fp-band-w,min(46cqw,190px)); grid-template-columns:minmax(0,1fr); --fighter-ink:#cdffda;
+}
+.watch-ground .watch-arena[data-fp] .player > .watch-readout .watch-skills { order:-1; grid-column:1; }
+.watch-ground .watch-arena[data-fp] .player :is(.hp-name,.watch-skill-heading,.watch-skill-clock) { flex-direction:row; }
+.watch-ground .watch-arena[data-fp] .player .hp-count { text-align:left; }
+.watch-ground .watch-arena[data-fp] .player .hp-track i { transform-origin:left center; }
+.watch-ground .watch-arena[data-fp] .watch-readout .watch-skill {
+  display:flex; flex-wrap:wrap; align-items:center; gap:2px 5px;
+}
+.watch-ground .watch-arena[data-fp] .watch-readout .watch-skill-heading { flex:none; flex-wrap:nowrap; gap:0 3px; }
+.watch-ground .watch-arena[data-fp] .player .watch-skill em { margin:0 0 0 2px; }
+.watch-ground .watch-arena[data-fp] .watch-readout .watch-skill-clock { flex:1 1 24px; min-width:24px; }
+
+/* ── The enemy plate: name, level, health, then the forecast (or before a hunt the estimate), over its head ── */
+.watch-ground .watch-arena[data-fp] .enemy > .watch-readout {
+  --fighter-ink:#ffccad;
+  left:var(--fp-foe-x); top:calc(var(--fp-foot) - var(--fp-foe-h) * (1 - var(--fp-head)) - 2px); translate:-50% -100%;
+  width:min(58cqw,230px); justify-items:center; text-align:center;
+}
+.watch-ground .watch-arena[data-fp] .enemy .hp-name { justify-content:center; }
+.watch-ground .watch-arena[data-fp] .enemy .hp-count { text-align:center; }
+.watch-ground .watch-arena[data-fp] .watch-readout .watch-enemy-skill {
+  position:relative; display:flex; align-items:center; gap:5px; width:min(100%,170px); max-width:none; padding:0;
+}
+.watch-ground .watch-arena[data-fp] .watch-enemy-skill > span:first-child { flex:none; flex-wrap:nowrap; }
+.watch-ground .watch-arena[data-fp] .watch-enemy-skill em { margin-left:2px; }
+.watch-ground .watch-arena[data-fp] .enemy .watch-estimate { display:flex; flex-wrap:wrap; justify-content:center; gap:2px 10px; font-size:12px; }
+.watch-ground .watch-arena[data-fp-down] .enemy > .watch-readout { visibility:hidden; }
+.watch-ground .watch-arena[data-fp] .enemy > .watch-readout > .fp-plate-hint { font-size:12px; line-height:1.25; color:#ffedc7; }
+.watch-ground .watch-arena[data-fp][data-struck] .enemy > .watch-readout > .fp-plate-hint { visibility:hidden; }
+/* The low scene: the hint stands in the column left of the enemy, under the plan button (below a boss's forecast). */
+.watch-ground .watch-arena[data-fp-tight] .enemy > .watch-readout > .fp-plate-hint {
+  position:absolute; left:var(--fp-side-dx); top:var(--fp-hint-dy); width:var(--fp-column-w); text-align:left; text-wrap:balance; word-break:keep-all;
+}
+/* The low scene (320×568): the plate always between the two corner buttons, its forecast and estimate lines below them (D30). */
+.watch-ground .watch-arena[data-fp-tight] .enemy > .watch-readout { left:var(--fp-plate-x); width:var(--fp-plate-w); gap:1px; }
+.watch-ground .watch-arena[data-fp-tight] .enemy > .watch-readout :is(.watch-enemy-skill,.watch-estimate) { width:max-content; justify-self:center; flex-wrap:nowrap; }
+/* A boss on the low scene: the forecast (on a defeat the estimate) in the column left of the boss, text shadow only (D30 ⑧). */
+.watch-ground .watch-arena[data-fp-side] .enemy > .watch-readout :is(.watch-enemy-skill,.watch-estimate) {
+  position:absolute; left:var(--fp-side-dx); top:var(--fp-side-dy); width:var(--fp-column-w); justify-self:start; text-align:left;
+}
+/* Its forecast in two rows inside the column: the skill name, then the count and the cells (a long name such as 추격 송곳니 fits). */
+.watch-ground .watch-arena[data-fp-side] .enemy > .watch-readout .watch-enemy-skill { display:grid; grid-template-columns:auto minmax(24px,1fr); align-items:center; gap:1px 4px; }
+.watch-ground .watch-arena[data-fp-side] .enemy .watch-enemy-skill > span:first-child { display:contents; }
+.watch-ground .watch-arena[data-fp-side] .enemy .watch-enemy-skill b { grid-column:1 / -1; grid-row:1; overflow:hidden; text-overflow:ellipsis; }
+.watch-ground .watch-arena[data-fp-side] .enemy .watch-enemy-skill > span:first-child > svg { display:none; }
+.watch-ground .watch-arena[data-fp-side] .enemy .watch-enemy-skill em { grid-row:2; grid-column:1; margin:0; }
+.watch-ground .watch-arena[data-fp-side] .enemy .watch-enemy-skill > .watch-skill-clock { grid-row:2; grid-column:2; }
+.watch-ground .watch-arena[data-fp-side] .enemy > .watch-readout .watch-estimate { flex-direction:column; align-items:flex-start; gap:0; word-break:keep-all; }
+
+/* ── The enemy: facing the weapon, its feet on the ground. Only the picture is mirrored. ── */
+.ui-game .watch-ground .watch-arena[data-fp][data-region] .enemy .watch-actor {
+  left:calc(var(--fp-foe-x) - var(--fp-foe-w) / 2); top:calc(var(--fp-foot) - var(--fp-foe-h)); right:auto; bottom:auto;
+  width:var(--fp-foe-w); max-width:none; translate:none; transform-origin:50% 92%; z-index:2;
+}
+.ui-game .watch-ground .watch-arena[data-fp] .enemy .watch-actor > :is(canvas,img) {
+  width:100%; height:var(--fp-foe-h); max-width:none; max-height:none; scale:-1 1;
+}
+/* An attacking enemy stays under the weapon: the own weapon is drawn over it (§9.1 3). */
+.watch-ground .watch-arena[data-fp] .enemy .watch-actor[data-attacking="true"] { z-index:2; }
+.watch-ground .watch-arena[data-fp-tight] .enemy .watch-actor { transform-origin:50% 100%; }
+
+/* ── The weapon in the right foreground, no hand. Its grip sits behind the map button; below the side buttons'
+      middle it is cut off. It never takes a tap. ── */
+.watch-ground .watch-arena[data-fp] .fp-weapon-clip {
+  position:absolute; z-index:3; pointer-events:none; overflow:hidden;
+  top:-120cqh; left:-13px; right:-13px; bottom:calc(var(--fp-clip,50px) * -1);
+}
+.ui-game .watch-ground .watch-arena[data-fp] .player .watch-actor.fp-weapon {
+  position:absolute; right:auto; bottom:auto; translate:none; max-width:none; aspect-ratio:384/512;
+  transform-origin:61.98% 83.98%; z-index:auto; pointer-events:none;
+}
+.watch-ground .watch-arena[data-fp] .fp-weapon::before { content:none; }
+.fp-weapon-art { display:block; width:100%; height:100%; rotate:var(--fp-rot,30deg); transform-origin:61.98% 83.98%; image-rendering:pixelated; user-select:none; -webkit-user-drag:none; }
+/* Between attacks of a running fight only, a slow breath of under 1.6% of the weapon's width (D2). Still in every other state. */
+body[data-motion="on"] .watch-ground .watch-arena[data-fp][data-fp-state="fight"] .fp-weapon-art { animation:fp-breathe 2.6s ease-in-out infinite; }
+@keyframes fp-breathe { 0%,100% { translate:0 0; } 50% { translate:-.8% -1.2%; } }
+/* A victory's result and a defeat: the weapon is gone from the scene (D9, §9.2 "패배"). */
+.watch-ground .watch-arena:is([data-fp-state="receipt"],[data-fp-state="defeat"]) .fp-weapon-clip { visibility:hidden; }
+
+/* ── Right of the own readout: the hit marker (A3) and the shield ring while motion plays ── */
+.watch-ground .watch-arena[data-fp] .fp-hurt {
+  position:absolute; z-index:6; left:var(--fp-zone-left); bottom:4px; width:160px; aspect-ratio:4/3; opacity:0; pointer-events:none;
+  background:url('assets/hunt/fp-hurt.webp') 0 0 / 400% 100% no-repeat; image-rendering:pixelated;
+}
+.watch-ground .watch-arena[data-fp-tight] .fp-hurt { width:85px; }
+.watch-ground .watch-arena[data-fp] .fp-hurt[data-play] { opacity:1; animation:fp-hurt-frames 300ms steps(4,end); }
+@keyframes fp-hurt-frames { from { background-position-x:0%; } to { background-position-x:133.3333%; } }
+body[data-motion="off"] .watch-ground .watch-arena[data-fp] .fp-hurt,
+.watch-ground .watch-arena[data-fp-hurt-missing] .fp-hurt { display:none; }
+.watch-ground .watch-arena[data-fp] .watch-ward.fp-guard {
+  inset:auto; left:var(--fp-zone-left); bottom:6px; z-index:4; width:min(30cqw,110px); aspect-ratio:1;
+}
+.watch-ground .watch-arena[data-fp-tight] .watch-ward.fp-guard { width:64px; }
+.watch-ground .watch-arena[data-fp] .watch-ward.fp-guard svg { width:44%; height:44%; }
+.watch-ground .watch-arena[data-fp] .enemy .watch-ward { inset:auto; left:50%; top:calc(var(--fp-head) * 100% + (1 - var(--fp-head)) * 40%); translate:-50% -50%; width:56%; aspect-ratio:1; }
+
+/* ── Results beside the side that was hit: the enemy's at its body height, the own just above the own readout ── */
+.watch-ground .watch-arena[data-fp] .watch-impact-number { grid-area:auto; }
+.watch-ground .watch-arena[data-fp] .watch-impact-number[data-impact-target="enemy"] { left:var(--impact-x,46%); top:var(--impact-y,40%); }
+.watch-ground .watch-arena[data-fp] .watch-impact-number[data-impact-target="player"] {
+  left:6px; top:auto; bottom:calc(var(--fp-band-h,60px) + 8px); translate:none; line-height:1.05;
+}
+/* The low scene: up to 6px before the standing enemy, folded at spaces only (a number stays whole, D34). */
+.watch-ground .watch-arena[data-fp-tight] .watch-impact-number[data-impact-target="player"] {
+  max-width:var(--fp-mine-max,120px); white-space:normal; word-break:keep-all; line-height:1;
+}
+.watch-ground .watch-arena[data-fp] .watch-impact-number .fp-nowrap { white-space:nowrap; }
+
+/* ── The centre: results, loot and the encounter hand-over keep the middle above the own readout ── */
+.watch-ground .watch-arena[data-fp] .watch-report { grid-area:auto; inset:0 0 calc(var(--fp-band-h,60px) + 4px) 0; }
+.watch-ground .watch-arena[data-fp] > .watch-motion-hint { position:absolute; z-index:8; left:var(--fp-zone-left); bottom:4px; padding:0; }
+.watch-ground .watch-arena[data-fp] > .watch-motion-hint[data-compact] small { display:none; }
+/* A defeat: on the darkened enemy's body between its plate and the own readout (§9.2 "패배"; still "the middle of the forest"). */
+.watch-ground .watch-arena[data-fp][data-fp-state="defeat"] .watch-reward {
+  position:absolute; left:var(--fp-report-x,46%); top:var(--fp-report-y,50%); translate:-50% -50%; width:max-content; max-width:calc(100% - 8px);
+}
+.watch-ground .watch-arena[data-fp][data-fp-state="defeat"] .enemy .watch-actor > :is(canvas,img) { filter:brightness(.4) saturate(.7); }
+.watch-ground .watch-arena[data-fp][data-fp-state="defeat"] .enemy .watch-enemy-skill { display:none; }
+/* The low scene's defeat: the words left, `장비 강화` as a two-line button right, centred on the enemy (D30 ⑪). */
+.watch-ground .watch-arena[data-fp-tight][data-fp-state="defeat"] .watch-reward {
+  grid-template-columns:minmax(0,auto) auto; column-gap:8px; row-gap:2px; align-items:center;
+}
+.watch-ground .watch-arena[data-fp-tight][data-fp-state="defeat"] .watch-reward > :not(.action) { grid-column:1; }
+.watch-ground .watch-arena[data-fp-tight][data-fp-state="defeat"] .watch-reward small { max-width:150px; text-wrap:balance; word-break:keep-all; }
+.ui-game .watch-ground .watch-arena[data-fp-tight][data-fp-state="defeat"] .watch-reward .action {
+  grid-column:2; grid-row:1 / span 2; white-space:normal; width:52px; min-width:44px; min-height:44px; padding:4px 6px; line-height:1.15;
+}
+
+/* ── The power check (§9.2 "전투력 비교"): on the ground between the enemy's feet and the own readout ── */
+.watch-ground .watch-arena[data-fp] .watch-power-readout {
+  grid-area:auto; left:var(--fp-foe-x); right:auto; translate:-50% -50%; width:max-content; max-width:calc(100% - 12px);
+}
+/* ① no own skill row ② the plate keeps the name and level only (first attack not made, its health is full). */
+.watch-ground .watch-arena[data-fp][data-fp-compact] .player .watch-skills,
+.watch-ground .watch-arena[data-fp][data-fp-compact] .enemy > .watch-readout > :not(.hp-meter),
+.watch-ground .watch-arena[data-fp][data-fp-compact] .enemy .hp-meter > :is(.hp-track,.hp-count) { display:none; }
+/* The low scene: the readout in the column left of the enemy, the two numbers kept whole on two lines (D30 ⑩), over a
+   soft dark shade with no border, no flat fill and no corner (PD, conditional: here only, never pressed or focused). The prototype's
+   outer box-shadow is left out: on the game screen it drew the rounded box's outline (PD condition 1); the oval fades to 0 at its edge. */
+.watch-ground .watch-arena[data-fp-power-side] .watch-power-readout { translate:none; white-space:normal; word-break:keep-all; }
+/* The stopped power check at every size (PD: 390·414 allowed under the same six conditions): the same shade. */
+.watch-ground .watch-arena[data-fp][data-power-held] .watch-power-readout {
+  box-sizing:border-box; padding:var(--fp-shade-pad,16px 28px 12px);
+  background:radial-gradient(farthest-side, rgba(8,17,13,.7) var(--fp-shade-solid,72%), rgba(8,17,13,.42) var(--fp-shade-mid,90%), rgba(8,17,13,0) 100%);
+  box-shadow:none; pointer-events:none;
+}
+/* 390·414: the text sits inside the solid middle of the oval (16px above, 28px each side). 320: the column is only 93px wide,
+   so the text is narrowed by 10px a side and the solid middle reaches further out (84%·94%); the oval still fades to 0
+   at its edge. Each line's lowest tenth of contrast is at least the build before's (H5-1, PD condition 6). */
+.watch-ground .watch-arena[data-fp-power-side][data-power-held] .watch-power-readout { --fp-shade-pad:12px 10px 4px; --fp-shade-solid:84%; --fp-shade-mid:94%; }
+.watch-ground .watch-arena[data-fp-power-side] .watch-power-values { flex-wrap:wrap; justify-content:center; row-gap:0; }
+.watch-ground .watch-arena[data-fp-power-side] .watch-power-values > span { white-space:nowrap; }
+.watch-ground .watch-arena[data-fp-power-side] .watch-power-readout > small { text-wrap:balance; }
