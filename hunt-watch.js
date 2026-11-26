@@ -473,10 +473,12 @@ const HuntWatch=(()=>{
     const territory = trail ? targetRank && rank % 5 === 0 && area.id : enemy.elite && 'moss';
     const st=encounter?.bladeCombat || (encounter && !encounter.blade ? Game.huntStats(s) : Game.blades.skills(s));
     const item=Game.blades.current(s);
-    // A held fight is compared against the gear worn now, so its name tag shows that gear as well.
-    const blade=encounter && !encounter.powerHeld ? Game.huntBlade(s,encounter) : {name:Game.blades.name(item),level:item.level,weaponKind:item.weaponKind,stage:Game.bladeStage({level:item.level,grade:0})};
-    const fightingItem = encounter?.bladeId ? Game.blades.state(s).items.find(it => it.id === encounter.bladeId) :
-      encounter ? null : item;
+    // Only a running fight is bound to the weapon that began it. A held fight is compared against the gear worn now, and
+    // with no fight on (a result, a defeat) the next hunt takes the gear worn now: the name tag and the picture then show
+    // that gear, the one the forge shows as worn.
+    const blade=h && !h.powerHeld ? Game.huntBlade(s,h) : {name:Game.blades.name(item),level:item.level,weaponKind:item.weaponKind,stage:Game.bladeStage({level:item.level,grade:0})};
+    const fightingItem = h?.bladeId ? Game.blades.state(s).items.find(it => it.id === h.bladeId) :
+      h ? null : item;
     const sprite=BladeView.sprite(blade,blade.stage || 0);
     const resultHealth=result?.health;
     const skillState = h || (result?.bladeCombat && result.lastDice ? {
@@ -493,7 +495,7 @@ const HuntWatch=(()=>{
       // Its wrapper cuts it off below the side buttons' middle; the hit marker and the shield stand beside the own readout.
       if (side === 'player') return '<div class="watch-fighter player">'+readout+
         '<div class="fp-weapon-clip" aria-hidden="true"><div class="watch-actor fp-weapon" data-weapon="'+asset+'"'+(current<=0?' data-defeated="true"':'')+'>'+
-        '<img class="fp-weapon-art" src="assets/hunt/fp-'+asset+'.webp" alt="" draggable="false"></div></div>'+
+        '<img class="fp-weapon-art" src="'+HuntFP.art(asset)+'" alt="" draggable="false"></div></div>'+
         '<div class="fp-hurt" aria-hidden="true"></div><div class="watch-ward fp-guard" aria-hidden="true">'+icon('shield')+'</div></div>';
       const actor = elite ? '<img class="trail-creature boss-creature" src="assets/hunt/boss-'+bossKind+'.webp" alt="">' : ['wolf','moth','tree','goblin'].includes(asset)
         ? '<img class="trail-creature" src="assets/hunt/'+asset+'.webp" alt="">'

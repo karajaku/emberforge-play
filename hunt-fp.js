@@ -4,12 +4,28 @@
    behind the map button, and the hit marker beside the own readout. It never touches the rules, the save or the
    order and time of events. The pictures are the approved first-person outputs (art/generated/first-person). */
 const HuntFP = (() => {
-  // Canvas 384×512, grip 238,430 (61.98% · 83.98%). Ink top-left (blade tip or head) minus the grip, canvas px.
+  // Canvas 384×512, grip 238,430 (61.98% · 83.98%). TIP: the point of the swing's aim, canvas px.
   const GRIP = {x: 238 / 384, y: 430 / 512};
-  const TIP = {blade: [57, 156], blade1: [54, 156], blade2: [54, 159], blade3: [68, 155], 'blade-axe': [63, 156], 'blade-dagger': [34, 155], 'blade-mace': [44, 155]};
-  // User decision 13: the weapon at the liked prototype size, stood up clockwise about the grip at rest.
-  const ROT = {blade: 30, blade1: 30, blade2: 30, blade3: 30, 'blade-axe': 25, 'blade-dagger': 35, 'blade-mace': 35};
-  const ART_W = 320, ART_W_LOW = 160, GRIP_IN = 20, GRIP_IN_LOW = 11;
+  // User decision 14: the pictures are the forge's own sheets (first frame, every pixel a 3×3 block; tools/first-person-forge-weapons.lua).
+  // Swords: the blade's tip. Dagger and mace: the ink's top-left corner, as before. Axe: the top of its head on the line
+  // of its haft (its ink's corner is empty: the head stands upright in the forge's picture).
+  const TIP = {blade: [141, 153], blade1: [141, 144], blade2: [162, 138], blade3: [141, 147], 'blade-axe': [162, 145], 'blade-dagger': [124, 189], 'blade-mace': [91, 150]};
+  // User decision 13: the weapon at the liked prototype size, stood up clockwise about the grip at rest. The forge's
+  // pictures stand more upright than the first set did, so the same rest direction takes a smaller turn (the axe leans a little left).
+  const ROT = {blade: 16, blade1: 16, blade2: 16, blade3: 16, 'blade-axe': -2, 'blade-dagger': 12, 'blade-mace': 12};
+  // The low scene (320): the axe stands 4° more upright, 4px or more from every boss there.
+  const ROT_LOW = {'blade-axe': 2};
+  // The forge's axe and mace fill more of their frame: shown a little smaller (the liked prototype did the same with its `weaponScale`).
+  const SCALE = {'blade-axe': .8, 'blade-mace': .8};
+  // A weapon shown smaller at rest comes to the others' size at the contact, and the short dagger a little past it:
+  // each reaches the enemy without lifting its grip from behind the map button.
+  const REACH = {'blade-axe': 1 / .8, 'blade-mace': 1 / .8, 'blade-dagger': 1.12};
+  // Where across a boss the wide heads aim (the others .72): the forge's axe and mace carry their heads right of the aimed
+  // point, so they aim nearer the middle and less of the head leaves the screen at the contact.
+  const BOSS_AIM = {'blade-axe': .55, 'blade-mace': .64};
+  const ART_W = 352, ART_W_LOW = 176, GRIP_IN = 20, GRIP_IN_LOW = 11;
+  // The file names are the first set's: `v` keeps a browser from pairing a cached first-set picture with these numbers.
+  const art = key => 'assets/hunt/fp-' + key + '.webp?v=2';
   const WIDE = new Set(['blade-axe', 'blade-mace', 'blade-dagger']);
   // Share of each enemy picture above its ink (alpha 128 and up; a sheet takes its tallest frame), and the boss pictures' proportions.
   const HEAD = {boar: .403, golem: .104, wolf: .301, moth: .164, tree: .086, goblin: .125, tusk: .005, alpha: .004, wyrm: .007, elder: 0};
@@ -35,7 +51,7 @@ const HuntFP = (() => {
   function prepare(s) {
     try {
       const item = Game.blades.current(s);
-      if (item) preload('assets/hunt/fp-' + BladeView.sprite(item, Game.bladeStage({level: item.level, grade: 0})) + '.webp');
+      if (item) preload(art(BladeView.sprite(item, Game.bladeStage({level: item.level, grade: 0}))));
     } catch {}
     preload('assets/hunt/fp-hurt.webp');
   }
@@ -132,7 +148,7 @@ const HuntFP = (() => {
     // The weapon: its grip behind the map button (390·414 20px in from its right edge, 4px below its top; 320 11px, 6px).
     let grip = null;
     if (hand && side) {
-      const ww = tight ? ART_W_LOW : ART_W, wh = ww * 512 / 384, rot = ROT[key] ?? 30;
+      const ww = Math.round((tight ? ART_W_LOW : ART_W) * (SCALE[key] ?? 1)), wh = ww * 512 / 384, rot = (tight ? ROT_LOW[key] : undefined) ?? ROT[key] ?? 16;
       const gx = Math.round(side.right - (tight ? GRIP_IN_LOW : GRIP_IN)), gy = Math.round(side.top + (tight ? 6 : 4));
       hand.style.width = ww + 'px';
       hand.style.left = px(gx - parent.left - GRIP.x * ww);
@@ -246,19 +262,24 @@ const HuntFP = (() => {
     // quarter of its body (the prototype's point); on the other enemies the middle of their ink, since that quarter can be empty
     // between the legs (H3 needs a touch every hit).
     const ink = INK[r.kind] || [.5, .6];
-    const C = !wide ? [box.x + box.w * .5, box.y + box.h * .5] : r.boss ? [box.x + box.w * .72, box.y + box.h * .7] : [body.left + body.width * ink[0], body.top + body.height * ink[1]];
+    // On the low scene a sword also aims the middle of an ordinary enemy's ink: the forge's blades are thin, and the middle
+    // of the body's box can lie beside the ink there.
+    const C = !wide ? (r.tight && !r.boss ? [body.left + body.width * ink[0], body.top + body.height * ink[1]] : [box.x + box.w * .5, box.y + box.h * .5]) : r.boss ? [box.x + box.w * (BOSS_AIM[r.key] ?? .72), box.y + box.h * .7] : [body.left + body.width * ink[0], body.top + body.height * ink[1]];
     // A boss as tall as it is wide is struck no higher than the wide tusk's middle: reaching higher lifts the grip out from
     // behind the map button for longer than 150ms a swing (H3, measured at 320 against the elder, the wyrm and the alpha).
     if (r.boss) C[1] = Math.max(C[1], body.top + body.height - body.width * (2 / 3) * (r.tight ? .34 : .5));
     // The other enemies: a wide head strikes the lower part of the ink (no higher than 28% of the picture above its feet, 390·414 36%).
     else if (wide) C[1] = Math.max(C[1], body.top + body.height * (1 - (r.tight ? .28 : .36)));
     const heavy = ['heavyStrike', 'rupture'].includes(event.move), miss = event.check?.outcome === 'miss' && !event.damage;
-    const Z = r.tight ? .9 : 1.15, z = heavy ? Z + (r.tight ? .05 : .15) : Z, deg = heavy ? -14 : -8, t = deg * Math.PI / 180;
+    const Z = (r.tight ? .9 : 1.15) * (REACH[r.key] ?? 1), z = heavy ? Z + (r.tight ? .05 : .15) : Z, deg = heavy ? -14 : -8, t = deg * Math.PI / 180;
     // The wide heads reach the ink's middle with their tip (390·414: 1.0, the prototype's .92 aimed at a lower point and covered more
     // than 25% once aimed at the ink's middle, H3-2 ②).
     const f = wide ? (r.tight ? (r.key === 'blade-axe' ? .97 : 1.02) : 1) : (r.tight ? 1.12 : .98);
     const rv = [Math.cos(t) * v[0] - Math.sin(t) * v[1], Math.sin(t) * v[0] + Math.cos(t) * v[1]];
     let T = [C[0] - g.x - z * f * rv[0], C[1] - g.y - z * f * rv[1]];
+    // The forge's axe is short for its head: where the aim would lift its grip from behind the map button (the tall 414 scene,
+    // the low scene) the grip stays there and the head lands that much lower on the enemy.
+    if (r.key === 'blade-axe') T[1] = Math.max(T[1], r.tight ? -5 : -3);
     // A miss stops short in front of the enemy: the tip reaches 70% of the way.
     if (miss) { const at = [g.x + z * rv[0], g.y + z * rv[1]], aim = [g.x + (C[0] - g.x) * .7, g.y + (C[1] - g.y) * .7]; T = [aim[0] - at[0], aim[1] - at[1]]; }
     const pose = (dx, dy, deg, s) => 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px) rotate(' + deg + 'deg) scale(' + s + ')';
@@ -292,5 +313,5 @@ const HuntFP = (() => {
     const r = arena.fpRest;
     return r && {x: r.x + r.w / 2, y: r.y + r.h - r.h * (1 - r.head) * .72};
   }
-  return {layout, prepare, preload, foeBox, swing, guard, approach, enemySpot, rot: key => ROT[key] ?? 30};
+  return {layout, prepare, preload, art, foeBox, swing, guard, approach, enemySpot, rot: key => ROT[key] ?? 16};
 })();
