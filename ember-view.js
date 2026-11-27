@@ -23,44 +23,6 @@ const EmberView = (() => {
       'px"></span>'
     );
   }
-  function equipment(item) {
-    return item.kind && item.kind !== "weapon" && item.kind !== "armor"
-      ? OutfitView.art(item.kind)
-      : BladeView.artwork(item);
-  }
-  function scene(item, n, result = null) {
-    const outcome = result?.outcome || (result && !result.item ? "destroyed" : "");
-    const source = item || result?.before;
-    if (!source) return "";
-    const p = (source.mods || []).filter((m) => Game.affixes.sideOf(m) === "P").length;
-    return (
-      '<figure class="ember-workbench' +
-      (result ? " ember-workbench-result" : "") +
-      '" data-ember-outcome="' +
-      escapeHtml(outcome) +
-      '"' +
-      (result?.operationId ? ' data-ember-operation="' + escapeHtml(result.operationId) + '"' : "") +
-      '><div class="ember-target">' +
-      equipment(source) +
-      "</div>" +
-      (n ? '<div class="ember-supply">' + art(n) + "</div>" : "") +
-      "<figcaption>" +
-      (result
-        ? outcome === "destroyed"
-          ? "장비 영구 소실"
-          : outcome === "corrupted"
-            ? "타락 확정 · 옵션 변경 잠김"
-            : "세공 완료"
-        : n
-          ? escapeHtml(Game.affixes.currency[n - 1])
-          : "세공할 불씨를 고르세요") +
-      '</figcaption><span class="ember-slot-count">접두 ' +
-      p +
-      "/3 · 접미 " +
-      ((source.mods?.length || 0) - p) +
-      "/3</span></figure>"
-    );
-  }
   function group(drops) {
     const groups = new Map();
     for (const drop of drops || []) {
@@ -125,11 +87,22 @@ const EmberView = (() => {
     if (result.operationId) pendingCraft = result.operationId;
   }
   function afterRender() {
-    const result = document.querySelector("#shade:not([hidden]) [data-ember-operation]");
+    const result = document.querySelector("#emberStage:not([hidden]) [data-ember-operation]");
     if (result && result.dataset.emberOperation === pendingCraft && !consumed.has(pendingCraft)) {
       remember(consumed, pendingCraft);
       pendingCraft = "";
-      if (motionEnabled()) result.classList.add("ember-craft-live");
+      if (motionEnabled()) {
+        const from = result.querySelector(".ember-supply")?.getBoundingClientRect();
+        const target = result.querySelector(".ember-scene-gear > *")?.getBoundingClientRect();
+        if (from && target) {
+          result.style.setProperty("--ember-dx", target.x + target.width / 2 - from.x - from.width / 2 + "px");
+          result.style.setProperty(
+            "--ember-dy",
+            target.y + target.height / 2 - from.y - from.height / 2 + "px",
+          );
+        }
+        result.classList.add("ember-craft-live");
+      }
     }
     const loot = document.querySelector("#screen [data-ember-receipt]");
     if (loot && loot.dataset.emberReceipt === pendingLoot && !arrivals.has(pendingLoot)) {
@@ -138,5 +111,5 @@ const EmberView = (() => {
       if (motionEnabled()) loot.classList.add("ember-arrival");
     }
   }
-  return { art, scene, loot, observe, consume, afterRender, group };
+  return { art, loot, observe, consume, afterRender, group };
 })();

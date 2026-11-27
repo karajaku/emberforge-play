@@ -1,6 +1,5 @@
 "use strict";
 const AffixView = (() => {
-  let receipt = null;
   const effects = [
     "일반에 옵션 1개 추가 · 매직",
     "1옵션 매직에 1개 추가 · 2옵션",
@@ -153,7 +152,6 @@ const AffixView = (() => {
       );
     return body;
   }
-  const entry = (s, id) => Game.affixList(s).find((x) => x.id === id);
   const link = (id, label = "세공", cls = "action") => openBtn("affix:item:" + id, icon("anvil") + label, cls);
   function action(name, arg, label, disabled = false) {
     return (
@@ -224,240 +222,10 @@ const AffixView = (() => {
       );
     return rows.join("");
   }
-  function modal(s, key) {
-    if (key === "affix:result") {
-      if (!receipt) return ["제작 결과", desc("다시 장비를 선택하세요.") + openBtn("affix:list", "장비 선택")];
-      const r = receipt;
-      const before = Game.blades.itemRarity(r.before || { mods: [] }).name;
-      const after = r.item ? Game.blades.itemRarity(r.item).name : "소실";
-      const summary = r.item
-        ? before +
-          " → " +
-          after +
-          " · " +
-          (r.before?.mods?.length || 0) +
-          " → " +
-          (r.item.mods?.length || 0) +
-          "옵션"
-        : "실패 · 장비 영구 소실";
-      return [
-        "제작 결과",
-        '<p class="affix-result" role="status">' +
-          escapeHtml(r.message || "제작 완료") +
-          "</p>" +
-          EmberView.scene(r.item, r.n, r) +
-          line("변경", escapeHtml(summary)) +
-          changes(r.before, r.item) +
-          line("남은 재료", fmt(s.affixWallet?.counts?.[r.n - 1] || 0) + "개") +
-          (r.item
-            ? options(r.item)
-            : '<p class="affix-warning">장비가 사라졌습니다. +0으로 돌아간 상태가 아닙니다.</p>') +
-          (r.before
-            ? "<details><summary>작업 전 옵션과 비교</summary>" + options(r.before) + "</details>"
-            : "") +
-          (entry(s, r.id) ? link(r.id, "장비 확인") : openBtn("affix:list", "다른 장비 선택")),
-      ];
-    }
-    if (key === "affix:list" || key.startsWith("affix:list|"))
-      return [
-        "세공할 장비",
-        desc("현재 옵션과 빈자리를 보고 재료를 고르세요.") +
-          Game.affixList(s)
-            .map((x) =>
-              row(
-                escapeHtml(x.label),
-                (x.item.mods?.length || 0) + "옵션 · " + Game.blades.itemRarity(x.item).name,
-                key.includes("|")
-                  ? openBtn("affix:item:" + x.id + "|" + Number(key.split("|")[1]), "이 장비에 세공", "action")
-                  : link(x.id, "선택", "action"),
-              ),
-            )
-            .join(""),
-      ];
-    const rest = key.slice("affix:item:".length),
-      split = rest.lastIndexOf("|"),
-      id = split < 0 ? rest : rest.slice(0, split),
-      n = split < 0 ? 0 : Number(rest.slice(split + 1));
-    const x = entry(s, id);
-    if (!x)
-      return ["장비 확인", desc("이 장비는 보관 중이 아닙니다.") + openBtn("affix:list", "다른 장비 선택")];
-    const identity =
-      line("대상 장비", escapeHtml(x.label)) +
-      line("현재 등급", Game.blades.itemRarity(x.item).name + " · " + (x.item.mods?.length || 0) + "옵션") +
-      line("장비 베이스", Game.blades.baseGradeNames[x.item.grade] || Game.blades.baseGradeNames[0]);
-    if (n) {
-      const q = Game.affixQuote(s, id, n);
-      return [
-        Game.affixes.currency[n - 1] + " 사용",
-        line("대상 장비", escapeHtml(x.label)) +
-          line("현재 상태", Game.blades.itemRarity(x.item).name + " · " + (x.item.mods?.length || 0) + "옵션") +
-          EmberView.scene(x.item, n) +
-          desc(effects[n - 1]) +
-          line("소모 / 보유", "1개 / " + fmt(q.count) + "개") +
-          (n >= 9
-            ? '<p class="affix-warning">' +
-              (n === 9
-                ? "실패하면 이 장비가 영구히 사라집니다."
-                : "성능이 나빠질 수 있습니다. 타락 뒤에는 불씨·각인·연마·전승으로 바꿀 수 없습니다. 재련·승급은 가능합니다.") +
-              "</p>"
-            : "") +
-          (q.reason ? desc(escapeHtml(q.reason)) : "") +
-          action("affixUse", { id, n, token: q.token }, "세공 · 불씨 1개 사용", !!q.reason || q.count < 1) +
-          link(id, "취소 · 불씨 다시 선택") +
-          "<details><summary>현재 옵션 상세</summary>" +
-          options(x.item) +
-          "</details>",
-      ];
-    }
-    const growth = Game.weaponGrowth?.(s, id);
-    const special =
-      (x.item.corrupted ? '<p class="affix-warning">타락 · 불씨 사용 불가 · 재련·승급 가능</p>' : "") +
-      (x.item.unique
-        ? desc(uniqueEffects[Game.affixes.kinds.indexOf(Game.affixes.kindOf(x.item))] || "") +
-          line(
-            "고유 능력",
-            "공격력 +" +
-              number(x.item.uniqueStats[0]) +
-              "% · HP +" +
-              number(x.item.uniqueStats[1]) +
-              "% · 방어도 +" +
-              number(x.item.uniqueStats[2]) +
-              "%",
-          )
-        : "") +
-      (x.item.sockets?.length
-        ? line(
-            "봉인 소켓",
-            x.item.sockets
-              .map(
-                (k) =>
-                  ({ fire: "불꽃 · 공격력 +3%", life: "숨결 · HP +3%", iron: "철벽 · 방어도 +6%" })[k] || k,
-              )
-              .join(" · "),
-          )
-        : "");
-    let body =
-      identity +
-      EmberView.scene(x.item, 0) +
-      special +
-      '<div class="ember-current-options">' +
-      (x.item.mods || [])
-        .map(
-          (m) =>
-            "<span>" +
-            escapeHtml(modName(m)) +
-            " <b>" +
-            (x.item.promotionGrade > (m.migrationGrade || 0) ? "원값 " + value(m) + " → " : "") +
-            value(m, x.item) +
-            "</b></span>",
-        )
-        .join("") +
-      "</div><details><summary>현재 옵션·티어 상세</summary>" +
-      options(x.item) +
-      "</details>";
-    if (id.startsWith("j:")) body += go("forge/craft", "기존 제작 공정", "action");
-    if (id.startsWith("j:") || id.startsWith("b"))
-      body += action(
-        "affixEquip",
-        { id, token: Game.affixQuote(s, id, 1).token },
-        (
-          id.startsWith("j:")
-            ? s.affixWallet?.journeyId === id
-            : !s.affixWallet?.journeyId && Game.blades.current(s).id === id
-        )
-          ? "사냥에 착용 중"
-          : "사냥에 착용",
-        id.startsWith("j:")
-          ? s.affixWallet?.journeyId === id
-          : !s.affixWallet?.journeyId && Game.blades.current(s).id === id,
-      );
-    if (Game.affixes?.candidates) {
-      const candidates = Game.affixes.candidates({ ...x.item, mods: [] });
-      body +=
-        '<details class="affix-rules"><summary>옵션 후보·10티어·추첨 확률</summary><p>T1이 가장 낮고 T10이 가장 높습니다. 옵션 종류 → 티어 → 값 순으로 무작위로 결정됩니다. 같은 종류는 중복되지 않고 접두·접미는 각각 3개까지입니다.</p>' +
-        candidates
-          .map(
-            (key) =>
-              "<details><summary>" +
-              escapeHtml(Game.affixes.defs[key].name) +
-              " · " +
-              meanings[key] +
-              "</summary>" +
-              Array.from({ length: 10 }, (_, i) => {
-                const [a, b, scale] = Game.affixes.bounds(key, i + 1);
-                return line("T" + (i + 1), number(a / scale) + "~" + number(b / scale) + units(key));
-              }).join("") +
-              "</details>",
-          )
-          .join("") +
-        "<p>최대 티어는 획득 단계 ÷ 6을 올림한 값입니다. 해금된 티어의 가중치는 T1부터 10·9·8·7·6·5·4·3·2·1이며, 각 티어 안 유효 값은 균등합니다. 옵션 선택은 가능한 종류 안에서 균등합니다.</p></details>";
-    }
-    if (growth) {
-      const token = Game.affixQuote(s, id, 1).token;
-      body +=
-        '<details class="affix-growth"' +
-        (growth.canPromote || growth.needsProcess ? " open" : "") +
-        "><summary>이 검 재련·승급</summary>" +
-        line("재련 단계", "+" + fmt(growth.level)) +
-        line("검 승급", growth.grade + "등급 · 옵션 ×" + number(1 + growth.grade / 10)) +
-        (growth.canPromote
-          ? promotion(s, id, growth)
-          : growth.canForge
-            ? line("다음 재련", fmt(growth.cost) + " G · 성공 " + pct(growth.success)) +
-              desc(
-                id.startsWith("j:")
-                  ? "기존 재련 성장 적용 · 현재 검의 기록과 공정 유지"
-                  : growth.grade >= 3
-                    ? "최종 승급 완료 · 최고 단계 기록"
-                    : "승급까지 +" +
-                      fmt(growth.level) +
-                      " / +" +
-                      fmt(growth.threshold) +
-                      " · 이번 재련의 전투 수치 변화 0",
-              ) +
-              action("affixForge", { id, token }, "재련 · " + fmt(growth.cost) + " G", s.gold < growth.cost)
-            : growth.needsProcess && !id.startsWith("j:")
-              ? processes(s, id, x.item)
-              : desc("승급 조건과 제작 공정은 장비 상세에서 확인하세요.")) +
-        "</details>";
-    }
-    body +=
-      '<h4>불씨 선택</h4><div class="affix-materials">' +
-      Game.affixes.currency
-        .map((name, i) => {
-          const q = Game.affixQuote(s, id, i + 1);
-          return (
-            '<button class="action affix-material" data-open="affix:item:' +
-            escapeHtml(id) +
-            "|" +
-            (i + 1) +
-            '">' +
-            EmberView.art(i + 1) +
-            '<span class="ember-material-copy"><b>' +
-            escapeHtml(name) +
-            " <span>" +
-            fmt(q.count) +
-            "개</span></b><small>" +
-            effects[i] +
-            "</small><small>" +
-            escapeHtml(q.reason || (q.count < 1 ? "재료 부족" : "사용 가능")) +
-            "</small></span></button>"
-          );
-        })
-        .join("") +
-      "</div>" +
-      openBtn("affix:list", "다른 장비 선택") +
-      "<details><summary>사냥 재료 획득 확률</summary><p>일반 단계 승리 20%, 우두머리 승리 40%로 재료 1개를 얻습니다. 재료가 나왔을 때의 종류 확률입니다.</p>" +
-      Game.affixes.currency
-        .map((name, i) => line(escapeHtml(name), [22, 17, 8, 6, 25, 6, 1, 8, 1, 6][i] + "%"))
-        .join("") +
-      "<p>최초 1·2·3·5단계 승리에 첫불씨·겹불씨·도약 불씨·별금 불씨를 각각 한 번 받습니다. 3옵션 매직 장비는 장비 드롭의 9%입니다.</p></details><details><summary>옵션 추첨 안내</summary><p>시스템이 옵션 종류 → 티어 → 티어 안의 값을 순서대로 무작위 결정합니다. T1이 최저, T10이 최고입니다. 일반 0개 · 매직 1~3개 · 레어 4~6개이며 접두와 접미는 각각 최대 3개입니다.</p></details>";
-    return ["장비 세공", body];
-  }
   function growthButton(s, id) {
     const g = Game.weaponGrowth(s, id),
       token = Game.affixQuote(s, id, 1).token;
-    if (g.canPromote) return openBtn("affix:item:" + id, controlArt("hammer") + "승급", "primary");
+    if (g.canPromote) return openBtn("affix:growth:" + id, controlArt("hammer") + "승급", "primary");
     if (g.canForge)
       return action(
         "affixForge",
@@ -491,17 +259,11 @@ const AffixView = (() => {
             .join("")
       : action("affixPromote", { id, token, trait: 0 }, "승급");
   }
-  function processes(s, id, item) {
-    if (Game.blades.current(s).id !== id)
-      return desc("기존 제작 공정을 마쳐야 승급할 수 있습니다. 먼저 이 검을 사냥에 착용하세요.");
-    return openBtn("bladeCraft", "기존 제작 공정 계속");
-  }
   function result(r, arg) {
-    receipt = { ...r, id: arg.id, n: arg.n };
     EmberView.consume(r);
+    EmberScene.result(r, arg);
   }
   return {
-    modal,
     options,
     link,
     modName,
@@ -512,5 +274,6 @@ const AffixView = (() => {
     promotion,
     growthButton,
     effects,
+    changes,
   };
 })();

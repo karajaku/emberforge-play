@@ -23,28 +23,6 @@
 .affix-option b {
   flex-shrink: 0;
 }
-.affix-materials {
-  display: grid;
-  gap: 8px;
-}
-.affix-material {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  text-align: left;
-  min-height: 64px;
-  padding: 10px 12px;
-  white-space: normal;
-}
-.affix-material b {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-}
-.affix-material small {
-  display: block;
-  line-height: 1.5;
-}
 .affix-warning {
   color: #96371c;
   font-weight: bold;
@@ -53,16 +31,6 @@
 .affix-result {
   font-weight: bold;
   line-height: 1.6;
-}
-#modalBody [data-affix-act] {
-  min-height: 48px;
-  margin: 10px 0;
-  width: 100%;
-  white-space: normal;
-}
-#modalBody .affix-material:focus-visible {
-  outline: 3px solid #b66e16;
-  outline-offset: 2px;
 }
 
 .affix-option {
@@ -92,30 +60,8 @@
   display: flex;
   align-items: center;
 }
-.affix-material {
-  width: 100%;
-  text-align: left;
-  min-height: 76px;
-  white-space: normal;
-}
-.affix-materials {
-  display: grid;
-  gap: 8px;
-}
 .affix-growth {
   margin: 16px 0;
-}
-#modalBody .affix-material b {
-  flex-wrap: wrap;
-}
-
-#modalBody .affix-material {
-  margin: 0;
-  min-width: 0;
-  box-sizing: border-box;
-}
-.affix-materials {
-  grid-template-columns: minmax(0, 1fr);
 }
 #modalBody .affix-option b small {
   font-size: 11px;
@@ -127,17 +73,6 @@
   right: 9.93%;
   column-gap: 4.23%;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-#modalBody [data-affix-act] {
-  flex-direction: column;
-  gap: 4px;
-}
-#modalBody [data-affix-act] small {
-  display: block;
-  font-size: 12px;
-  line-height: 1.5;
-  font-weight: 500;
 }
 
 .watch-start-mode.watch-capacity-note {
@@ -192,129 +127,6 @@
 }
 .bag-detail-art .ember-art {
   --ember-size: 96px !important;
-}
-#modalBody .affix-material {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-  min-height: 92px;
-  padding: 8px;
-}
-.ember-material-copy {
-  min-width: 0;
-}
-.ember-material-copy > b {
-  color: inherit;
-  gap: 6px;
-}
-.ember-material-copy > b span {
-  font-size: 12px;
-}
-.ember-material-copy small {
-  font-size: 11px;
-}
-.ember-workbench {
-  position: relative;
-  margin: 10px 0 12px;
-  height: 200px;
-  overflow: hidden;
-  isolation: isolate;
-  background: url("assets/hud/workshop.webp") center 68% / cover no-repeat;
-  border-radius: 8px;
-  image-rendering: pixelated;
-  color: #fff1cf;
-}
-.ember-target {
-  position: absolute;
-  inset: 14px 50px 44px;
-  display: grid;
-  place-items: center;
-}
-.ember-target > .gear-portrait {
-  width: 112px;
-  height: 126px;
-  filter: drop-shadow(0 5px 4px #000);
-}
-.ember-target > .outfit-art {
-  width: 112px;
-  height: 112px;
-  filter: drop-shadow(0 5px 4px #000);
-}
-.ember-supply {
-  position: absolute;
-  top: 34px;
-  left: 14px;
-  filter: drop-shadow(0 0 5px #fba83688);
-}
-.ember-workbench figcaption {
-  position: absolute;
-  bottom: 26px;
-  left: 4px;
-  right: 4px;
-  text-align: center;
-  font-size: 14px;
-  font-weight: 700;
-  text-shadow:
-    0 2px 3px #000,
-    0 0 5px #000;
-}
-.ember-slot-count {
-  position: absolute;
-  bottom: 8px;
-  left: 4px;
-  right: 4px;
-  text-align: center;
-  font-size: 12px;
-  text-shadow:
-    0 2px 3px #000,
-    0 0 5px #000;
-}
-.ember-current-options {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px 10px;
-  margin: 8px 0;
-}
-.ember-current-options > span {
-  font-size: 12px;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.ember-current-options b {
-  white-space: nowrap;
-}
-.ember-workbench-result[data-ember-outcome="destroyed"] .ember-target {
-  opacity: 0;
-}
-.ember-workbench-result[data-ember-outcome="destroyed"] figcaption {
-  color: #ffd2bd;
-}
-.ember-workbench-result[data-ember-outcome="corrupted"] figcaption {
-  color: #f2c1ff;
-}
-.ember-craft-live .ember-supply {
-  animation: ember-consume 0.55s ease-in both;
-}
-.ember-craft-live:not([data-ember-outcome="destroyed"]) .ember-target {
-  animation: ember-craft 0.55s ease-out both;
-}
-.ember-craft-live[data-ember-outcome="destroyed"] .ember-target {
-  animation: ember-destroy 0.55s ease-out both;
-}
-@keyframes ember-consume {
-  0% {
-    transform: translateX(0) scale(1);
-    opacity: 1;
-  }
-  75% {
-    transform: translateX(75px) scale(0.65);
-    opacity: 1;
-  }
-  100% {
-    transform: translateX(95px) scale(0.3);
-    opacity: 0;
-  }
 }
 @keyframes ember-craft {
   0%,
@@ -450,21 +262,6 @@ body[data-motion="on"] .watch-receipt:has(.ember-loot) .watch-loot {
   animation: none;
 }
 @media (max-width: 350px) {
-  .ember-workbench {
-    height: 172px;
-  }
-  .ember-target {
-    top: 5px;
-    bottom: 42px;
-  }
-  .ember-target > .gear-portrait {
-    width: 100px;
-    height: 112px;
-  }
-  .ember-supply {
-    left: 4px;
-    top: 26px;
-  }
   .ember-loot-items {
     gap: 3px;
   }
@@ -484,9 +281,6 @@ body[data-motion="off"] .ember-arrival * {
 }
 body[data-motion="on"] .watch-receipt:has(.ember-loot) .watch-receipt-head > * {
   animation: none;
-}
-#shade[data-modal^="affix:"] .listrow small {
-  overflow-wrap: anywhere;
 }
 /* Keep all shared bottom controls in place; compact ordinary loot when the scene is short. */
 .watch-receipt:has(.ember-loot) {
@@ -574,20 +368,6 @@ body[data-motion="on"] .watch-receipt:has(.ember-loot) .watch-receipt-head > * {
     display: none;
   }
 }
-#shade[data-modal*="|"] .ember-workbench {
-  height: 154px;
-  margin-block: 8px;
-}
-#shade[data-modal*="|"] .ember-target {
-  inset: 2px 50px 38px;
-}
-#shade[data-modal*="|"] .ember-target > .gear-portrait {
-  width: 100px;
-  height: 112px;
-}
-#shade[data-modal*="|"] .ember-supply {
-  top: 20px;
-}
 @container (max-height:335px) {
   .watch-receipt:has(.ember-loot) .loot-actions {
     display: contents;
@@ -606,26 +386,462 @@ body[data-motion="on"] .watch-receipt:has(.ember-loot) .watch-receipt-head > * {
     padding: 4px 9px;
   }
 }
-#shade[data-modal^="affix:"] .dialog {
-  overflow-anchor: none;
+/* ELA2: a dedicated full-screen workshop, never the shared information dialog. */
+#emberStage[hidden] {
+  display: none;
 }
-#shade[data-modal^="affix:"] .dialog-head {
+#emberStage {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  isolation: isolate;
+  display: grid;
+  grid-template-rows: 56px 48px minmax(140px, 1fr) 56px 100px 94px;
+  padding: env(safe-area-inset-top) 8px env(safe-area-inset-bottom);
+  overflow: hidden;
+  color: #fff1cf;
+  font-family: var(--sans);
+  background: #19211d url("assets/hud/workshop.webp") center / cover no-repeat;
+  text-shadow:
+    0 2px 3px #140d06,
+    0 0 4px #140d06;
+}
+#emberStage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(#0a111779, transparent 32%, transparent 58%, #10180cb0);
+}
+.ember-scene-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ember-scene-header > span {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.ember-scene-header svg {
+  width: 18px;
+  height: 18px;
+}
+.ember-scene-header > button {
+  justify-self: end;
+  width: 44px;
+}
+.ember-scene-name {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 1px;
+  min-width: 0;
+  text-align: center;
+}
+.ember-scene-name strong {
+  font-size: 17px;
+  line-height: 1.2;
+}
+.ember-scene-name > span {
+  font-size: 12px;
+}
+.ember-scene-centre {
+  position: relative;
+  min-height: 0;
+}
+.ember-scene-gear {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.ember-scene-gear .gear-portrait {
+  width: 190px;
+  height: 214px;
+  max-height: 100%;
+  filter: drop-shadow(0 9px 5px #090906);
+}
+.ember-scene-gear .outfit-art {
+  width: 174px;
+  height: 174px;
+  max-height: 100%;
+  filter: drop-shadow(0 8px 5px #090906);
+}
+.ember-scene-supply.ember-supply {
+  left: auto;
+  right: 20px;
+  top: 20px;
+  pointer-events: none;
+}
+.ember-scene-tools {
+  position: absolute;
+  top: 2px;
+  left: 0;
+  display: grid;
+  gap: 4px;
+}
+#emberStage .ember-game-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 5px 8px;
+  color: #fff1cf;
+  border: 0 solid transparent;
+  border-image: var(--control-plate) 28 fill / 7px stretch;
+  border-radius: 0;
+  background: #19291bc9;
+  text-shadow: 0 2px 2px #130e07;
+  box-shadow: none;
+  font: 700 12px/1.2 var(--sans);
+  touch-action: manipulation;
+}
+#emberStage .ember-game-button:disabled {
+  opacity: 0.7;
+  filter: grayscale(0.75);
+}
+#emberStage .ember-game-button:focus-visible,
+#emberStage [data-affix-act]:focus-visible {
+  outline: 3px solid #fff0a4;
+  outline-offset: -4px;
+}
+#emberStage .ember-scene-tools button {
+  width: 54px;
+  flex-direction: column;
+  padding: 4px;
+  font-size: 11px;
+}
+.ember-scene-tools svg {
+  width: 18px;
+  height: 18px;
+}
+.ember-scene-tools .control-art {
+  --art-size: 20px;
+}
+.ember-scene-info {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 1px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.35;
+  min-width: 0;
+  overflow: hidden;
+}
+.ember-scene-info small {
+  display: block;
+  font-size: 11px;
+}
+.ember-scene-info .line {
+  color: inherit;
+  font-size: 11px;
+}
+.ember-scene-tray {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 3px 0;
+  scrollbar-width: thin;
+  scroll-snap-type: x proximity;
+  border: 0 solid transparent;
+  border-image: var(--control-plate) 28 fill / 7px stretch;
+  background: #112319b0;
+}
+#emberStage .ember-tray-item {
+  flex: 0 0 72px;
+  width: 72px;
+  height: 90px;
+  padding: 3px;
+  flex-direction: column;
+  border-image: none;
+  border: 1px solid #98764188;
+  border-radius: 3px;
+  background: #132219ad;
+  scroll-snap-align: center;
+  gap: 0;
+}
+#emberStage .ember-tray-item[aria-pressed="true"] {
+  border-color: #ffe299;
+  background: #73551ca3;
+  box-shadow: inset 0 0 0 1px #ffe299;
+}
+.ember-tray-item > .gear-portrait,
+.ember-tray-item > .outfit-art {
+  width: 48px;
+  height: 52px;
+}
+.ember-tray-item b {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 66px;
+  font-size: 10px;
+  font-weight: 650;
+  text-align: center;
+}
+.ember-tray-item small {
+  font-size: 10px;
+}
+.ember-scene-footer {
+  display: grid;
+  grid-template-columns: minmax(48px, 1fr) minmax(136px, 1.7fr) minmax(48px, 1fr);
+  gap: 7px;
+  align-items: center;
+  padding: 5px 0 6px;
+}
+#emberStage .ember-scene-footer > button {
+  flex-direction: column;
+  min-height: 58px;
+}
+#emberStage .ember-main-action {
+  min-height: 80px;
+  flex-direction: column;
+  background:
+    linear-gradient(#50301933, #3d281363),
+    var(--control-plate) center/100% 100% no-repeat,
+    #543d26;
+  border: 2px solid #c49f5f;
+  border-radius: 16px;
+  padding: 3px 8px;
+}
+#emberStage .ember-main-action .control-art {
+  --art-size: 32px;
+}
+#emberStage .ember-main-action b {
+  font-size: 17px;
+}
+#emberStage .ember-main-action small {
+  font-size: 11px;
+}
+.ember-scene-footer > button:not(.ember-main-action) .control-art {
+  --art-size: 28px;
+}
+.ember-scene-footer > button:not(.ember-main-action) svg {
+  width: 25px;
+  height: 25px;
+}
+.ember-game-overlay {
+  position: absolute;
+  inset: 56px 6px 8px;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #090e0c9c;
+}
+.ember-game-detail {
+  position: relative;
+  width: min(100%, 460px);
+  max-height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 46px 14px 18px;
+  border: 0 solid transparent;
+  border-image: var(--control-plate) 28 fill / 10px stretch;
+  background: #15251cf5;
+  color: #fff0cb;
+  text-shadow: 0 1px 2px #090e07;
+}
+#emberStage .ember-detail-close {
   position: sticky;
-  top: -15px;
-  z-index: 3;
+  top: 0;
+  float: right;
+  width: 44px;
+  margin-top: -42px;
+  z-index: 2;
 }
-@media (max-width: 350px) {
-  #shade[data-modal*="|"] .ember-workbench {
-    height: 130px;
+.ember-game-detail h2 {
+  margin: 0 0 14px;
+  font-size: 19px;
+}
+.ember-game-detail :is(p, .desc, .line, small, h3, h4, strong, b) {
+  color: inherit;
+}
+.ember-game-detail .line {
+  margin-block: 8px;
+  font-size: 13px;
+}
+.ember-game-detail .line > strong {
+  text-align: right;
+}
+.ember-game-detail details > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+#emberStage .ember-game-detail :is(.action, .primary, .mini, [data-affix-act]) {
+  min-height: 44px;
+  color: #fff1cf;
+  background: #26392bdd;
+  border: 1px solid #af9159;
+  border-radius: 5px;
+  padding: 8px;
+  white-space: normal;
+  margin: 6px 0;
+}
+#emberStage .ember-game-detail [data-affix-act] {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+#emberStage .ember-game-detail .affix-warning,
+.ember-danger-text {
+  color: #ffd4bd;
+  font-weight: 700;
+  line-height: 1.5;
+}
+#emberStage .ember-game-detail :is(.card, .panel, .craft-body) {
+  background: transparent;
+  color: inherit;
+  border: 0;
+}
+#emberStage .ember-game-detail :is(.craft-scene, .modal-scene) {
+  min-height: 130px;
+}
+.ember-game-detail .craft-body {
+  padding: 0;
+}
+.ember-result-destroyed .ember-scene-gear {
+  opacity: 0;
+}
+#emberStage .ember-craft-live .ember-scene-gear {
+  animation: ember-craft 0.55s ease-out both;
+}
+#emberStage.ember-result-destroyed .ember-craft-live .ember-scene-gear {
+  animation: ember-destroy 0.55s ease-out both;
+}
+.ember-scene-message {
+  position: absolute;
+  top: 58px;
+  left: 8px;
+  right: 8px;
+  z-index: 20;
+}
+@media (max-height: 650px) {
+  #emberStage {
+    grid-template-rows: 48px 42px minmax(130px, 1fr) 50px 94px 88px;
   }
-  #shade[data-modal*="|"] .ember-target > .gear-portrait {
-    width: 88px;
-    height: 98px;
+  .ember-scene-gear .gear-portrait {
+    width: 158px;
+    height: 178px;
   }
-  #shade[data-modal*="|"] .ember-target {
-    inset: 0 50px 30px;
+  .ember-scene-gear .outfit-art {
+    width: 140px;
+    height: 140px;
   }
-  #shade[data-modal*="|"] .ember-supply {
-    top: 10px;
+  #emberStage .ember-scene-supply .ember-art {
+    --ember-size: 64px !important;
   }
+  .ember-scene-supply.ember-supply {
+    right: 8px;
+    top: 18px;
+  }
+  .ember-scene-header > b {
+    font-size: 14px;
+  }
+  .ember-game-overlay {
+    top: 48px;
+  }
+  #emberStage .ember-tray-item {
+    height: 86px;
+  }
+}
+#emberStage[data-ember-result="true"] {
+  grid-template-rows: 56px 48px minmax(140px, 1fr) 64px 0 94px;
+}
+#emberStage[data-ember-result="true"] .ember-scene-tray {
+  display: none;
+}
+#emberStage[data-ember-result="true"] .ember-scene-gear .gear-portrait {
+  width: 218px;
+  height: 246px;
+}
+#emberStage .ember-scene-tools .ember-scene-equip {
+  min-height: 44px;
+  height: 44px;
+  padding: 3px;
+  font-size: 10px;
+}
+#emberStage[data-ember-risk="true"] .ember-scene-footer {
+  grid-template-columns: 1fr 1fr;
+}
+#emberStage .ember-risk-copy {
+  width: 100%;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  text-align: center;
+  padding: 6px;
+  font-size: 12px;
+}
+.ember-risk-copy strong {
+  color: #ffd0b6;
+  font-size: 14px;
+}
+.ember-scene-info {
+  font-weight: 700;
+  text-shadow:
+    0 2px 2px #080a05,
+    0 0 7px #080a05,
+    1px 0 #080a05,
+    -1px 0 #080a05;
+}
+#emberStage .ember-craft-live .ember-supply {
+  animation: ember-scene-consume 0.55s ease-in both;
+}
+@keyframes ember-scene-consume {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  80% {
+    transform: translate(var(--ember-dx), var(--ember-dy)) scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--ember-dx), var(--ember-dy)) scale(0.25);
+    opacity: 0;
+  }
+}
+#emberStage:has(.ember-craft-live) .ember-scene-info {
+  animation: ember-result-ready 0.55s step-end both;
+}
+@keyframes ember-result-ready {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+@media (max-height: 650px) {
+  #emberStage[data-ember-result="true"] {
+    grid-template-rows: 48px 42px minmax(130px, 1fr) 58px 0 88px;
+  }
+  #emberStage[data-ember-result="true"] .ember-scene-gear .gear-portrait {
+    width: 174px;
+    height: 196px;
+  }
+}
+#emberStage .ember-scene-supply {
+  position: absolute;
 }

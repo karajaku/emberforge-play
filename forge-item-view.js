@@ -80,7 +80,7 @@ const ForgeItemView = (() => {
     return (q.type === "chest" ? "bladeArmorItem-" : "bladeItem-") + q.id;
   }
   function strike(s,q) {
-    if (q.type === "blade" && q.item.level >= 20 && Game.weaponGrowth?.(s,q.id)) return Game.weaponGrowth(s,q.id).canPromote ? openBtn("affix:item:"+q.id,controlArt("hammer")+"승급<small>특성과 옵션 유지</small>","primary") : AffixView.growthButton(s,q.id);
+    if (q.type === "blade" && q.item.level >= 20 && Game.weaponGrowth?.(s,q.id)) return Game.weaponGrowth(s,q.id).canPromote ? openBtn("affix:growth:"+q.id,controlArt("hammer")+"승급<small>특성과 옵션 유지</small>","primary") : AffixView.growthButton(s,q.id);
     const chest = q.type === "chest";
     if (q.item.finalTrial && q.wornSlot)
       return openBtn(chest ? "bladeArmorFinal" : "bladeFinal", icon("hammer")+"돌파 계속<small>+20 마감</small>","primary");

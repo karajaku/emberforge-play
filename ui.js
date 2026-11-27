@@ -265,6 +265,9 @@ function observeNoticeRails() {
 window.addEventListener('resize', fitNoticeRails);
 function placeToast() {
   const slot = el("noticeSlot");
+  if(EmberScene.visible && toast.classList.contains("on")){
+    EmberScene.host.querySelector(".ember-scene-message")?.append(slot);slot.hidden=false;scheduleToastDismissal();return;
+  }
   // Keep the live region outside replaced screen/modal markup while rendering.
   if (!toast.classList.contains("on")) return;
   document.querySelectorAll(".has-notice").forEach(node => node.classList.remove("has-notice"));
@@ -362,6 +365,7 @@ function bindOutfitQuotes(container) {
     button.outfitQuote = outfitQuote(state, button.dataset.act, button.dataset.arg);
 }
 function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedSoul, expectedOutfit) {
+  const emberLegacyId=EmberScene.visible && (["craftStart","craftMove","craftFinish","craftInherit"].includes(action) || action?.startsWith("final")) ? EmberScene.selectedId : "";
   const forgeItemAction = action?.startsWith("forgeItem");
   const forgeVersion = forgeItemAction && ForgeItemView.version;
   const forgeWornItem = action === "outfitForge" && current() === "forge" && !modal;
@@ -418,6 +422,11 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
       autoCombat.stop();
     }
     sync();
+    if(emberLegacyId && ("j:"+state.weapon.recordId!==emberLegacyId || !EmberScene.visible || EmberScene.selectedId!==emberLegacyId)){
+      render();if(modal)displayModal();
+      notify("착용한 검이 바뀌었습니다. 공정을 진행할 검을 다시 선택하세요.","loss");
+      return;
+    }
     if (expectedOutfit && expectedOutfit !== outfitQuote(state, action, arg)) {
       render(); if (modal) displayModal();
       notify("착용 장비가 바뀌었습니다. 현재 장비와 비용을 다시 확인하세요.");
@@ -470,7 +479,9 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     const beforeHuntHealth = state.hunt && {...state.hunt};
     if (action === "huntStart" && arg && typeof arg === "object") arg = { ...arg, combat:arg.combat || Game.exploration.combat, affixRules:1 };
     const destroyBefore = action === "forgeItemEnhance" ? Game.forgeItems.quote(state,arg.id)?.destroy : 0;
+    const affixDisplayLabel=action==="affixUse" ? Game.affixList(state).find(x=>x.id===arg.id)?.label : "";
     const result = Game.perform(state, action, arg, undefined, undefined, pressedAt);
+    if(action==="affixUse" && result.ok){result.displayLabel=affixDisplayLabel;dismissToast();}
     EmberView.observe(state,result);
     if (action === "affixUse" && result.ok) { AffixView.result(result,arg); modal = "affix:result"; }
     // The rules refuse an unannounced hit that could reset the item. Nothing changed, so show the notice.
@@ -962,7 +973,6 @@ function modalData() {
 }
 function modalDataContent() {
   const s = state;
-  if (modal.startsWith("affix:")) return AffixView.modal(s,modal);
   if (modal.startsWith("forgeItem:")) return ForgeItemView.modalContent(modal);
   if (modal.startsWith("outfit:")) return OutfitView.modal(s, modal);
   if (modal.startsWith("soul:")) return SoulView.modal(s, modal);
@@ -1357,6 +1367,14 @@ function modalDataContent() {
   }
 }
 function displayModal() {
+  if (EmberScene.isRoute(modal)) {
+    el("shade").hidden=true;
+    EmberScene.display(state,modal);
+    document.body.style.overflow="hidden";
+    syncMusic();
+    return;
+  }
+  EmberScene.hide();
   cancelForgePress();
   const selectedSale = el("saleItem")?.value;
   const [title, html, rarity] = modalData();
@@ -1419,6 +1437,7 @@ function updateSaleQuote(reset) {
 }
 function showModal(key, trigger = document.activeElement) {
   if (!ready || storageError) return;
+  key=EmberScene.route(state,key);
   ForgeItemView.cancelSwipe();
   HuntLootView.open(state,key,modal);
   if (HuntWatch.active && !HuntLootView.isReader(key)) HuntWatch.stop('일시 중단');
@@ -1431,12 +1450,14 @@ function showModal(key, trigger = document.activeElement) {
   }
   modal = key;
   displayModal();
+  if(EmberScene.visible) {EmberScene.focus();return;}
   if (key === "forgeItem:filter") el("shade").scrollTop = 0;
   const focus = key === "confirmNewGame" ? el("modalBody").querySelector("[data-open=settings]") :
     el("shade").querySelector(key === "forgeItem:filter" ? "[data-forge-filter]" : "button");
   focus.focus({ preventScroll: true });
 }
 function closeModal(focus = true) {
+  EmberScene.hide();
   ForgeItemView.invalidate();
   const provisionDialog = modal === "huntWallet" || modal === "daily";
   modal = "";
@@ -1465,6 +1486,7 @@ function closeModal(focus = true) {
     ?.focus({ preventScroll: true });
 }
 function dismissModal() {
+  if(EmberScene.closeDetail())return;
   Feedback.clear();
   GameSound.stop();
   if (modal === "confirmNewGame") showModal("settings");
@@ -1504,7 +1526,7 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
   }
   if (e.key === "Tab" && modal) {
-    const items = [...el("shade").querySelectorAll("button:not(:disabled),input,select")].filter(
+    const items = [...(EmberScene.visible?EmberScene.host:el("shade")).querySelectorAll("button:not(:disabled),input,select")].filter(
       (n) => n.offsetWidth,
     );
     if (!items.length) return;

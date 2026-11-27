@@ -113,7 +113,7 @@ const BladeView = (() => {
   function workshop(s, armor = false) {
     const b = rules(), item = armor ? b.currentArmor(s) : b.current(s), rack = b.state(s);
     if (item.soulChoice) return SoulView.modal(s,"soul:craft:"+item.id)[1];
-    if (Game.affixList) return processes(s,item) + AffixView.modal(s,"affix:item:"+item.id)[1] + SoulView.open("craft:"+item.id,"영혼 제작·전승");
+    if (Game.affixList) return processes(s,item) + AffixView.link(item.id,"세공 작업장") + SoulView.open("craft:"+item.id,"영혼 제작·전승");
     const available = b.available(item).map(key => [key, b.modDefs[key]]);
     if (item.soulChoice) return SoulView.modal(s,"soul:craft:"+item.id)[1];
     const firstProcess = item.level===7 && Swordcraft.stageIndex(item)===0;
@@ -218,5 +218,5 @@ const BladeView = (() => {
       btn("bladeSalvage","각인석으로 분해",target.id,"action",target.id===item.id)];
     return [label(target),itemDetail(s,target),b.itemRarity(target)];
   }
-  return {forge, armor, switches, modal, sprite, artwork, damageRange, hitLine, hitMark, itemDetail, armorDetail, label};
+  return {forge, armor, switches, modal, sprite, artwork, damageRange, hitLine, hitMark, itemDetail, armorDetail, label, processes, soulActions};
 })();
