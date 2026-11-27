@@ -471,6 +471,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     if (action === "huntStart" && arg && typeof arg === "object") arg = { ...arg, combat:arg.combat || Game.exploration.combat, affixRules:1 };
     const destroyBefore = action === "forgeItemEnhance" ? Game.forgeItems.quote(state,arg.id)?.destroy : 0;
     const result = Game.perform(state, action, arg, undefined, undefined, pressedAt);
+    EmberView.observe(state,result);
     if (action === "affixUse" && result.ok) { AffixView.result(result,arg); modal = "affix:result"; }
     // The rules refuse an unannounced hit that could reset the item. Nothing changed, so show the notice.
     if (!result.ok && result.code === "riskNotice") {
@@ -500,7 +501,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     if (result.impact) huntStart = performance.now();
     // A reset to +0 is named by the rules. `state.breaks` stays the older forge's own record.
     const destroyed = result.ok && result.outcome === "destroy";
-    if (result.ok && result.outcome) ForgeItemView.hold(result.outcome, destroyBefore,
+    if (action !== "affixUse" && result.ok && result.outcome) ForgeItemView.hold(result.outcome, destroyBefore,
       action === "forgeItemEnhance" ? Game.forgeItems.quote(state,arg.id)?.destroy : 0);
     const forgeAction = destroyed || action === "forgeItemEnhance" || forgeWornItem || [
       "enhance",
@@ -601,7 +602,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     }
     // A settled cart choice is shown as the receipt in the forest itself, not as a second toast.
     const sceneReceipt = result.ok && ["huntChoose","artisanChoose"].includes(action) && current() === "forest" && phonePage("forest") === "hunt";
-    if (!repeatGuard && action !== "temperStart" && !sceneReceipt && !(result.ok && ["openChest", "openTowerChests"].includes(action)) && !result.battle && !result.impact && result.message)
+    if (!repeatGuard && (action !== "affixUse" || !result.ok) && action !== "temperStart" && !sceneReceipt && !(result.ok && ["openChest", "openTowerChests"].includes(action)) && !result.battle && !result.impact && result.message)
     {
       // The rule's log line ends with the result's name; the notice titles it and says what the item keeps.
       const kept = destroyed && ForgeItemView.keepTag(forgeItemAction ? Game.forgeItems.quote(state,arg.id)?.type : action.startsWith("outfit") ? "outfit" : "blade");
@@ -626,7 +627,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
         if (animate) Feedback.play("forge", stage, label, outcome, repeatStrike, promotedTo, finale);
         sound(repeatStrike && outcome === "hold" ? "forge-repeat-hold" : "forge-" + outcome, animate ? Feedback.strikeMs / 1000 : 0);
       } else if (chest) {
-        if (animate) {
+        if (animate && !(current() === "forest" && state.lastChest?.huntLoot?.emberDrops?.length)) {
           const report = repeatGuard && document.querySelector(".watch-report");
           Feedback.play("chest", report || document.querySelector(".chest-reveal .chest-art"), report ? "" : "+" + fmt(state.lastChest.gold) + " G");
         }
@@ -637,7 +638,7 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
       } else if (ascension) {
         if (animate) Feedback.play("ascend", modal ? el("modalBody") : stage, action === "rebirth" ? "환생 완료" : "성장 완료");
         sound("ascend");
-      } else if (!stagedHit) sound(result.impact?.kind || (sparring ? (arg === "parry" ? "parry" : "slash") : action === "mine" ? "mine" : result.kind));
+      } else if (action !== "affixUse" && !stagedHit) sound(result.impact?.kind || (sparring ? (arg === "parry" ? "parry" : "slash") : action === "mine" ? "mine" : result.kind));
     }
     settled = result.ok;
     autoCombat.refresh();
@@ -765,6 +766,7 @@ function render() {
   screen.innerHTML = view;
   if (huntButtonFocused) screen.querySelector(".watch-start")?.focus({ preventScroll: true });
   HuntWatch.afterRender();
+  EmberView.afterRender();
   bindOutfitQuotes(screen);
   renderLesson();
   GameUI.shell();
@@ -1381,11 +1383,14 @@ function displayModal() {
     updateSaleQuote(true);
   }
   el("shade").hidden = false;
+  EmberView.afterRender();
   if(modal.startsWith("affix:")) {
     el("shade").scrollTop = 0;
     el("shade").querySelector(".dialog").scrollTop = 0;
     el("modalTitle").tabIndex = -1;
     el("modalTitle").focus({preventScroll:true});
+    const shownAffixModal=modal;
+    requestAnimationFrame(()=>{if(modal===shownAffixModal) el("shade").querySelector(".dialog").scrollTop=0;});
   }
   placeToast();
   document.body.style.overflow = "hidden";

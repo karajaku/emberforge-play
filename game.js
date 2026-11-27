@@ -2034,10 +2034,11 @@ const Game = (() => {
             const receipt = blades.rollReward(s,h,random,plan.gear);
             receipt.materialPrize += endgame.victory(s,h);
             if (h.affixRules===1) {
-              const found=af.grant(s,h.rank,random);
-              if (found.length) receipt.materialPrize+=" · "+found.join(" · ");
+              const drops = af.grant(s, h.rank, random);
+              if (drops.length) receipt.emberDrops = drops;
             }
             receipt.bladePrize = blades.rewardText(receipt);
+            if (receipt.emberDrops) receipt.bladePrize += " · " + receipt.emberDrops.map(drop => affixes.currency[drop.n - 1]).join(" · ");
             if (plan.outfit) Object.assign(receipt, outfit.reward(s,h,random,true));
             if (firstClear) receipt.firstGearChoice = true;
             if (h.territoryRank) receipt.territoryRank = h.territoryRank;
@@ -2057,6 +2058,7 @@ const Game = (() => {
                 (trained ? " · 전승 수련 달성" : ""),
               "win",
             ),
+            ...(chest.huntLoot?.emberDrops ? { receiptId: chest.id, emberDrops: chest.huntLoot.emberDrops } : {}),
             impact, ...(event ? { event } : {}),
           };
         }

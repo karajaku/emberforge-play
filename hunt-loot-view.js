@@ -78,7 +78,7 @@ const HuntLootView = (() => {
       chest.scrolls && "주문서 +"+fmt(chest.scrolls),
       ...(chest.charms || []).map((n,i) => n && Game.blessings[i]+" +"+fmt(n)),
     ].filter(Boolean);
-    return (equipment ? '<div class="loot-gear-list">'+equipment+'</div>' : '')+
+    return EmberView.loot(receipt,detailed) + (equipment ? '<div class="loot-gear-list">'+equipment+'</div>' : '')+
       (materials.length || chest.counter ? '<div class="loot-materials">'+materials.map(text => '<span>'+escapeHtml(text)+'</span>').join("")+
         (chest.counter ? '<span class="watch-counter-reward">반격 +'+fmt(chest.counter)+' G 포함</span>' : "")+'</div>' : '');
   }
@@ -99,7 +99,7 @@ const HuntLootView = (() => {
     if (!reading) return ["최근 전리품",desc("아직 수령한 전리품이 없습니다.")];
     const {chest,result} = reading;
     return [chest.rank+(chest.exploration ? "단계 탐험 전리품" : "단계 전리품"),'<div class="loot-history"><p class="loot-gold">'+icon("coins")+' +'+fmt(chest.gold)+
-      ' G</p>'+rewards(s,reading,true)+(result.firstGearChoice ? openBtn("firstGearCompare","장비 비교") : "")+'</div>'];
+      ' G</p>'+rewards(s,reading,true)+(chest.fiber ? openBtn("bladeArmorLining","안감 제작") : "")+(result.firstGearChoice ? openBtn("firstGearCompare","장비 비교") : "")+'</div>'];
   }
 
   return {settled,open,isReader,select,resultView,detailView,get reading(){return reading;}};

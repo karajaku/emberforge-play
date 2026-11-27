@@ -140,13 +140,26 @@ const SaveStore = (() => {
   }
   function validGearDrops(result) {
     const drops = result.gearDrops;
-    return Array.isArray(drops) && drops.length <= 2 && typeof result.materialPrize === "string" &&
+    return validEmberDrops(result.emberDrops) && Array.isArray(drops) && drops.length <= 2 && typeof result.materialPrize === "string" &&
       drops.every(d => d && ["weapon","armor"].includes(d.type) && typeof d.id === "string" &&
         (d.weaponKind === undefined || (d.type === "weapon" && game.blades.weaponKinds.includes(d.weaponKind))) &&
         (d.type === "armor" ? /^a[1-9]\d*$/ : /^b[1-9]\d*$/).test(d.id) && Number.isInteger(d.base) &&
         d.base > 0 && d.base < game.blades.bases.length && [0,1,2,3].includes(d.grade) && Number.isInteger(d.lines) &&
         (d.affixVersion===1 ? d.lines>=0 && d.lines<=6 : d.lines >= game.blades.baseGradeRules[d.grade].min && d.lines <= game.blades.baseGradeRules[d.grade].max)) &&
       new Set(drops.map(d => d.type)).size === drops.length;
+  }
+  function validEmberDrops(drops) {
+    if (drops === undefined) return true; // Older receipts only have the material text.
+    if (!Array.isArray(drops) || !drops.length || drops.length > 5) return false;
+    const claimed = new Set();
+    let randomDrop = false;
+    for (const drop of drops) {
+      if (!object(drop) || !Number.isInteger(drop.n) || drop.n < 1 || drop.n > 10 || drop.count !== 1) return false;
+      if (drop.source === "hunt" && !randomDrop) randomDrop = true;
+      else if (drop.source === "milestone" && [1, 2, 3, 5].includes(drop.n) && !claimed.has(drop.n)) claimed.add(drop.n);
+      else return false;
+    }
+    return true;
   }
   function validHuntLoot(chest, outfit) {
     const loot = chest.huntLoot;

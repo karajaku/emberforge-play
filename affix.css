@@ -174,3 +174,458 @@
     gap: 2px;
   }
 }
+/* ELA1: one sprite identity from forest discovery to bag and crafting. */
+.ember-art {
+  display: inline-block !important;
+  flex: 0 0 auto;
+  width: var(--ember-size, 64px) !important;
+  height: var(--ember-size, 64px) !important;
+  background-image: url("assets/embers.png");
+  background-size: 500% 200%;
+  background-position: var(--ember-x) var(--ember-y);
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  vertical-align: middle;
+}
+.bag-slot-art > .ember-art {
+  --ember-size: 48px !important;
+}
+.bag-detail-art .ember-art {
+  --ember-size: 96px !important;
+}
+#modalBody .affix-material {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 92px;
+  padding: 8px;
+}
+.ember-material-copy {
+  min-width: 0;
+}
+.ember-material-copy > b {
+  color: inherit;
+  gap: 6px;
+}
+.ember-material-copy > b span {
+  font-size: 12px;
+}
+.ember-material-copy small {
+  font-size: 11px;
+}
+.ember-workbench {
+  position: relative;
+  margin: 10px 0 12px;
+  height: 200px;
+  overflow: hidden;
+  isolation: isolate;
+  background: url("assets/hud/workshop.webp") center 68% / cover no-repeat;
+  border-radius: 8px;
+  image-rendering: pixelated;
+  color: #fff1cf;
+}
+.ember-target {
+  position: absolute;
+  inset: 14px 50px 44px;
+  display: grid;
+  place-items: center;
+}
+.ember-target > .gear-portrait {
+  width: 112px;
+  height: 126px;
+  filter: drop-shadow(0 5px 4px #000);
+}
+.ember-target > .outfit-art {
+  width: 112px;
+  height: 112px;
+  filter: drop-shadow(0 5px 4px #000);
+}
+.ember-supply {
+  position: absolute;
+  top: 34px;
+  left: 14px;
+  filter: drop-shadow(0 0 5px #fba83688);
+}
+.ember-workbench figcaption {
+  position: absolute;
+  bottom: 26px;
+  left: 4px;
+  right: 4px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  text-shadow:
+    0 2px 3px #000,
+    0 0 5px #000;
+}
+.ember-slot-count {
+  position: absolute;
+  bottom: 8px;
+  left: 4px;
+  right: 4px;
+  text-align: center;
+  font-size: 12px;
+  text-shadow:
+    0 2px 3px #000,
+    0 0 5px #000;
+}
+.ember-current-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 10px;
+  margin: 8px 0;
+}
+.ember-current-options > span {
+  font-size: 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ember-current-options b {
+  white-space: nowrap;
+}
+.ember-workbench-result[data-ember-outcome="destroyed"] .ember-target {
+  opacity: 0;
+}
+.ember-workbench-result[data-ember-outcome="destroyed"] figcaption {
+  color: #ffd2bd;
+}
+.ember-workbench-result[data-ember-outcome="corrupted"] figcaption {
+  color: #f2c1ff;
+}
+.ember-craft-live .ember-supply {
+  animation: ember-consume 0.55s ease-in both;
+}
+.ember-craft-live:not([data-ember-outcome="destroyed"]) .ember-target {
+  animation: ember-craft 0.55s ease-out both;
+}
+.ember-craft-live[data-ember-outcome="destroyed"] .ember-target {
+  animation: ember-destroy 0.55s ease-out both;
+}
+@keyframes ember-consume {
+  0% {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+  75% {
+    transform: translateX(75px) scale(0.65);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(95px) scale(0.3);
+    opacity: 0;
+  }
+}
+@keyframes ember-craft {
+  0%,
+  65% {
+    filter: brightness(1);
+  }
+  78% {
+    filter: brightness(1.7);
+  }
+  100% {
+    filter: brightness(1);
+  }
+}
+@keyframes ember-destroy {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+.ember-loot {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: 0;
+}
+.ember-loot-title {
+  color: #ffe3a3;
+  font-size: 17px;
+  text-shadow: 0 2px 3px #1a1207;
+}
+.ember-loot-items {
+  width: 100%;
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+.ember-loot-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 4px;
+  min-width: 44px;
+  min-height: 44px;
+  background: none;
+  border: 0;
+  color: #fff0bf;
+  text-shadow: 0 2px 3px #201407;
+}
+.ember-loot-item > span:not(.ember-art) {
+  display: grid !important;
+  gap: 1px !important;
+  text-align: left;
+  font-size: 13px !important;
+}
+.ember-loot-item b {
+  font-size: 14px;
+}
+.ember-loot-item strong {
+  font-size: 20px;
+}
+.ember-loot-item small {
+  display: block;
+  font-size: 11px;
+}
+.ember-loot-items:has(> :nth-child(2)) .ember-loot-item {
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  min-width: 0;
+  flex: 1 1 0;
+}
+.ember-loot-items:has(> :nth-child(2)) .ember-loot-item > span:not(.ember-art) {
+  text-align: center;
+  font-size: 11px !important;
+}
+.ember-loot-items:has(> :nth-child(2)) .ember-loot-item b {
+  font-size: 12px;
+}
+.ember-loot-items:has(> :nth-child(2)) .ember-loot-item strong {
+  font-size: 15px;
+}
+.ember-loot-items:has(> :nth-child(4)) .ember-art {
+  --ember-size: 48px !important;
+}
+.ember-loot-history {
+  justify-items: start;
+  color: #664018;
+  margin: 10px 0;
+}
+.ember-loot-history .ember-loot-title,
+.ember-loot-history .ember-loot-item {
+  color: #664018;
+  text-shadow: none;
+}
+.ember-loot-history .ember-loot-items {
+  flex-wrap: wrap;
+  justify-content: start;
+}
+.ember-loot-history .ember-loot-item {
+  flex: 1 1 120px !important;
+  flex-direction: row !important;
+  padding: 6px !important;
+}
+.ember-arrival .ember-art {
+  animation: ember-discover 0.65s ease-out both;
+}
+@keyframes ember-discover {
+  0% {
+    transform: scale(0.7) translateY(12px);
+    filter: brightness(1);
+  }
+  55% {
+    filter: brightness(1.6) drop-shadow(0 0 10px #ffbc5588);
+  }
+  100% {
+    transform: none;
+    filter: none;
+  }
+}
+.watch-receipt:has(.ember-loot) .watch-loot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+body[data-motion="on"] .watch-receipt:has(.ember-loot) .watch-loot {
+  animation: none;
+}
+@media (max-width: 350px) {
+  .ember-workbench {
+    height: 172px;
+  }
+  .ember-target {
+    top: 5px;
+    bottom: 42px;
+  }
+  .ember-target > .gear-portrait {
+    width: 100px;
+    height: 112px;
+  }
+  .ember-supply {
+    left: 4px;
+    top: 26px;
+  }
+  .ember-loot-items {
+    gap: 3px;
+  }
+  .ember-loot-item b {
+    font-size: 13px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  body:not([data-motion-override="full"]) .ember-craft-live *,
+  body:not([data-motion-override="full"]) .ember-arrival * {
+    animation: none !important;
+  }
+}
+body[data-motion="off"] .ember-craft-live *,
+body[data-motion="off"] .ember-arrival * {
+  animation: none !important;
+}
+body[data-motion="on"] .watch-receipt:has(.ember-loot) .watch-receipt-head > * {
+  animation: none;
+}
+#shade[data-modal^="affix:"] .listrow small {
+  overflow-wrap: anywhere;
+}
+/* Keep all shared bottom controls in place; compact ordinary loot when the scene is short. */
+.watch-receipt:has(.ember-loot) {
+  width: 100%;
+}
+@container (max-height:335px) {
+  .watch-receipt:has(.ember-loot) {
+    gap: 2px;
+  }
+  .watch-receipt:has(.ember-loot) .watch-receipt-head {
+    align-self: end;
+    margin-left: 98px;
+    min-height: 44px;
+    max-width: calc(100% - 102px);
+    justify-content: center;
+    align-content: center;
+    gap: 1px 4px;
+  }
+  .watch-receipt:has(.ember-loot) .watch-receipt-head > b {
+    font-size: 18px;
+  }
+  .watch-receipt:has(.ember-loot) .watch-receipt-head > strong {
+    font-size: 14px;
+  }
+  .watch-receipt:has(.ember-loot) .loot-gear-list {
+    width: 100%;
+  }
+  .watch-receipt:has(.ember-loot) button.loot-gear {
+    grid-template-columns: 18px minmax(0, 1fr);
+    min-height: 44px;
+    max-height: 52px;
+    text-align: left;
+    padding: 3px;
+    align-content: center;
+  }
+  .watch-receipt:has(.ember-loot) .loot-gear .loot-name {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+  .watch-receipt:has(.ember-loot) .loot-gear .loot-name b {
+    font-size: 11px;
+  }
+  .watch-receipt:has(.ember-loot) .loot-gear .loot-name > small,
+  .watch-receipt:has(.ember-loot) .loot-forge-label,
+  .watch-receipt:has(.ember-loot) .loot-materials {
+    display: none;
+  }
+  .watch-receipt:has(.ember-loot) .ember-loot-title {
+    font-size: 16px;
+    line-height: 18px;
+  }
+  .watch-receipt:has(.ember-loot) .ember-loot-item > span:not(.ember-art) {
+    gap: 0 !important;
+    line-height: 1.1;
+  }
+}
+.watch-arena:has(.ember-loot) > .watch-recent-loot:not(.watch-plan-link) {
+  display: none;
+}
+@container (max-height:335px) {
+  .watch-arena:has(.ember-loot) > .watch-recent-loot:not(.watch-plan-link) {
+    display: flex;
+  }
+  .watch-report:has(.ember-loot) {
+    padding-top: 46px;
+    justify-content: flex-start;
+  }
+  .watch-receipt:has(.ember-loot) .watch-receipt-head {
+    margin-left: 0;
+    max-width: 100%;
+    min-height: 24px;
+  }
+  .watch-receipt:has(.ember-loot) .ember-art {
+    --ember-size: 64px !important;
+  }
+  .watch-receipt:has(.ember-loot)
+    .ember-loot-items:has(> :nth-child(2)):not(:has(> :nth-child(3)))
+    .ember-loot-item {
+    flex-direction: row;
+  }
+  .watch-receipt:has(.ember-loot) .ember-loot-items:has(> :nth-child(3)) .ember-art {
+    --ember-size: 32px !important;
+  }
+  .watch-receipt:has(.ember-loot) .loot-actions {
+    display: none;
+  }
+}
+#shade[data-modal*="|"] .ember-workbench {
+  height: 154px;
+  margin-block: 8px;
+}
+#shade[data-modal*="|"] .ember-target {
+  inset: 2px 50px 38px;
+}
+#shade[data-modal*="|"] .ember-target > .gear-portrait {
+  width: 100px;
+  height: 112px;
+}
+#shade[data-modal*="|"] .ember-supply {
+  top: 20px;
+}
+@container (max-height:335px) {
+  .watch-receipt:has(.ember-loot) .loot-actions {
+    display: contents;
+  }
+  .watch-receipt:has(.ember-loot) .loot-actions > button {
+    display: none;
+  }
+  .watch-receipt:has(.ember-loot) .loot-actions > [data-open="huntLoot"] {
+    display: inline-flex;
+    position: absolute;
+    top: 0;
+    right: 4px;
+    min-height: 44px;
+    z-index: 8;
+    margin: 0;
+    padding: 4px 9px;
+  }
+}
+#shade[data-modal^="affix:"] .dialog {
+  overflow-anchor: none;
+}
+#shade[data-modal^="affix:"] .dialog-head {
+  position: sticky;
+  top: -15px;
+  z-index: 3;
+}
+@media (max-width: 350px) {
+  #shade[data-modal*="|"] .ember-workbench {
+    height: 130px;
+  }
+  #shade[data-modal*="|"] .ember-target > .gear-portrait {
+    width: 88px;
+    height: 98px;
+  }
+  #shade[data-modal*="|"] .ember-target {
+    inset: 0 50px 30px;
+  }
+  #shade[data-modal*="|"] .ember-supply {
+    top: 10px;
+  }
+}

@@ -137,7 +137,7 @@ const InventoryView = (() => {
       if (count > 0) items.push({ key, group: "items", name, shortName, mark: "×" + fmt(count), art, status,
         detail: () => line("보유 수량", fmt(count)) + desc(description) + actions });
     }
-    Game.affixes?.currency.forEach((name,i)=>stack("affix-"+(i+1),name,s.affixWallet?.counts?.[i] || 0,icon("gem"),AffixView.effects[i],openBtn("affix:list","제작할 장비 선택")));
+    Game.affixes?.currency.forEach((name,i)=>stack("affix-"+(i+1),name,s.affixWallet?.counts?.[i] || 0,EmberView.art(i+1),AffixView.effects[i],openBtn("affix:list|"+(i+1),"세공할 장비 선택")));
     Game.blessings.forEach((name, i) => {
       const equipped = s.enabled[i], shortName = ["정령 가호", "대장장이 가호", "신의 가호"][i];
       stack("charm-" + i, name, s.charms[i], '<img src="assets/' + ["leaf", "hammer", "star"][i] + '.png" alt="">',

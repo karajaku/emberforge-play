@@ -13,23 +13,24 @@ function createAffixForge({
   const weights = [2200, 1700, 800, 600, 2500, 600, 100, 800, 100, 600];
   const milestone = [1, 2, 3, 5];
   const materials = [1, 2, 3, 5];
+  const craftOutcomes = { 6: "replaced", 7: "rerolled", 8: "removed", 9: "unique", 10: "corrupted" };
   function wallet(s) {
     return (s.affixWallet ??= { version: 1, counts: Array(10).fill(0), claimed: [], revision: 0 });
   }
   function grant(s, rank, rng) {
     const w = wallet(s),
       received = [];
-    function credit(n) {
+    function credit(n, source) {
       w.counts[n - 1]++;
-      received.push(rules.currency[n - 1]);
+      received.push({ n, count: 1, source });
     }
     for (let i = 0; i < milestone.length; i++) {
       if (Math.max(s.huntBest, rank) >= milestone[i] && !w.claimed.includes(milestone[i])) {
         w.claimed.push(milestone[i]);
-        credit(materials[i]);
+        credit(materials[i], "milestone");
       }
     }
-    if (rng() < (rank % 5 === 0 ? 0.4 : 0.2)) credit(rules.weighted(weights, rng) + 1);
+    if (rng() < (rank % 5 === 0 ? 0.4 : 0.2)) credit(rules.weighted(weights, rng) + 1, "hunt");
     return received;
   }
   function journeyEntry(s, source) {
@@ -139,6 +140,11 @@ function createAffixForge({
     w.revision++;
     return {
       ok: true,
+      id,
+      n,
+      consumed: 1,
+      operationId: [s._save?.generation || s.created, id, w.revision].join(":"),
+      outcome: item ? craftOutcomes[n] || "added" : "destroyed",
       kind: item ? "win" : "loss",
       before,
       item,
