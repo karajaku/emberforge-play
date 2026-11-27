@@ -1,5 +1,7 @@
 "use strict";
 const BladeRules = (() => {
+  const affixes = typeof module !== "undefined" ? require("./affix-craft.js") : AffixCraft;
+  const combat = typeof module !== "undefined" ? require("./affix-combat.js") : AffixCombat;
   const loot = typeof module !== "undefined" ? require("./hunt-loot.js") : HuntLoot;
   const styles = { heavy: "강공", counter: "반격", wound: "상처" };
   const names = [
@@ -75,8 +77,14 @@ const BladeRules = (() => {
   ]);
   const weaponKeys = Object.keys(modDefs);
   Object.assign(modDefs,loot.armorDefs);
+  for (const [key,def] of Object.entries(affixes.defs)) {
+    define(def.side==="P"?"prefix":"suffix",key,def.name,Array.from({length:10},(_,i)=>{
+      const [lo,hi,scale]=affixes.bounds(key,i+1);
+      return [lo/scale,hi/scale];
+    }));
+  }
   const armorNames = ["순철 흉갑", ...names.map(n=>n+" 흉갑")];
-  const value = (item, key) => item.mods.find((m) => m.key === key)?.value || 0;
+  const value = (item, key) => affixes.effectiveValue(item,item.mods.find((m) => m.key === key) || {value:0});
   const craft = typeof module !== "undefined" ? require("./swordcraft.js") : Swordcraft;
   const marks = (item, key) => (item.marks || []).filter((mark) => mark === key).length;
   // Kind numbers of AS1-1 (hand-over §2.1): new forest hunts and every gear display. `interval` is the own
@@ -100,10 +108,10 @@ const BladeRules = (() => {
   };
   const weaponKinds = Object.keys(weaponProfiles);
   const weaponProfile = (item, legacy=false) => (legacy ? legacyProfiles : weaponProfiles)[item.weaponKind ?? "sword"];
-  const name = item => item.type === "armor" ? armorNames[item.base] :
+  const name = item => item.unique ? affixes.uniqueNames[affixes.kinds.indexOf(affixes.kindOf(item))] : item.type === "armor" ? armorNames[item.base] :
     (item.base ? names[item.base - 1] : "순철") + " " + weaponProfile(item).name;
   const attack = (item, level = item.level, legacy = false) =>
-    Math.round(
+    item.boundAttack ?? Math.round(
       bases[item.base].power * weaponProfile(item, legacy).power *
         (1 + 0.08 * level) *
         (1 + value(item, "power") / 100) *
@@ -129,7 +137,7 @@ const BladeRules = (() => {
     return kit.items.reduce((sum,item) => sum + (worn.has(item.id) ? armorRating(item) : 0), 0);
   }
   const caps = (r) => (r <= 10 ? [1, 1] : r <= 20 ? [2, 1] : r <= 40 ? [2, 2] : r <= 50 ? [3, 2] : [3, 3]);
-  const itemCaps = item => item.lootVersion === 1 ? loot.baseGradeRules[item.grade].caps : caps(item.rank);
+  const itemCaps = item => item.affixVersion===1 ? [3,3] : item.lootVersion === 1 ? loot.baseGradeRules[item.grade].caps : caps(item.rank);
   const maxTier = (r) => (r <= 10 ? 1 : r <= 20 ? 2 : r <= 40 ? 3 : 4);
   function cost(item) {
     const baseFactor = 1 + Math.floor(Math.max(0, item.base - 1) / 4) * 0.25;
@@ -212,7 +220,7 @@ const BladeRules = (() => {
     const family = bases[item.base].family,
       weapon = weaponStats(item, item.level, legacy), a = weapon.attack;
     const profile = weaponProfile(item, legacy);
-    const mods=Object.fromEntries(item.mods.map(m=>[m.key,m.value]));
+    const mods=Object.fromEntries(item.mods.filter(m=>!affixes.defs[m.key]).map(m=>[m.key,affixes.effectiveValue(item,m)]));
     const combined={
       guard:value(armor,"parryHeal"), recovery:value(armor,"mending")+marks(armor,"yield")+(armor.grind||[]).filter(z=>z===1).length,
       fortify:value(armor,"retaliation"),
@@ -220,7 +228,7 @@ const BladeRules = (() => {
     for (const [key,bonus] of Object.entries(combined)) if (bonus) mods[key]=(mods[key]||0)+bonus;
     const blockBonus=(1-craft.grindBonus(item.grind,0)/100)*(1-craft.grindBonus(armor.grind,0)/100)*(1-value(armor,"bracing")/100);
     const pct = (key) => 1 + value(item, key) / 100;
-    return {
+    const stats = {
       ...weapon,
       blockedDamagePercent: profile.blockedDamagePercent ?? 25,
       ...armorStats(s,armor,armor.level,item,outfitRating),
@@ -240,6 +248,22 @@ const BladeRules = (() => {
       ...(legacy ? {} : { hitScale: profile.interval / 2000, woundGain: profile.woundGain ?? 1, ruptureAt: profile.ruptureAt ?? 3,
         deepWounds: profile.deepWounds ?? 0, passesBlocks: !!profile.passesBlocks }),
     };
+    const outfit = s.bladeForge?.outfit;
+    const worn = new Set(Object.values(outfit?.equipped || {}));
+    const parts = outfitRating === 0 && (!item.id || !armor.id) ? [] : (outfit?.items || []).filter(i=>worn.has(i.id));
+    if (item.journeyTrait!==undefined || item.journeyWork) {
+      if (item.journeyTrait===0) stats.counter=Math.round(stats.counter/.97);
+      if (item.journeyTrait===3) stats.heavy=Math.round(stats.heavy*1.08);
+      const work=item.journeyWork || [];
+      if (work[1]===1) stats.heavy=Math.round(stats.heavy*1.07);
+      stats.promotedTrait=item.journeyTrait;
+      stats.journeyWork=work;
+    }
+    return combat.apply(stats,[item,armor,...parts],{
+      base:170+6*armor.level+armor.base*2,
+      bonus:value(armor,"vitality")+2*marks(armor,"edge")+craft.grindBonus(armor.grind,2),
+      lining:1+.04*(s.huntLining||0)
+    });
   }
   const anchors = [
     [1, 30, 32, 8, 420],
@@ -265,12 +289,13 @@ const BladeRules = (() => {
     return { rank, attack: field(1), enemyHp: field(2), enemyAttack: field(3), g: field(4) };
   }
   function available(item) {
+    if (item.unique || item.corrupted) return [];
     const [p, s] = itemCaps(item);
     const prefixes = item.mods.filter((m) => modDefs[m.key].side === "prefix").length;
     const pool=item.type==="armor" ? Object.keys(loot.armorDefs) : weaponKeys;
     return pool.filter(
       (k) =>
-        !item.mods.some((m) => m.key === k) &&
+        !item.mods.some((m) => affixes.familyOf(m) === affixes.familyOf({key:k})) &&
         (modDefs[k].side === "prefix" ? prefixes < p : item.mods.length - prefixes < s),
     );
   }
@@ -307,15 +332,15 @@ const BladeRules = (() => {
     if (boss) b.seals++;
     const materialPrize = "각인석 +" + ore + (boss ? " · 우두머리 인장 +1" : "");
     const itemPercent = awardedTypes ? 100 : loot.dropOdds(h.rank,first).itemPercent;
-    const gearDrops = rollGear(s, h.rank, h.territoryRank, rng, awardedTypes ?? ["weapon","armor"], firstWeaponChoice, itemPercent);
-    return {gearDrops,materialPrize};
+    const overflow=[];
+    const gearDrops = rollGear(s, h.rank, h.territoryRank, rng, awardedTypes ?? ["weapon","armor"], firstWeaponChoice, itemPercent,h.affixRules===1,overflow);
+    return {gearDrops,materialPrize:[materialPrize,...overflow].join(" · ")};
   }
-  // Gear-only roll shared by combat rewards and exploration finds. It never touches progress,
-  // ore, seals, chests or gold; only item serials, the racks and the last weapon's kind change.
-  function rollGear(s, rank, territoryRank, rng, types, firstWeaponChoice, itemPercent = 100) {
+  // Forest victories and exploration share one roll. Overflow converts only the incoming item.
+  function rollGear(s, rank, territoryRank, rng, types, firstWeaponChoice, itemPercent = 100, newAffixes = false, overflow = []) {
     const b = state(s);
     const base = 1 + Math.floor(((territoryRank || rank) - 1) / 5);
-    const gearDrops=[];
+    const rolled=[];
     const armorRack=armors(s);
     for (const type of types) {
       if (itemPercent < 100 && rng()*100 >= itemPercent) continue;
@@ -326,17 +351,27 @@ const BladeRules = (() => {
       item.lootVersion=1;
       item.grade=loot.rollGrade(rank,rng);
       const rule=loot.baseGradeRules[item.grade];
-      const count=integer(rule.min,rule.max,rng);
-      for (let i=0;i<count;i++) addMod(item,null,rng);
-      (isArmor ? armorRack : b.items).push(item);
-      gearDrops.push({id,type,base,grade:item.grade,lines:item.mods.length});
+      if (newAffixes) affixes.generateDrop(item,rng);
+      else {
+        const count=integer(rule.min,rule.max,rng);
+        for (let i=0;i<count;i++) addMod(item,null,rng);
+      }
+      rolled.push(item);
     }
-    const weaponDrop = gearDrops.find(drop => drop.type === "weapon");
-    if (weaponDrop) {
-      // The first reward introduces another weapon type.
-      const kind = weaponKinds[integer(firstWeaponChoice ? 1 : 0, weaponKinds.length-1, rng)];
-      b.items.at(-1).weaponKind = kind;
-      weaponDrop.weaponKind = kind;
+    const incomingWeapon=rolled.find(i=>i.type!=="armor");
+    if (incomingWeapon) incomingWeapon.weaponKind=weaponKinds[integer(firstWeaponChoice ? 1 : 0,weaponKinds.length-1,rng)];
+    const gearDrops=[];
+    for (const item of rolled) {
+      const type=item.type||"weapon", rack=type==="armor"?armorRack:b.items;
+      if (rack.length>=120) {
+        const ore=salvageOre(item);
+        b.ore+=ore;
+        overflow.push((type==="armor"?"흉갑":"무기")+" 보관함 가득 참 · "+name(item)+" ("+loot.itemRarity(item).name+") 자동 분해 · 각인석 +"+ore);
+        continue;
+      }
+      rack.push(item);
+      gearDrops.push({id:item.id,type,base,grade:item.grade,lines:item.mods.length,
+        ...(item.weaponKind?{weaponKind:item.weaponKind}:{}),...(newAffixes?{affixVersion:1}:{})});
     }
     return gearDrops;
   }
@@ -460,7 +495,7 @@ const BladeRules = (() => {
       case "bladeArmorPolish":
       case "bladePolish": {
         const m = item.mods.find((x) => x.key === arg);
-        if (!m || m.ascended || b.ore < 3) return fail("연마할 옵션과 각인석 3개가 필요합니다.");
+        if (!m || item.corrupted || item.unique || affixes.defs[m.key] || m.ascended || b.ore < 3) return fail("연마할 옵션과 각인석 3개가 필요합니다.");
         const [lo, hi] = modDefs[m.key].ranges[m.tier - 1];
         if (m.value >= hi) return fail("이미 이 등급의 최고 수치입니다.");
         b.ore -= 3;
@@ -517,7 +552,7 @@ const BladeRules = (() => {
         !Number.isInteger(i.grade) || i.grade<0 || i.grade>3 ||
         (i.lootVersion!==undefined && i.lootVersion!==1) ||
         (!armor && i.lootVersion===undefined && i.grade!==0) ||
-        (i.lootVersion===1 && i.mods.length<loot.baseGradeRules[i.grade].min) ||
+        (i.lootVersion===1 && i.affixVersion!==1 && i.mods.length<loot.baseGradeRules[i.grade].min) ||
         (i.marks !== undefined &&
           (!Array.isArray(i.marks) ||
             i.marks.length > 3 ||
@@ -547,7 +582,9 @@ const BladeRules = (() => {
           !Array.isArray(i.finalTrial.loads))
       )
         return false;
+      if (!affixes.validState(i,modDefs)) return false;
       ids.add(i.id);
+      if (i.affixVersion===1) continue;
       const seen = { ...i, mods: [] };
       for (const m of i.mods) {
         if (!m || !available(seen).includes(m.key) || !nat(m.tier) || !m.tier || m.tier > maxTier(i.rank))

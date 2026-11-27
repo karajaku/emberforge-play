@@ -1,6 +1,7 @@
 "use strict";
 const BladeEndgame = (() => {
   const blades = typeof module !== "undefined" ? require("./blade-rules.js") : BladeRules;
+  const affixes=typeof module!=="undefined"?require("./affix-craft.js"):AffixCraft;
   const names = { luck: "행운", lung: "폐활량", land: "영토" };
   const costs = { luck: 5, lung: 10, land: 15 };
   const transform = {
@@ -133,8 +134,10 @@ const BladeEndgame = (() => {
     const rack = armor ? b.armors || [] : b.items;
     const item = rack.find((i) => i.id === arg.id);
     if (!item || status.deployed.includes(item.id)) return fail("장비 상태와 대상을 확인하세요.");
+    if (item.corrupted || item.unique) return fail("옵션을 변경할 수 없는 장비입니다.");
     if (item.soulChoice && action !== "soulChoose") return fail("보관된 두 후보 중 하나를 먼저 확정하세요.");
     const mod = item.mods.find((m) => m.key === arg.key);
+    if (mod && affixes.defs[mod.key]) return fail("이 옵션에는 대장간의 옵션 화폐를 사용하세요.");
     switch (action) {
       case "soulRebirth": {
         if (
@@ -185,7 +188,7 @@ const BladeEndgame = (() => {
         if (mod.value === blades.modDefs[mod.key].ranges[mod.tier - 1][1]) return fail("이미 등급 최고치입니다.");
         b.ore -= 3;
         item.lungUsed = true;
-        item.soulChoice = { type: "lung", mods: [{ ...mod }, blades.rollValue(mod.key, mod.tier, rng)] };
+        item.soulChoice = { type: "lung", mods: [{ ...mod }, { ...mod, ...blades.rollValue(mod.key, mod.tier, rng) }] };
         return ok("폐활량 · 기존 수치와 연마 수치 중 하나를 선택하세요.");
       }
       case "soulChoose": {

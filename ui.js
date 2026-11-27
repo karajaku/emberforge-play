@@ -468,9 +468,10 @@ function act(action, arg = "", pressedAt, automaticGuard, repeatGuard, expectedS
     const strong = sparring && Swordcraft.heavy(workWeapon.work);
     const beforeHunt = state.hunt;
     const beforeHuntHealth = state.hunt && {...state.hunt};
-    if (action === "huntStart" && arg && typeof arg === "object" && !arg.combat) arg = { ...arg, combat: Game.exploration.combat };
+    if (action === "huntStart" && arg && typeof arg === "object") arg = { ...arg, combat:arg.combat || Game.exploration.combat, affixRules:1 };
     const destroyBefore = action === "forgeItemEnhance" ? Game.forgeItems.quote(state,arg.id)?.destroy : 0;
     const result = Game.perform(state, action, arg, undefined, undefined, pressedAt);
+    if (action === "affixUse" && result.ok) { AffixView.result(result,arg); modal = "affix:result"; }
     // The rules refuse an unannounced hit that could reset the item. Nothing changed, so show the notice.
     if (!result.ok && result.code === "riskNotice") {
       if (forgeItemAction) modal = "";
@@ -959,6 +960,7 @@ function modalData() {
 }
 function modalDataContent() {
   const s = state;
+  if (modal.startsWith("affix:")) return AffixView.modal(s,modal);
   if (modal.startsWith("forgeItem:")) return ForgeItemView.modalContent(modal);
   if (modal.startsWith("outfit:")) return OutfitView.modal(s, modal);
   if (modal.startsWith("soul:")) return SoulView.modal(s, modal);
@@ -1379,6 +1381,12 @@ function displayModal() {
     updateSaleQuote(true);
   }
   el("shade").hidden = false;
+  if(modal.startsWith("affix:")) {
+    el("shade").scrollTop = 0;
+    el("shade").querySelector(".dialog").scrollTop = 0;
+    el("modalTitle").tabIndex = -1;
+    el("modalTitle").focus({preventScroll:true});
+  }
   placeToast();
   document.body.style.overflow = "hidden";
   syncLesson();
@@ -1619,6 +1627,10 @@ document.addEventListener("click", (e) => {
     return;
   }
   if ("newGame" in d) return startNewGame();
+  if (d.affixAct) {
+    b.disabled = true;
+    return act(d.affixAct,JSON.parse(d.affixArg));
+  }
   if (d.story) return storyInput(d.story);
   if (d.lesson === "locate") return focusLesson();
   if (d.lesson === "auto") return locked(() => {

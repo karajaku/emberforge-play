@@ -8,6 +8,7 @@ const HuntLoot = (() => {
   ];
   function itemRarity(item) {
     // Owned gear has mods. A hunt receipt keeps only the count at drop time.
+    if (item.unique) return {key:"unique",name:"유니크"};
     const lines = item.mods?.length ?? item.lines ?? 0;
     return itemRarities.find(rarity => lines >= rarity.minLines);
   }

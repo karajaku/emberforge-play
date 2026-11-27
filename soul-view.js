@@ -1,6 +1,6 @@
 "use strict";
 const SoulView = (() => {
-  const grade = tier => ["", "초벌", "중급", "상급", "최상급"][tier];
+  const grade = tier => (["", "초벌", "중급", "상급", "최상급"][tier] || "T"+tier);
   const bosses = ["황금엄니 우두머리", "잿불 무리어미", "안개 비늘용", "천년 고목왕"];
   const lessons = {
     luck: "장비마다 한 번, 무작위 각인 후보 두 줄 중 하나를 고릅니다.",
@@ -18,7 +18,7 @@ const SoulView = (() => {
   const tokensFor = (s,item) => Game.endgame.info(s).tokens.filter(t=>t.id.startsWith("a")===armor(item));
   const unit = key => key==="plating" ? "%p" : "%";
   const prop = m => m.ascended ? (Game.endgame.armorTransform[m.ascended] || Game.endgame.transform[m.ascended]).name :
-    grade(m.tier) + " " + Game.blades.modDefs[m.key].name + " +" + m.value + unit(m.key);
+    grade(m.tier) + " " + AffixView.compatibility(m.key).name + " +" + m.value + unit(m.key);
   function where(s,item) {
     const b=Game.blades.state(s);
     if (item.id===b.equipped || item.id===b.armorEquipped) return "장착 중";
@@ -65,7 +65,7 @@ const SoulView = (() => {
     if (!m) return ["전승할 옵션 선택", line("환생할 "+kind(item),identity(item)) + line("장비 상태",where(s,item)) + desc("장비 하나에서 한 줄의 종류와 등급을 전승할 수 있습니다.") +
       normMods(item).map(mod=>open("offer:"+item.id+":"+mod.key,prop(mod),"action",!canOffer(s,item))).join("")];
     const targets = Game.endgame.transferTargets(s,{id:item.id,key});
-    return ["환생 미리보기",line("소모할 "+kind(item), identity(item)) + line("전승 재료",grade(m.tier)+" "+Game.blades.modDefs[m.key].name) +
+    return ["환생 미리보기",line("소모할 "+kind(item), identity(item)) + line("전승 재료",grade(m.tier)+" "+AffixView.compatibility(m.key).name) +
       line("지금 전승 가능한 장비",targets.length+"개") + (targets.length === 1 ? line("전승 가능",identity(targets[0])) :
         targets.length ? "" : desc("재료는 보관됩니다. 같은 부위에 맞는 빈 옵션이 생기면 전승할 수 있습니다.")) +
       line("추가 보상","영혼 5 P") + (item.ascended ? line("함께 소멸",recipes(item)[item.ascended.style].name) : "") + desc("환생하면 이 장비와 남은 옵션을 잃습니다. 같은 부위에 전승할 때 수치를 다시 뽑습니다.") +
@@ -77,11 +77,11 @@ const SoulView = (() => {
     const ready = !item.inherited && !item.soulChoice && !g.deployed.includes(item.id);
     if (!staged) return ["옵션 전승",line("전승받을 "+kind(item),identity(item)) +
       (item.inherited ? desc("이 장비는 이미 한 줄을 전승받았습니다.") : desc("같은 부위 재료로 빈자리에 한 줄을 전승합니다. 같은 종류의 옵션은 중복되지 않습니다.")) +
-      (tokens.length ? tokens.map(t=>row(grade(t.tier)+" "+Game.blades.modDefs[t.key].name,Game.blades.modDefs[t.key].side==="prefix"?"접두":"접미",
+      (tokens.length ? tokens.map(t=>row(grade(t.tier)+" "+AffixView.compatibility(t.key).name,AffixView.compatibility(t.key).side==="prefix"?"접두":"접미",
         open("transfer:"+item.id+":"+t.id,allowed.includes(t.key)?"미리보기":"자리 없음","mini",!ready || !allowed.includes(t.key)))).join("") : line(kind(item)+" 전승 재료","0개")) + open("targets:transfer","다른 장비 선택")];
     const tier = Math.min(staged.tier,Game.blades.maxTier(item.rank));
-    return ["전승 미리보기",line("전승받을 "+kind(item),identity(item)) + line("쓸 재료",grade(staged.tier)+" "+Game.blades.modDefs[staged.key].name) +
-      line("새 옵션",grade(tier)+" · "+Game.blades.modDefs[staged.key].ranges[tier-1].join("~")+unit(staged.key)) +
+    return ["전승 미리보기",line("전승받을 "+kind(item),identity(item)) + line("쓸 재료",grade(staged.tier)+" "+AffixView.compatibility(staged.key).name) +
+      line("새 옵션",grade(tier)+" · "+AffixView.compatibility(staged.key).ranges[tier-1].join("~")+unit(staged.key)) +
       desc("재료 한 개를 소모합니다. 장비 하나가 받을 수 있는 전승은 한 줄입니다.") +
       soulAction("soulTransfer",{id:item.id,token:staged.id},"재료를 써서 전승",!ready || !allowed.includes(staged.key),"primary")];
   }
@@ -89,7 +89,7 @@ const SoulView = (() => {
     const g=Game.endgame.info(s), b=Game.blades.state(s);
     if(item.soulChoice) return ["남길 옵션 선택",line(kind(item),identity(item)) + item.soulChoice.mods.map((m,i)=>
       row(prop(m),item.soulChoice.type==="lung"?(i?"새 연마 수치":"기존 수치"):"각인 후보 "+(i+1),soulAction("soulChoose",{id:item.id,index:i},"선택",false,"mini"))).join("")];
-    const mods=normMods(item).filter(m=>m.value<Game.blades.modDefs[m.key].ranges[m.tier-1][1]);
+    const mods=normMods(item).filter(m=>m.value<AffixView.compatibility(m.key).ranges[m.tier-1][1]);
     return ["영혼 제작",line(kind(item),identity(item))+line("각인석",fmt(b.ore)+"개") +
       (g.unlocked.luck ? line("행운",item.luckUsed?"사용 완료":"장비마다 1회") +
         soulAction("soulLuck",{id:item.id},"후보 두 줄 보기 · 2석",item.luckUsed || b.ore<2 || Game.blades.available(item).length<2) : "") +
@@ -105,11 +105,11 @@ const SoulView = (() => {
     }
     const def=defs[style], m=def && item.mods.find(m=>m.key===def.key && !m.ascended);
     if(!def) return ["초월 공정",line("대상 "+kind(item),identity(item)) + desc(armor(item)?"이 흉갑을 착용한 채 60단계 우두머리를 잡으세요. 같은 우두머리의 인장 3개로 접두 한 줄을 바꿉니다.":"이 무기에 맞는 검술을 장착하고 60단계 우두머리를 잡으세요. 초월에는 같은 우두머리의 인장 3개가 필요합니다.") +
-      Object.entries(defs).map(([key,d])=>row((armor(item)?Game.blades.modDefs[d.key].name:Game.blades.styles[key])+" · "+d.name,d.detail,open("ascend:"+item.id+":"+key,"조건","mini"))).join("")];
+      Object.entries(defs).map(([key,d])=>row((armor(item)?AffixView.compatibility(d.key).name:Game.blades.styles[key])+" · "+d.name,d.detail,open("ascend:"+item.id+":"+key,"조건","mini"))).join("")];
     const mask=(armor(item) ? item.bossProofs : item.proofs?.[style]) || 0;
     const condition = armor(item) ? "이 흉갑으로" : "이 검술로";
     if(family===undefined) return [def.name,line(kind(item),identity(item)) + line("필요 강화", "+"+item.level+" / +20") +
-      line("대체할 접두", m ? prop(m) : Game.blades.modDefs[def.key].name+" 필요") + desc(def.detail) +
+      line("대체할 접두", m ? prop(m) : AffixView.compatibility(def.key).name+" 필요") + desc(def.detail) +
       bosses.map((boss,i)=>row(boss,condition+(mask&(1<<i)?" 토벌 완료":" 토벌 필요")+" · 고유 인장 "+g.bossSeals[i]+"/"+def.cost,
         open("ascend:"+item.id+":"+style+":"+i,"미리보기","mini",!m || item.level!==20 || b.cleared<60 || !(mask&(1<<i)) || g.bossSeals[i]<def.cost || !!item.soulChoice))).join("")];
     const i=Number(family);

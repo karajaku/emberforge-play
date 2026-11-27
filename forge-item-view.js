@@ -10,7 +10,7 @@ const ForgeItemView = (() => {
   const enterHoldMs = 800, destroyHoldMs = 1000;
 
   const slotName = key => Game.outfit.slots.find(slot => slot.key === key)?.name || "무기";
-  const itemName = q => (q.type === "outfit" ? Game.outfit.name(q.item) : Game.blades.name(q.item)) + " +" + q.item.level;
+  const itemName = q => (q.type === "outfit" ? Game.outfit.name(q.item) : Game.blades.name(q.item)) + " +" + (q.item.growthLevel ?? q.item.level);
   const filtering = () => Object.values(filter).some(Boolean);
   function matches(entry) {
     return (!filter.kind || filter.kind === entry.kind) &&
@@ -80,6 +80,7 @@ const ForgeItemView = (() => {
     return (q.type === "chest" ? "bladeArmorItem-" : "bladeItem-") + q.id;
   }
   function strike(s,q) {
+    if (q.type === "blade" && q.item.level >= 20 && Game.weaponGrowth?.(s,q.id)) return Game.weaponGrowth(s,q.id).canPromote ? openBtn("affix:item:"+q.id,controlArt("hammer")+"승급<small>특성과 옵션 유지</small>","primary") : AffixView.growthButton(s,q.id);
     const chest = q.type === "chest";
     if (q.item.finalTrial && q.wornSlot)
       return openBtn(chest ? "bladeArmorFinal" : "bladeFinal", icon("hammer")+"돌파 계속<small>+20 마감</small>","primary");
@@ -97,6 +98,8 @@ const ForgeItemView = (() => {
   // One odds row for the weapon, chest and outfit views. A level that cannot reset the item renders
   // exactly as it always did; a risk level shows success and destroy, with hold left to the bar.
   function odds(q) {
+    const growth=q.type === "blade" && q.item.level >= 20 && Game.weaponGrowth?.(state,q.id);
+    if(growth) return growth.canPromote ? '<b>승급 준비 완료</b><span>현재 +'+fmt(growth.level)+'</span>' : growth.canForge ? '<b>'+(growth.grade >= 3 ? '최종 승급 완료 · 최고 단계 기록' : '승급까지 +'+fmt(growth.level)+' / +'+fmt(growth.threshold))+'</b><div class="odds-bar"><i class="odds-success" style="width:'+pct(growth.success)+'"></i></div><span>성공 '+pct(growth.success)+' · 전투 변화 0</span>' : '<b>최종 재련 완료</b>';
     const bar = '<b>강화 +' + q.item.level + ' → +' + (q.item.level + 1) + '</b><div class="odds-bar" aria-hidden="true"><i class="odds-success" style="width:' +
       pct(q.success) + '"></i><i class="odds-hold" style="width:' + pct(q.hold) + '"></i>';
     if (!q.risk) return bar + '</div><span>성공 ' + pct(q.success) + ' · 유지 ' + pct(q.hold) + '</span>';
@@ -234,7 +237,7 @@ const ForgeItemView = (() => {
     // A weapon's interval and one hit open the summary (hand-over §7.5).
     const grade = (q.type === "blade" ? BladeView.hitMark(q.item) + " · " : "") + Game.blades.itemRarity(q.item).name + " · " + Game.blades.baseGradeNames[q.item.grade];
     const status = q.wornSlot ? (q.kind === "ring" ? slotName(q.wornSlot) + " 착용" : "착용 중") : (q.disposeBlocked ? "미착용 · " + q.disposeBlocked : "미착용");
-    return '<div class="forge-item-summary"><span>' + grade + ' · ' + status + '</span><span>전투력 <b>' +
+    return '<div class="forge-item-summary"><span>' + grade + (q.item.promotionGrade ? " · 검 승급 "+q.item.promotionGrade+"등급" : "") + (q.item.corrupted ? " · 타락" : "") + ' · ' + status + '</span><span>전투력 <b>' +
       fmt(c.score) + '</b> <i data-tone="' + (c.delta > 0 ? "up" : c.delta < 0 ? "down" : "same") + '">' +
       baseline + ' ' + delta + '</i></span><span class="forge-item-value">' + icon("coins") + '가치 <b>' + fmt(q.value) +
       ' G</b></span></div>';
@@ -385,7 +388,7 @@ const ForgeItemView = (() => {
       const kinds = [["weapon","무기"],["chest","흉갑"],...Game.outfit.slots.filter(o=>o.kind!=="armor" && o.key!=="ring2").map(o=>[o.kind,o.kind === "ring" ? "반지" : o.name])];
       return ["장비 필터", '<output class="forge-filter-count" aria-live="polite">' + filterCount() + '</output>' +
         filterField("kind","부위",kinds) +
-        filterField("rarity","등급",[["normal","일반"],["magic","매직"],["rare","레어"]]) +
+        filterField("rarity","등급",[["normal","일반"],["magic","매직"],["rare","레어"],["unique","유니크"]]) +
         filterField("worn","착용 상태",[["on","착용 중"],["off","미착용"]]) +
         '<div class="forge-filter-footer"><button type="button" data-forge-reset>초기화</button>' +
         '<button type="button" data-close>닫기</button></div>'];

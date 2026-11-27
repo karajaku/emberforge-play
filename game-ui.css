@@ -61,7 +61,7 @@
   position:relative;
   width:min(396px, 100%); height:clamp(466px, 125vw, 512px); max-height:none;
   margin-block:auto; padding:0; border:0; border-radius:0; overflow:visible;
-  background:transparent url("assets/forge-filter-armory.webp") center / 100% 100% no-repeat;
+  background:transparent url("assets/forge-filter-affix.png") center / 100% 100% no-repeat;
   box-shadow:none; filter:drop-shadow(0 12px 12px #080607c7);
   color:#fff0cf;
 }
@@ -137,7 +137,7 @@
 .forge-dialog-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
 .forge-dialog-actions button { min-height:44px; }
 @media(max-height:660px) {
-  .ui-game .forge-item-browser :is(.ui-forge-rail,.ui-daily-duel) { top:56px; gap:3px; }
+  .ui-game .forge-item-browser :is(.ui-forge-rail,.ui-daily-duel) { top:56px; gap:2px; }
   .ui-game .forge-item-browser .ui-forge-rail button,.ui-game .forge-item-browser .ui-daily-duel { min-height:44px; height:44px; }
   .ui-game .forge-item-browser:has(.ui-daily-duel) .forge-dispose-rail { margin-top:47px; }
   .forge-item-browser .ui-daily-duel svg,.forge-item-browser .ui-forge-rail svg { height:16px; }

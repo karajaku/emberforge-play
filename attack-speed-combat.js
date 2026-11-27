@@ -2,6 +2,7 @@
    docs/attack-speed-as1-1-handover.md §2). New forest hunts run on it (`blade-as-v1`, diceVersion 3);
    the tower, the guild target and hunts started on the turn rules keep web/dice-combat.js. */
 const AttackSpeedCombat = (() => {
+  const af=typeof module!=="undefined"?require("./affix-combat.js"):AffixCombat;
   const node = typeof module !== "undefined";
   const dice = node ? require("./dice-combat.js") : DiceCombat;
   const trail = node ? require("./hunt-trail.js") : HuntTrail;
@@ -166,10 +167,10 @@ const AttackSpeedCombat = (() => {
     const skillBase = skill ? raw : 0;
     if (h.firstHit !== false) raw *= 1 + st.opening / 100;
     if (h.enemyHp <= h.enemyMax * 0.3) raw *= 1 + st.finish / 100;
-    if (skill === "heavyStrike") momentum = 0;
+    if (skill === "heavyStrike") momentum = st.affix?.unique.includes("neck")?1:0;
     // Bleeding is settled for the time since the previous own attack; wounds are those before this attack.
     const elapsed = h.lastAttackAt == null ? h.interval : at - h.lastAttackAt;
-    const bleed = st.style === "wound" ? Math.round(layers(h.wounds || 0) * st.rupture * 0.14 * (elapsed / baseInterval)) : 0;
+    const bleed = st.style === "wound" ? Math.round(layers(h.wounds || 0) * (st.affix?.bleedPower ?? st.rupture) * 0.14 * (elapsed / baseInterval)) : 0;
     const pierces = skill === "rupture" || (ascended && skill === "heavyStrike");
     const check = attackCheck(roll, dice.face(rng), 2, pierces ? 2 : 0);
     const landed = hits(check);
@@ -181,7 +182,10 @@ const AttackSpeedCombat = (() => {
         ruptured = true;
         wounds = ascended ? 1 : 0; // an ascended rupture leaves one mark
       } else if (st.style === "wound") wounds = Math.min(ruptureAt + 1, wounds + 1 + Number(extraWound()));
-      if (skill !== "heavyStrike") momentum = Math.min(2, momentum + 1 + Number(proc("momentum")));
+      if (skill !== "heavyStrike") {
+        const chance=skill && st.affix ? st.affix.baseMomentum : (mods.momentum||0);
+        momentum=Math.min(2,momentum+1+Number(chance>0 && rng()*100<chance));
+      }
     }
     let critical = check.outcome === "critical";
     if (raw > 0 && st.minDamage !== undefined) {
@@ -189,10 +193,11 @@ const AttackSpeedCombat = (() => {
         const rolled = st.minDamage + Math.min(st.maxDamage - st.minDamage, Math.floor(rng() * (st.maxDamage - st.minDamage + 1)));
         raw *= rolled / st.attack;
       }
-      if (check.outcome === "hit") critical = rng() * 100 < st.critChance;
+      if (check.outcome === "hit") critical = rng() * 100 < (skill ? st.critChance : Math.min(50,st.critChance+(st.affix?.critBonus||0)));
     }
+    raw *= af.attackFactor(h,skill);
     if (critical) {
-      raw *= 1.5;
+      raw *= st.affix?.critScale ?? 1.5;
       check.outcome = "critical";
     }
     const blocked = partial ? (st.blockedDamagePercent ?? 25) / 100 : 1;
@@ -206,6 +211,7 @@ const AttackSpeedCombat = (() => {
     if (defeated) {
       let percent = mods.recovery || 0;
       if (st.armorAscension === "vitality") percent += h.hp <= h.maxHp / 2 ? 10 : 4;
+      percent=af.cap(percent,st.affix?.killHeal||0,12);
       healed = Math.min(h.maxHp - h.hp, Math.round(h.maxHp * percent / 100));
     }
     const fortified = !!h.fortified || (skill === "counter" && (!!mods.fortify || (ascended && st.style === "counter")));
@@ -213,6 +219,7 @@ const AttackSpeedCombat = (() => {
       event: { actor: "player", at, move: skill || "strike", check, damage, bleed, partial, critical, taken: 0, healed,
         guarded: false, defeated: defeated ? "enemy" : null },
       patch: { enemyHp: h.enemyHp - damage, hp: h.hp + healed, wounds, ruptured, momentum, counter,
+        ...(st.affix?.unique.includes("helm") ? {usedAffixSkill:!!(h.usedAffixSkill || skill)}:{}),
         firstHit: h.firstHit !== false && !landed && !partial, fortified, skillReady: ready,
         lastMove: skill || "strike", lastAttackAt: at, playerAt: at + h.interval,
         ...(skill === "counter" ? { ripostes: (h.ripostes || 0) + 1 } : {}),
@@ -252,11 +259,13 @@ const AttackSpeedCombat = (() => {
     const wardFactor = armorEffect === "skillWard" ? (skill ? 0.7 : 1.08) : 1;
     const rating = st.armorRating || 0;
     const reduction = rating > 0 ? Math.min(.5, rating / (rating + 8 * incoming)) : 0;
-    const hit = incoming * (1 - reduction) * guard * (1 - st.defense / 100) * shield * (1 - skillWard / 100) * (1 - lastWard / 100) * wardFactor;
+    let hit = incoming * (1 - reduction) * guard * (1 - st.defense / 100) * shield * (1 - skillWard / 100) * (1 - lastWard / 100) * wardFactor;
+    hit=af.incoming(h,skill,incoming,guard,wardFactor,fortified?(1-(st.affix?.baseFortify||0)/100)*(ironCounter?.65:1):1,hit);
     const absorbed = armorEffect === "plating" ? Math.max(0, hit - h.maxHp * 0.15) * 0.5 : 0;
     const taken = Math.min(h.hp, Math.max(0, Math.round(hit - absorbed)));
     let percent = guarded ? mods.guard || 0 : 0;
     if (armorEffect === "bracing" && guarded) percent += 6;
+    if (guarded && skill) percent=af.cap(percent,st.affix?.guardHeal||0,8);
     const healed = taken < h.hp ? Math.min(h.maxHp - h.hp + taken, Math.round(h.maxHp * percent / 100)) : 0;
     const hp = Math.max(0, h.hp - taken + healed);
     return {

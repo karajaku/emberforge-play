@@ -96,6 +96,16 @@ const GameUI = (() => {
         orderButton.insertAdjacentHTML('beforeend', '<span class="order-menu-track" aria-hidden="true"><i style="width:' +
           progress * 100 + '%"></i></span>');
       }
+      if (Game.affixList && (!archiveBlade || gear === "weapon")) {
+        const q = ForgeItemView.shown;
+        const id = archiveBlade && gear === "weapon" ? "j:"+s.weapon.recordId : q?.id;
+        const craft = rail.querySelector('[data-open="bladeCraft"],[data-open="bladeArmorCraft"],[data-go="forge/craft"]') || (q && !q.wornSlot ? rail.querySelector('[data-open="bladeCollection"],[data-open="bladeArmorCollection"],[data-open="outfit:slots"]') : null);
+        const html = id ? AffixView.link(id,"옵션 제작") : openBtn("affix:list",icon("anvil")+"옵션 제작");
+        if(craft && ["bladeCraft","bladeArmorCraft"].includes(craft.dataset.open)) {
+          if(!craft.classList.contains("forge-first-process")) craft.querySelector("span").textContent="옵션 제작";
+        } else if(craft) craft.outerHTML=html;
+        else rail.insertAdjacentHTML("afterbegin",html);
+      }
       stage.append(rail);
       if (!archiveBlade) stage.insertAdjacentHTML("beforeend",ForgeItemView.disposalButtons());
       if (state.best > 0) {

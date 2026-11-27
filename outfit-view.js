@@ -155,7 +155,7 @@ const OutfitView = (() => {
     }
     if (s.hunt) body += desc("착용과 재련으로 바뀐 능력치는 다음 사냥부터 적용됩니다.");
     if (!current) body += openBtn("outfit:salvage:" + item.id, "분해");
-    body += openBtn("outfit:slots","착용 장비로");
+    body += AffixView.options(item) + AffixView.link(item.id) + openBtn("outfit:slots","착용 장비로");
     return [label(item), body, Game.blades.itemRarity(item)];
   }
   function enemyInfo(rank,kind,build) {

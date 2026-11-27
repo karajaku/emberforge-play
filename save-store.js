@@ -50,6 +50,15 @@ const SaveStore = (() => {
       stats.critChance <= 100 && passed &&
       stats.outfitArmorRating <= stats.armorRating && (!timed || validKindTraits(stats));
   }
+  function validAffixCombat(a) {
+    const positive=n=>Number.isFinite(n) && n>=0;
+    return object(a) && Array.isArray(a.unique) && a.unique.every(k=>game.affixes.kinds.includes(k)) &&
+      new Set(a.unique).size===a.unique.length && Array.isArray(a.exposure) && a.exposure.length===3 &&
+      a.exposure.every(positive) && a.critScale>=1.5 && a.critScale<=2.5 &&
+      ["critBonus","critScale","baseMomentum","guardHeal","killHeal","bleedPower","baseRating","baseDefense",
+        "baseSkillWard","baseLastWard","baseFortify"].every(k=>positive(a[k])) &&
+      object(a.applied) && Object.values(a.applied).every(positive);
+  }
   function validKindTraits(stats) {
     const haste = stats.mods?.haste;
     return Number.isFinite(stats.hitScale) && stats.hitScale >= .5 && stats.hitScale <= 1.5 &&
@@ -57,7 +66,7 @@ const SaveStore = (() => {
       Number.isInteger(stats.ruptureAt) && stats.ruptureAt >= 2 && stats.ruptureAt <= 5 &&
       Number.isInteger(stats.deepWounds) && stats.deepWounds >= 0 && stats.deepWounds <= 50 &&
       typeof stats.passesBlocks === "boolean" &&
-      (haste === undefined || (Number.isInteger(haste) && haste >= 0 && haste <= 25));
+      (haste === undefined || (Number.isFinite(haste) && haste >= 0 && haste <= 25));
   }
   // One side's latest attack of a fight on the rule clock (the d20 fights keep theirs in lastDice).
   function validStrike(strike, side, h, latest) {
@@ -113,6 +122,7 @@ const SaveStore = (() => {
   // Format 9 marks exploration state; earlier builds compute at most 8 and reject it as future.
   function saveFormat(state) {
     // Format 12 marks a save that has met the rule-clock forest combat or an attack-speed affix.
+    if (state?.affixWallet!==undefined) return 13;
     if (state?.attackSpeed !== undefined) return 12;
     // Format 11 marks a save whose player has seen the destroy notice; earlier builds reject it as future.
     if (state?.forgeRisk !== undefined) return 11;
@@ -135,7 +145,7 @@ const SaveStore = (() => {
         (d.weaponKind === undefined || (d.type === "weapon" && game.blades.weaponKinds.includes(d.weaponKind))) &&
         (d.type === "armor" ? /^a[1-9]\d*$/ : /^b[1-9]\d*$/).test(d.id) && Number.isInteger(d.base) &&
         d.base > 0 && d.base < game.blades.bases.length && [0,1,2,3].includes(d.grade) && Number.isInteger(d.lines) &&
-        d.lines >= game.blades.baseGradeRules[d.grade].min && d.lines <= game.blades.baseGradeRules[d.grade].max) &&
+        (d.affixVersion===1 ? d.lines>=0 && d.lines<=6 : d.lines >= game.blades.baseGradeRules[d.grade].min && d.lines <= game.blades.baseGradeRules[d.grade].max)) &&
       new Set(drops.map(d => d.type)).size === drops.length;
   }
   function validHuntLoot(chest, outfit) {
@@ -236,6 +246,22 @@ const SaveStore = (() => {
     let data;
     try { data = JSON.parse(raw); } catch { throw fault("corrupt"); }
     if (data?.heirloom !== undefined) throw fault("future");
+    const wallet=data?.affixWallet;
+    if (wallet?.version>1) throw fault("future");
+    if (wallet!==undefined && (!object(wallet) || wallet.version!==1 ||
+        !Array.isArray(wallet.counts) || wallet.counts.length!==10 || wallet.counts.some(v=>!Number.isSafeInteger(v)||v<0) ||
+        !Array.isArray(wallet.claimed) || wallet.claimed.some(i=>![1,2,3,5].includes(i)) ||
+        new Set(wallet.claimed).size!==wallet.claimed.length || !Number.isSafeInteger(wallet.revision) || wallet.revision<0 ||
+        (wallet.journeyId!==undefined && typeof wallet.journeyId!=="string"))) throw fault("corrupt");
+    const owned=[data?.weapon,...(Array.isArray(data?.bag)?data.bag:[]),...(Array.isArray(data?.field)?data.field:[])];
+    for (const item of owned.filter(i=>i?.affixVersion!==undefined)) {
+      if (!wallet || !Number.isInteger(item.affixRank) || item.affixRank<1 || item.affixRank>60 ||
+          !game.affixes.validState({...item,rank:item.affixRank,promotionGrade:item.grade})) throw fault("corrupt");
+    }
+    const rack=data?.bladeForge;
+    const marked=item=>item?.affixVersion!==undefined || item?.promotionGrade!==undefined || item?.growthLevel!==undefined;
+    const anyNew=[rack?.items,rack?.armors,rack?.outfit?.items].some(items=>Array.isArray(items) && items.some(marked));
+    if (!wallet && (anyNew || data?.hunt?.affixRules===1)) throw fault("corrupt");
     const maxFormat=saveFormat(data);
     if (data?.bladeForge?.equipmentVersion > 1) throw fault("future");
     if (data?.bladeForge?.soul?.version>2) throw fault("future");
@@ -260,6 +286,10 @@ const SaveStore = (() => {
     if (retry !== undefined && !["ready", "used"].includes(retry)) throw fault("corrupt");
     if (data?.lastHunt?.gearDrops !== undefined && !validGearDrops(data.lastHunt)) throw fault("corrupt");
     for (const h of [data?.hunt, data?.lastHunt]) {
+      if (h?.bladeCombat?.affix!==undefined && (!wallet || !validAffixCombat(h.bladeCombat.affix))) throw fault("corrupt");
+      if (h?.affixGearIds!==undefined && (!Array.isArray(h.affixGearIds) || h.affixRules!==1 ||
+          h.affixGearIds.length>10 || h.affixGearIds.some(id=>typeof id!=="string") ||
+          new Set(h.affixGearIds).size!==h.affixGearIds.length)) throw fault("corrupt");
       if (h?.strongestHit !== undefined) {
         const hit = h.strongestHit;
         if (!object(hit) || !h.bladeCombat || h.rank !== 5 ||
@@ -303,7 +333,7 @@ const SaveStore = (() => {
             (h.bladeCombat.ascension !== undefined && !Object.hasOwn(game.blades.styles,h.bladeCombat.ascension)) ||
             !object(h.bladeCombat.mods) || !["attack","hp","defense","heavy","counter","rupture","strike","opening","finish"].every(k=>Number.isFinite(h.bladeCombat[k]) && h.bladeCombat[k]>=0) ||
             (h.armorId!==undefined && (typeof h.armorId!=="string" || !/^a[1-9]\d*$/.test(h.armorId) || (h===data.hunt && !data.bladeForge.armors?.some(i=>i.id===h.armorId)))) ||
-            (h===data.hunt && !data.bladeForge.items.some(i=>i.id===h.bladeId)) ||
+            (h===data.hunt && !data.bladeForge.items.some(i=>i.id===h.bladeId) && !(h.bladeId?.startsWith("j:") && [data.weapon,...data.bag,...data.field].some(i=>"j:"+i.recordId===h.bladeId))) ||
             !Number.isInteger(h.wounds) || h.wounds<0 || h.wounds>(timed ? h.bladeCombat.ruptureAt + 1 : 4))) throw fault("corrupt");
         const pack = game.trail.lineup(h.territoryRank || h.rank, h.bonusEncounter);
         if (h.wave < 0 || h.wave >= pack.length || pack[h.wave] !== h.enemyKind) throw fault("corrupt");
@@ -566,7 +596,7 @@ const SaveStore = (() => {
           generation, savedAt: Date.now() } };
         const raw = JSON.stringify(value);
         decode(raw);
-        pending = { raw, mode, archive: key + ".preserved." + id() };
+        pending = { raw, mode, affixFormat:!!state.affixWallet, archive: key + ".preserved." + id() };
       }
       check();
       const { mode: operation, archive } = pending;
@@ -581,7 +611,7 @@ const SaveStore = (() => {
           if (e.code === "future" || operation === "normal") throw e;
         }
         const migrating = valid && JSON.parse(expected).version === 1;
-        if (operation !== "normal" || migrating) write(archive, expected);
+        if (operation !== "normal" || migrating || (valid && pending.affixFormat && !JSON.parse(expected).affixWallet)) write(archive, expected);
         if (migrating) {
           const previous = read(keys.previous);
           if (previous !== null && read(archive + ".previous") === null) write(archive + ".previous", previous);

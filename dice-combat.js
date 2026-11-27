@@ -1,5 +1,6 @@
 /* Pure hunt rules shared by the production combat resolver and tests. */
 const DiceCombat=(()=>{
+  const af=typeof module!=="undefined"?require("./affix-combat.js"):AffixCombat;
   const outfit = typeof module !== "undefined" ? require("./regional-gear.js") : RegionalGear;
   const actions=['strike','strike','strike','block','block','heavyStrike'];
   const skills={heavyStrike:{name:'강공',icon:'hammer',cooldown:3,power:2},counter:{name:'반격',icon:'sword',cooldown:2,power:2.5}};
@@ -16,7 +17,7 @@ const DiceCombat=(()=>{
     const cooldown=Math.max(0,h.skillCooldowns?.[key]||0);
     if (h.bladeCombat) {
       const style=h.bladeCombat.style;
-      const condition=key==="rupture"?style==="wound" && h.wounds>=3:
+      const condition=key==="rupture"?style==="wound" && h.wounds>=(h.bladeCombat.ruptureAt||3):
         key==="counter"?style==="counter" && !!h.counter:style==="heavy" && h.momentum>=2;
       return {cooldown,condition,ready:cooldown===0 && condition};
     }
@@ -76,7 +77,7 @@ const DiceCombat=(()=>{
         raw = st.counter;
         cooldowns.counter = 2;
         counter = false;
-      } else if (st.style === "wound" && wounds >= 3) {
+      } else if (st.style === "wound" && wounds >= (st.ruptureAt||3)) {
         skill = "rupture";
         raw = st.attack + st.rupture * wounds;
         if (ascended && !ruptured) raw *= .75;
@@ -97,12 +98,12 @@ const DiceCombat=(()=>{
       if (h.firstHit !== false) raw *= 1 + st.opening / 100;
       if (h.enemyHp <= h.enemyMax * 0.3) raw *= 1 + st.finish / 100;
       if (!d20 || skill === "heavyStrike") {
-        momentum = skill === "heavyStrike" ? 0 :
+        momentum = skill === "heavyStrike" ? Number(!!st.affix?.unique.includes("neck")) :
           Math.min(2, momentum + 1 + Number(player === "strike" && proc("momentum")));
       }
     }
     // A rupture ignores a defensive face. Bleeding continues even during a block.
-    const bleed = st.style === "wound" ? Math.round((h.wounds || 0) * st.rupture * 0.14) : 0;
+    const bleed = st.style === "wound" ? Math.round((h.wounds || 0) * (st.affix?.bleedPower ?? st.rupture) * 0.14) : 0;
     const pierces = skill==="rupture" || (ascended && skill==="heavyStrike");
     const elemental = h.fieldKit ? outfit.multiplier(outfit.profile(h.territoryRank || h.rank,h.enemyKind),h.fieldKit) : 1;
     const attack = d20 ? attackCheck(playerFace, face(rng), 2, pierces ? 2 : 0) : null;
@@ -117,7 +118,10 @@ const DiceCombat=(()=>{
         } else if (st.style === "wound") {
           wounds = Math.min(4, wounds + 1 + Number(proc("wounds")));
         }
-        if (skill !== "heavyStrike") momentum = Math.min(2, momentum + 1 + Number(proc("momentum")));
+        if (skill !== "heavyStrike") {
+        const chance=skill && st.affix ? st.affix.baseMomentum : (mods.momentum||0);
+        momentum=Math.min(2,momentum+1+Number(chance>0 && rng()*100<chance));
+      }
       }
     }
     let critical = d20 && attack.outcome === "critical";
@@ -126,10 +130,11 @@ const DiceCombat=(()=>{
         const rolled = st.minDamage + Math.min(st.maxDamage-st.minDamage, Math.floor(rng()*(st.maxDamage-st.minDamage+1)));
         raw *= rolled/st.attack;
       }
-      if (!d20 || attack.outcome === "hit") critical = rng()*100 < st.critChance;
+      if (!d20 || attack.outcome === "hit") critical = rng()*100 < (skill ? st.critChance : Math.min(50,st.critChance+(st.affix?.critBonus||0)));
     }
+    raw *= af.attackFactor(h,skill);
     if (critical) {
-      raw *= 1.5;
+      raw *= st.affix?.critScale ?? 1.5;
       if (d20) attack.outcome = "critical";
     }
     const blocked = partial || (enemyBlocks && !pierces) ? (st.blockedDamagePercent ?? 25)/100 : 1;
@@ -174,13 +179,16 @@ const DiceCombat=(()=>{
     // Rate the full incoming blow before guard, wards and the existing flat percentage reduction.
     const rating = st.armorRating || 0;
     const reduction = rating > 0 ? Math.min(.5, rating/(rating+8*incoming)) : 0;
-    const hit=incoming * (1-reduction) * guard * (1-st.defense/100) * shield * (1-skillWard/100) * (1-lastWard/100) * wardFactor;
+    let hit=incoming * (1-reduction) * guard * (1-st.defense/100) * shield * (1-skillWard/100) * (1-lastWard/100) * wardFactor;
+    hit=af.incoming(h,enemySkill,incoming,guard,wardFactor,fortified?(1-(st.affix?.baseFortify||0)/100)*(ironCounter?.65:1):1,hit);
     const absorbed=armorEffect==="plating" ? Math.max(0,hit-h.maxHp*0.15)*0.5 : 0;
     const taken=Math.min(h.hp,Math.max(0,Math.round(hit-absorbed)));
     const defeated=damage>=h.enemyHp;
     let healPercent=guarded ? mods.guard || 0 : defeated ? mods.recovery || 0 : 0;
     if (armorEffect==="vitality" && defeated) healPercent+=h.hp<=h.maxHp/2 ? 10 : 4;
     if (armorEffect==="bracing" && guarded) healPercent+=6;
+    if (guarded && enemySkill) healPercent=af.cap(healPercent,st.affix?.guardHeal||0,8);
+    if (defeated) healPercent=af.cap(healPercent,st.affix?.killHeal||0,12);
     const healed = taken < h.hp ? Math.min(h.maxHp - h.hp + taken, Math.round((h.maxHp * healPercent) / 100)) : 0;
     return {
       playerFace,
@@ -193,7 +201,8 @@ const DiceCombat=(()=>{
       healed,
       wounds,
       ruptured,
-      firstHit: h.firstHit !== false && (d20 ? !landed && !partial : block),
+      ...(st.affix?.unique.includes("helm") ? {usedAffixSkill:!!(h.usedAffixSkill || skill)}:{}),
+        firstHit: h.firstHit !== false && (d20 ? !landed && !partial : block),
       fortified: fortified && !taken,
       skill,
       enemySkill,

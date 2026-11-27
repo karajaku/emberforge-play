@@ -16,7 +16,10 @@ const Game = (() => {
   const explore = typeof module !== "undefined" ? require("./exploration-rules.js") : ExplorationRules;
   const shop = typeof module !== "undefined" ? require("./relic-shop.js") : RelicShop;
   const compare = typeof module !== "undefined" ? require("./gear-comparison.js") : createGearComparison;
-  const compareGear = compare({blades, outfit, endgame, craft, dice, stats});
+  const affixes=typeof module!=="undefined"?require("./affix-craft.js"):AffixCraft;
+  const makeAffixForge=typeof module!=="undefined"?require("./affix-forge.js"):createAffixForge;
+  const af=makeAffixForge({rules:affixes,blades,outfit,forgeItems,journeyForge,name,pay:payForgeFee,weaponAttack});
+  const compareGear = compare({blades, outfit, endgame, craft, dice, stats, battleWeapon:af.battleWeapon});
   const grades = blades.baseGradeNames;
   const live = typeof module !== "undefined" ? require("./live-data.js") : LiveData;
 
@@ -817,7 +820,7 @@ const Game = (() => {
       s.unclaimed = view.unclaimed;
       return result;
     }
-    if (i < 0 || w.level >= 20 || w.finalTrial) return fail("지금 진행할 장비 공정이 없습니다.");
+    if (i < 0 || (armor && w.level >= 20) || w.finalTrial) return fail("지금 진행할 장비 공정이 없습니다.");
     if (action === "bladeWorkStart") {
       if (!w.work || w.work.failed) w.work = craft.makeWork(i, rng, t);
       return ok(stageName);
@@ -844,18 +847,19 @@ const Game = (() => {
   const onRuleClock = h => h?.diceVersion === asc.diceVersion;
   // Kind values a running encounter keeps when its weapon is bound again (hand-over §2.9).
   const kindTraits = ["hitScale", "woundGain", "ruptureAt", "deepWounds", "passesBlocks", "blockedDamagePercent"];
-  function bindBladeCombat(s, h, item=blades.current(s), armor=blades.currentArmor(s), style=blades.state(s).style, prepared) {
+  function bindBladeCombat(s, h, item=af.battleWeapon(s), armor=blades.currentArmor(s), style=blades.state(s).style, prepared) {
     blades.state(s).equipmentVersion = 1;
     const outfitRating = h.bladeCombat ? (h.bladeCombat.outfitArmorRating ?? 0) : undefined;
     h.armorId = armor.id;
     h.bladeId = item.id;
+    if (h.affixRules===1) h.affixGearIds=[item.id,armor.id,...Object.values(s.bladeForge.outfit?.equipped||{})];
     h.blade = { stage: gradeForLevel(item.level), level: item.level, name: blades.name(item), weaponKind:item.weaponKind ?? "sword" };
     h.bladeCombat = prepared ?? blades.skills(s,item,armor,style,outfitRating,!onRuleClock(h));
     h.attack = h.bladeCombat.attack;
   }
   function refreshHuntGear(s, id) {
     const h = s.hunt;
-    if (!h?.bladeCombat || h.powerHeld || !id || (id !== h.bladeId && id !== h.armorId)) return;
+    if (!h?.bladeCombat || h.affixRules===1 || h.bladeId?.startsWith("j:") || h.powerHeld || !id || (id !== h.bladeId && id !== h.armorId)) return;
     const weapon = blades.state(s).items.find(item => item.id === h.bladeId);
     const armor = blades.armors(s).find(item => item.id === h.armorId) || blades.currentArmor(s);
     const priorMax = h.maxHp;
@@ -868,13 +872,13 @@ const Game = (() => {
   }
   function preparedHunt(s) {
     const h = s.hunt, timed = onRuleClock(h);
-    const bladeCombat = blades.skills(s, undefined, undefined, undefined, undefined, !timed);
+    const bladeCombat = blades.skills(s, af.battleWeapon(s), undefined, undefined, undefined, !timed);
     const maxHp = bladeCombat.hp;
     const ready = { ...h, bladeCombat, fieldKit: outfit.build(s), maxHp,
       hp: h.turn === 1 ? maxHp : Math.min(h.hp, maxHp) };
     if (timed) {
       // The weapon worn now may be of another kind: its interval, hit scale and first attack apply.
-      ready.blade = { ...h.blade, weaponKind: blades.current(s).weaponKind ?? "sword" };
+      ready.blade = { ...h.blade, weaponKind: af.battleWeapon(s).weaponKind ?? "sword" };
       asc.rebind(ready);
     }
     return ready;
@@ -907,7 +911,7 @@ const Game = (() => {
   function bladeAttributes(s, trial = false, raid = false) {
     if (!s.bladeForge) return stats(s, trial, raid);
     // The tower and the guild target keep the kind numbers shipped before AS1-1 until AS1-2 (R8).
-    const build = blades.skills(s, undefined, undefined, undefined, undefined, true),
+    const build = blades.skills(s, af.battleWeapon(s), undefined, undefined, undefined, true),
       original = build.attack;
     if (trial) {
       build.attack += Math.round(Math.sqrt(s.trial.buffs.attack));
@@ -918,12 +922,14 @@ const Game = (() => {
       build.attack = Math.round((build.attack + Math.sqrt(relic.extraAttack || 0)) * (1 + relic.power / 100));
     for (const key of ["heavy", "counter", "rupture", "strike", "minDamage", "maxDamage"])
       build[key] = Math.round((build[key] * build.attack) / original);
-    return { attack: build.attack, hp: build.hp, bladeCombat: build };
+    const elementKit=build.affix?.exposure.some(n=>n>0) ? outfit.build(s) : undefined;
+    return { attack: build.attack, hp: build.hp, bladeCombat: build,
+      ...(elementKit ? {fieldKit:elementKit,rank:Math.max(1,s.bladeForge.cleared)}:{}) };
   }
   // Tower floors and the guild target use the forest's actual turn resolver, including affix procs.
   function bladeDuel(attributes, enemyHp, enemyAttack, turnLimit, random, enemyKey = "charge") {
     const h = {
-      bladeCombat: attributes.bladeCombat,
+      bladeCombat: attributes.bladeCombat,fieldKit:attributes.fieldKit,rank:attributes.rank,
       hp: attributes.hp,
       maxHp: attributes.hp,
       attack: attributes.attack,
@@ -944,7 +950,7 @@ const Game = (() => {
       Object.assign(h, {
         wounds: m.wounds,
         ruptured: m.ruptured,
-        firstHit: m.firstHit,
+        firstHit: m.firstHit, usedAffixSkill:m.usedAffixSkill,
         fortified: m.fortified,
         counter: m.counter,
         skillCooldowns: m.skillCooldowns,
@@ -995,14 +1001,15 @@ const Game = (() => {
     return { stage: gradeForLevel(item.level), level: item.level, name: blades.name(item), weaponKind: item.weaponKind ?? "sword" };
   }
   // Treasure and the cart's gear bundle: the victory's gear plan and ore, without boss or progress effects.
-  function explorationLoot(s, rank, plan, random) {
+  function explorationLoot(s, rank, plan, random, affixRules) {
     const b = blades.state(s);
     b.equipmentVersion = 1;
-    const gearDrops = blades.rollGear(s, rank, null, random, plan.gear, false);
+    const overflow=[];
+    const gearDrops = blades.rollGear(s, rank, null, random, plan.gear, false,100,affixRules===1,overflow);
     b.ore += 1;
-    const loot = { gearDrops, materialPrize: "각인석 +1" };
+    const loot = { gearDrops, materialPrize: ["각인석 +1",...overflow].join(" · ") };
     loot.bladePrize = blades.rewardText(loot);
-    if (plan.outfit) Object.assign(loot, outfit.reward(s, { rank }, random, true));
+    if (plan.outfit) Object.assign(loot, outfit.reward(s, { rank,affixRules }, random, true));
     return loot;
   }
   // Completing the next stage by exploration is progress; repeats change nothing.
@@ -1090,6 +1097,32 @@ const Game = (() => {
       if (result.from !== undefined) done.from = result.from;
       return done;
     };
+    if (act === "affixUse") {
+      const result=af.use(s,arg,random);
+      if (result.ok) success(result.message,result.kind);
+      return result;
+    }
+    if (["affixForge","affixPromote","affixEquip"].includes(act)) {
+      if (act==="affixEquip" && typeof arg?.id==="string" && arg.id.startsWith("j:") && arg.id!=="j:"+s.weapon.recordId) {
+        const q=af.quote(s,arg.id,1);
+        const index=s.bag.findIndex(i=>i.recordId && "j:"+i.recordId===arg.id);
+        if (!q.token || q.token!==arg.token || index<0) return fail("보관된 검을 다시 선택하세요.");
+        const result=performAction(s,"equip",index,t,random,pressedAt);
+        if (!result.ok) return result;
+        af.wallet(s).journeyId=arg.id;
+        af.wallet(s).revision++;
+        return success("선택한 검을 사냥에 착용했습니다.");
+      }
+      if (arg?.id==="j:"+s.weapon.recordId && act!=="affixEquip") {
+        if (af.quote(s,arg.id,1).token!==arg.token) return fail("검이 바뀌었습니다.");
+        const result=performAction(s,act==="affixForge"?"journeyForge":"promoteSword",act==="affixForge"?"weapon":arg.trait??0,t,random,pressedAt);
+        if (result.ok) af.wallet(s).revision++;
+        return result;
+      }
+      const result=af.grow(s,act,arg,random);
+      if (result.ok) success(result.message);
+      return result;
+    }
     if (act === "forgeRiskAck") {
       // Confirms the one-time destroy notice. Nothing else changes, and repeating it is harmless.
       if (arg !== undefined) return fail("강화 파괴 안내를 다시 확인하세요.");
@@ -1100,6 +1133,7 @@ const Game = (() => {
       endgame.record(s);
       const result = forgeItems.act(s, act, arg, random, payForgeFee);
       if (!result.ok) return result;
+      if (act==="forgeItemEquip" && arg.slot==="weapon" && s.affixWallet) delete s.affixWallet.journeyId;
       if (act === "forgeItemEnhance") {
         const {item, type} = result;
         if (type === "blade") s.best = Math.max(s.best, item.level);
@@ -1122,6 +1156,7 @@ const Game = (() => {
       const result=soulAction ? endgame.act(s,act,arg,random) :
         workshop ? bladeWorkshop(s,workshopAction,arg,t,random,pressedAt,target) : blades.act(s,act,arg,random,payForgeFee);
       if (!result.ok) return result;
+      if (act==="bladeEquip" && s.affixWallet) delete s.affixWallet.journeyId;
       const changedId=soulAction ? arg?.id : target.id;
       const changedStats=["bladeForge","bladeEtch","bladePolish","bladeWorkFinish","bladeFinalMove","soulTransfer","soulChoose","soulAscend"].includes(workshopAction) || act==="bladeArmor";
       if (changedStats) refreshHuntGear(s, changedId);
@@ -1595,6 +1630,7 @@ const Game = (() => {
           return fail("강화한 무기를 보관하세요.");
         if (s.bag.length >= 20) return fail("보관함이 가득 찼습니다.");
         s.bag.push(s.weapon);
+        if (s.affixWallet) delete s.affixWallet.journeyId;
         s.weapon = freshGear();
         return success("무기를 보관했습니다.");
       case "equip": {
@@ -1602,6 +1638,7 @@ const Game = (() => {
         if (!validIndex(s.bag, i)) return fail("무기를 선택하세요.");
         const previous = s.weapon;
         s.weapon = s.bag.splice(i, 1)[0];
+        if (s.affixWallet) delete s.affixWallet.journeyId;
         if (isJourneyGear(s, previous) || previous.level || previous.grade || previous.route || previous.seal || previous.pattern)
           s.bag.push(previous);
         return success(name(s.weapon) + " 장착");
@@ -1689,8 +1726,9 @@ const Game = (() => {
           return fail("탐험 기록 한도에 도달했습니다. 저장 기록을 확인해 주세요.");
         if (exploring && !Number.isSafeInteger(s.forestFiber + forestYield(rank)))
           return fail("섬유 보관 한도에 도달했습니다. 사냥을 시작할 수 없습니다.");
+        if (bladeBattle && arg.affixRules===1) af.wallet(s);
         const clearedBefore = bladeBattle ? blades.state(s).cleared : 0;
-        const st = bladeBattle ? blades.skills(s, undefined, undefined, undefined, undefined, !timedBattle) : trailBattle ? huntStats(s) : stats(s),
+        const st = bladeBattle ? blades.skills(s, af.battleWeapon(s), undefined, undefined, undefined, !timedBattle) : trailBattle ? huntStats(s) : stats(s),
           enemyHp = 90 + Math.round(36 * (rank - 1) ** 1.65);
         const enemy = huntEnemy(rank);
         const task = routeTask(s);
@@ -1741,7 +1779,7 @@ const Game = (() => {
           const base = bladePrizeGold(rank, t);
           const plan = pickGearPlan(huntGearPlans(s, rank, true), random);
           if (event.kind === "treasure") {
-            const loot = explorationLoot(s, rank, plan, random);
+            const loot = explorationLoot(s, rank, plan, random,arg.affixRules);
             const chest = rollChest(s, "forest", rank, base, 0, int, false);
             Object.assign(chest, { materialRule: 1, entryId: entry.id, fiber: forestYield(rank),
               exploration: { version: 1, kind: "treasure" }, huntLoot: loot });
@@ -1754,7 +1792,7 @@ const Game = (() => {
           }
           const offer = rollChest(s, "forest", rank, base, 0, int, false);
           Object.assign(offer, { materialRule: 1, entryId: entry.id, fiber: forestYield(rank) });
-          s.hunt = { ...entry, exploration: { ...exploration,
+          s.hunt = { ...entry,...(arg.affixRules===1?{affixRules:1}:{}), exploration: { ...exploration,
             plan: { gear: [...plan.gear], outfit: plan.outfit ?? null }, offer, saleGold: base } };
           return done(place + event.name + " · 보상을 하나 고르세요", "info");
         }
@@ -1786,6 +1824,7 @@ const Game = (() => {
         }
         if (trailBattle) {
           if (bladeBattle) {
+            if (arg.affixRules===1) { s.hunt.affixRules=1; af.wallet(s); }
             bindBladeCombat(s,s.hunt);
             outfit.state(s);
             s.hunt.fieldKit=outfit.build(s);
@@ -1859,7 +1898,7 @@ const Game = (() => {
           return fail("장비 보관함이 가득 찼습니다. 가득 찬 부위의 여분 장비를 분해하거나 금속을 파세요.");
         if (!Number.isSafeInteger(s.forestFiber + e.offer.fiber))
           return fail("섬유 보관 한도에 도달했습니다. 보상은 그대로 남습니다.");
-        const loot = explorationLoot(s, h.rank, choice === "gear" ? e.plan : { gear: [], outfit: null }, random);
+        const loot = explorationLoot(s, h.rank, choice === "gear" ? e.plan : { gear: [], outfit: null }, random,h.affixRules);
         const sale = choice === "gold" ? { saleGold: e.saleGold } : {};
         const chest = { ...e.offer, charms: [...e.offer.charms], exploration: { version: 1, kind: "cart", choice, ...sale }, huntLoot: loot };
         chest.gold += sale.saleGold || 0;
@@ -1892,7 +1931,7 @@ const Game = (() => {
         const ready = preparedHunt(s);
         const estimate = (onRuleClock(h) ? asc : power).estimate(ready);
         if (estimate.blocked) return fail(estimate.unavailable ? "전투력을 계산할 수 없습니다." : "적의 전투력이 아직 더 높습니다.");
-        bindBladeCombat(s, h, blades.current(s), blades.currentArmor(s), ready.bladeCombat.style, ready.bladeCombat);
+        bindBladeCombat(s, h, af.battleWeapon(s), blades.currentArmor(s), ready.bladeCombat.style, ready.bladeCombat);
         if (onRuleClock(h)) asc.rebind(h);
         Object.assign(h, { fieldKit: ready.fieldKit, hp: ready.hp, maxHp: ready.maxHp });
         delete h.powerHeld;
@@ -1941,7 +1980,7 @@ const Game = (() => {
         if (!move.available) return fail("2구역부터 기세 2칸으로 강공을 사용할 수 있습니다.");
         const { damage, taken } = move;
         if (h.bladeCombat) {
-          h.wounds=roll.wounds; h.ruptured=roll.ruptured; h.firstHit=roll.firstHit; h.fortified=roll.fortified;
+          h.wounds=roll.wounds; h.ruptured=roll.ruptured; h.firstHit=roll.firstHit; h.usedAffixSkill=roll.usedAffixSkill; h.fortified=roll.fortified;
           if (!taken) h.hp=Math.min(h.maxHp,h.hp+roll.healed);
         }
         h.momentum = move.momentum;
@@ -1994,6 +2033,10 @@ const Game = (() => {
             const plan = pickGearPlan(huntGearPlans(s, h.rank, Boolean(h.fieldKit)), random);
             const receipt = blades.rollReward(s,h,random,plan.gear);
             receipt.materialPrize += endgame.victory(s,h);
+            if (h.affixRules===1) {
+              const found=af.grant(s,h.rank,random);
+              if (found.length) receipt.materialPrize+=" · "+found.join(" · ");
+            }
             receipt.bladePrize = blades.rewardText(receipt);
             if (plan.outfit) Object.assign(receipt, outfit.reward(s,h,random,true));
             if (firstClear) receipt.firstGearChoice = true;
@@ -2387,7 +2430,7 @@ const Game = (() => {
     return 1 - Math.abs((elapsed % 1800) / 900 - 1);
   }
   return {
-    compareGear, forgeItems, blades, outfit, endgame, bladeAttributes, bladePrizeGold, forestYield, liningCosts, huntStats, huntBlade, huntGearOdds, restoreHuntWeapon, migrateJourneyOpponent, hunting, settleHunting, huntingStatus, hasBossRetry, resetProgress,
+    affixes,affixQuote:af.quote,affixList:af.list,weaponGrowth:af.growth,compareGear, forgeItems, blades, outfit, endgame, bladeAttributes, bladePrizeGold, forestYield, liningCosts, huntStats, huntBlade, huntGearOdds, restoreHuntWeapon, migrateJourneyOpponent, hunting, settleHunting, huntingStatus, hasBossRetry, resetProgress,
     startSwordRecord, freshJourney, enableJourney, isJourneyGear, canAdoptSword, journeyForge, journeySmith, saleValue, currentOrder, dailyGold,
     journeyProcessOptions: i => journey.processOptions[i],
     huntArea: journey.area, journeyTraits: journey.bladeTraits,

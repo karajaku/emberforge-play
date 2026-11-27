@@ -60,7 +60,7 @@ const HuntTrail = (() => {
         stats.hp = Math.round(a.enemyHp * 1.85);
         stats.attack = Math.round(a.enemyAttack * 1.6);
       }
-      h.wounds=0; h.ruptured=false; h.firstHit=true;
+      h.wounds=0; h.ruptured=false; h.firstHit=true; delete h.usedAffixSkill;
     } else stats=opponent(h.rank, h.enemyKind, h.journeyBattle === 1);
     h.enemyMax = h.enemyHp = stats.hp;
     h.enemyAttack = stats.attack;

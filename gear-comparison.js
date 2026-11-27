@@ -5,7 +5,8 @@
 const gearTiming = (typeof module !== "undefined" ? require("./attack-speed-combat.js") : AttackSpeedCombat).timing;
 const gearHits = typeof module !== "undefined" ? require("./hunt-strikes.js") : HuntStrikes;
 
-function createGearComparison({blades, outfit, endgame, craft, dice, stats}) {
+function createGearComparison({blades, outfit, endgame, craft, dice, stats, battleWeapon=blades.current}) {
+  const affixes=typeof module!=="undefined"?require("./affix-craft.js"):AffixCraft;
   const starter = {base:0, grade:0, level:0, mods:[]};
   const starterArmor = {...starter, type:"armor"};
   const round = value => Math.round(value * 100) / 100;
@@ -113,6 +114,10 @@ function createGearComparison({blades, outfit, endgame, craft, dice, stats}) {
         stat("ascended-" + style, effect.name, 1, 12);
       }
     }
+    for (const mod of item.mods||[]) {
+      const def=affixes.defs[mod.key];
+      if (def) stat("affix-"+mod.key,def.name,affixes.effectiveValue(item,mod),type==="outfit"?2:1,"%");
+    }
     return {rows, score:Math.round(points)};
   }
 
@@ -130,10 +135,23 @@ function createGearComparison({blades, outfit, endgame, craft, dice, stats}) {
       profile(s, target.current, "outfit").score < profile(s, best.current, "outfit").score ? target : best);
   }
 
+  function totals(s,item,type,slot) {
+    const rack=blades.state(s),outfitState=rack.outfit;
+    const view=type==="outfit"?{...s,bladeForge:{...rack,outfit:{...outfitState,equipped:{...outfitState.equipped,[slot]:item?.id}}}}:s;
+    const weapon=type==="blade"?item:battleWeapon(s);
+    const chest=type==="chest"?item:blades.currentArmor(s);
+    const stats=blades.skills(view,weapon,chest);
+    const known=stats.affix?.applied||{};
+    const exposure=outfit.build(view,undefined,[weapon,chest]).exposure;
+    return {P10:stats.defense,P11:stats.skillWard,P12:stats.lastWard,S1:stats.mods.haste||0,
+      S2:stats.critChance,S3:150,S4:stats.mods.momentum||0,S5:stats.mods.cooldown||0,S6:stats.mods.guard||0,
+      S7:stats.mods.recovery||0,S8:stats.mods.fortify||0,S9:stats.mods.wounds||0,...known,
+      S10:exposure.fire,S11:exposure.cold,S12:exposure.lightning};
+  }
   return function compareGear(s, item, type, preferredSlot) {
     let slot = type, current;
     switch (type) {
-      case "blade": slot = "weapon"; current = blades.current(s); break;
+      case "blade": slot = "weapon"; current = battleWeapon(s); break;
       case "chest": current = blades.currentArmor(s); break;
       case "outfit": ({slot, current} = outfitTarget(s, item, preferredSlot)); break;
       case "legacyWeapon": current = s.weapon; break;
@@ -149,6 +167,14 @@ function createGearComparison({blades, outfit, endgame, craft, dice, stats}) {
       const value = next?.value || 0, before = previous?.value || 0;
       return {...(next || previous), value, before, delta:round(value - before)};
     });
+    const keysToCompare=[...new Set([...(item?.mods||[]),...(current?.mods||[])].map(m=>m.key).filter(k=>affixes.defs[k]))];
+    if (keysToCompare.length && ["blade","chest","outfit"].includes(type)) {
+      const now=totals(s,current,type,slot), next=equipped?now:totals(s,item,type,slot);
+      for (const key of keysToCompare) {
+        const value=round(next[key]||0),before=round(now[key]||0);
+        rows.push({key:"total-"+key,label:affixes.defs[key].name+" · 착용 합계",value,before,delta:round(value-before),unit:"%",deltaUnit:"%p"});
+      }
+    }
     return {slot, current, equipped, score:candidate.score, currentScore:worn.score, delta:candidate.score - worn.score, rows};
   };
 }

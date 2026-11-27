@@ -111,7 +111,7 @@ const GearGradeView = {
   },
   detail(item) {
     const count = item.mods?.length || 0;
-    return line("접두·접미", count + "개") +
+    return line("장비 등급",Game.blades.itemRarity(item).name) + (item.corrupted ? line("제작 상태","타락 · 옵션 변경 불가") : "") + (item.promotionGrade ? line("검 승급",item.promotionGrade+"등급") : "") + line("접두·접미", count + "개") +
       line("베이스 등급", Game.blades.baseGradeNames[item.grade]);
   },
 };

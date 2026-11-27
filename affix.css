@@ -1,0 +1,176 @@
+.affix-options {
+  margin: 12px 0;
+}
+.affix-options h4,
+.affix-growth h4 {
+  margin: 10px 0 6px;
+}
+.affix-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin: 8px 0;
+}
+.affix-option span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.affix-option small {
+  display: block;
+  font-size: 12px;
+}
+.affix-option b {
+  flex-shrink: 0;
+}
+.affix-materials {
+  display: grid;
+  gap: 8px;
+}
+.affix-material {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+  min-height: 64px;
+  padding: 10px 12px;
+  white-space: normal;
+}
+.affix-material b {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.affix-material small {
+  display: block;
+  line-height: 1.5;
+}
+.affix-warning {
+  color: #96371c;
+  font-weight: bold;
+  line-height: 1.5;
+}
+.affix-result {
+  font-weight: bold;
+  line-height: 1.6;
+}
+#modalBody [data-affix-act] {
+  min-height: 48px;
+  margin: 10px 0;
+  width: 100%;
+  white-space: normal;
+}
+#modalBody .affix-material:focus-visible {
+  outline: 3px solid #b66e16;
+  outline-offset: 2px;
+}
+
+.affix-option {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  align-items: center;
+}
+.affix-option > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.affix-option small {
+  display: block;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.affix-option b {
+  flex-shrink: 0;
+}
+.affix-options h4 {
+  margin: 12px 0 2px;
+}
+.affix-rules summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.affix-material {
+  width: 100%;
+  text-align: left;
+  min-height: 76px;
+  white-space: normal;
+}
+.affix-materials {
+  display: grid;
+  gap: 8px;
+}
+.affix-growth {
+  margin: 16px 0;
+}
+#modalBody .affix-material b {
+  flex-wrap: wrap;
+}
+
+#modalBody .affix-material {
+  margin: 0;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.affix-materials {
+  grid-template-columns: minmax(0, 1fr);
+}
+#modalBody .affix-option b small {
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.forge-filter-field[data-filter-field="rarity"] {
+  left: 10.17%;
+  right: 9.93%;
+  column-gap: 4.23%;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+#modalBody [data-affix-act] {
+  flex-direction: column;
+  gap: 4px;
+}
+#modalBody [data-affix-act] small {
+  display: block;
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.watch-start-mode.watch-capacity-note {
+  font-size: 10px;
+  line-height: 1.25;
+  white-space: normal;
+}
+
+.watch-capacity-note {
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.ui-game .watch-home-actions .watch-start:has(.watch-capacity-note) {
+  --art-size: 20px;
+  gap: 1px;
+  padding-block: 2px;
+}
+.watch-start:has(.watch-capacity-note) .watch-start-label {
+  font-size: 18px;
+}
+.watch-capacity-note {
+  white-space: nowrap;
+}
+
+@media (max-height: 620px) {
+  .ui-game .forge-item-browser .ui-forge-rail {
+    gap: 2px;
+  }
+}
+
+@media (max-height: 620px) {
+  .ui-game .forge-layout .ui-forge-rail.notice-bounded.notice-compact {
+    gap: 2px;
+  }
+}

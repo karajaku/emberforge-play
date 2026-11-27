@@ -108,7 +108,7 @@ const InventoryView = (() => {
           }
           if (!journey) actions += openBtn("sell-" + type, g.level >= 1 ? "판매" : "판매 조건");
         }
-        return info + actions;
+        return info + (journey && weapon ? AffixView.options({...g,promotionGrade:g.grade}) + AffixView.link("j:"+g.recordId) : "") + actions;
       },
     };
   }
@@ -116,7 +116,7 @@ const InventoryView = (() => {
   function entries(s) {
     const bladeId = Game.blades.current(s).id, armorId = Game.blades.currentArmor(s).id;
     const items = [
-      ...Game.blades.state(s).items.map(item => ({gearItem:item, comparison:Game.compareGear(s,item,"blade"), key: "blade-"+item.id, group: "gear", name: Game.blades.name(item), rarity:Game.blades.itemRarity(item), baseGrade:Game.blades.baseGradeNames[item.grade], mark: "+"+item.level,
+      ...Game.blades.state(s).items.map(item => ({gearItem:item, comparison:Game.compareGear(s,item,"blade"), key: "blade-"+item.id, group: "gear", name: Game.blades.name(item), rarity:Game.blades.itemRarity(item), baseGrade:Game.blades.baseGradeNames[item.grade], mark: "+"+(item.growthLevel ?? item.level),
         wornSlot:item.id === bladeId ? "weapon" : "", id:item.id,
         art: BladeView.artwork(item), status: Game.endgame.info(s).deployed.includes(item.id) ? "배치" : item.ascended ? "초월" : item.id === bladeId ? "주력" : "", detail: () => BladeView.itemDetail(s,item)})),
       ...Game.blades.armors(s).map(item => ({gearItem:item, comparison:Game.compareGear(s,item,"chest"), key:"huntarmor-"+item.id, group:"gear", name:Game.blades.name(item), rarity:Game.blades.itemRarity(item), baseGrade:Game.blades.baseGradeNames[item.grade], mark:"+"+item.level,
@@ -137,6 +137,7 @@ const InventoryView = (() => {
       if (count > 0) items.push({ key, group: "items", name, shortName, mark: "×" + fmt(count), art, status,
         detail: () => line("보유 수량", fmt(count)) + desc(description) + actions });
     }
+    Game.affixes?.currency.forEach((name,i)=>stack("affix-"+(i+1),name,s.affixWallet?.counts?.[i] || 0,icon("gem"),AffixView.effects[i],openBtn("affix:list","제작할 장비 선택")));
     Game.blessings.forEach((name, i) => {
       const equipped = s.enabled[i], shortName = ["정령 가호", "대장장이 가호", "신의 가호"][i];
       stack("charm-" + i, name, s.charms[i], '<img src="assets/' + ["leaf", "hammer", "star"][i] + '.png" alt="">',
@@ -178,6 +179,7 @@ const InventoryView = (() => {
       '<span class="bag-slot-art" aria-hidden="true">' + item.art + '</span>' +
       (item.status ? '<small class="bag-slot-status">' + item.status + '</small>' : '') +
       baseMark(item) +
+      (item.rarity?.key === 'unique' || item.gearItem?.corrupted ? '<small class="bag-slot-affix">'+[item.rarity?.key === 'unique'?'유니크':'',item.gearItem?.corrupted?'타락':''].filter(Boolean).join(' · ')+'</small>' : '') +
       '<b class="bag-slot-name">' + escapeHtml(item.shortName || item.name) + '</b>' +
       (item.affix ? '<small class="bag-slot-affix">'+escapeHtml(item.affix)+'</small>' : '')+
       (item.comparison ? GearCompareView.score(item.comparison,true) : '') +
@@ -195,7 +197,7 @@ const InventoryView = (() => {
       if (!entry.gearItem || counts.get(entry.rarity.key+entry.name+entry.mark)<2) continue;
       const mod = entry.gearItem.mods[0];
       entry.affix = mod?.ascended ? SoulView.recipes(entry.gearItem)[mod.ascended].name :
-        mod ? Game.blades.modDefs[mod.key].name+" +"+mod.value+(mod.key==="plating"?"%p":"%") : "옵션 없음";
+        mod ? AffixView.modName(mod)+" +"+AffixView.value(mod) : "옵션 없음";
     }
   }
   function grid(items) {

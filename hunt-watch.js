@@ -526,7 +526,8 @@ const HuntWatch=(()=>{
     const canToggle = !powerHeld && (active || (!finished && !empty));
     // A power hold never accepts the ordinary start/long-press gesture.
     const control = powerHeld ? (power?.blocked === false ? 'data-power-resume' : 'data-power-prepare')+' data-hunt-id="'+escapeHtml(h.id)+'" data-hunt-wave="'+h.wave+'"' : canToggle ? 'data-watch="toggle"' : finished ? 'data-open="huntPlan"' : 'data-open="huntWallet"';
-    const modeNote = powerHeld ? '<span class="watch-start-mode">'+(power?.blocked === false ? '준비 완료 · 직접 시작' : '같은 상대 보존')+'</span>' :
+    const fullKinds=[s.bladeForge.items.length>=120?'무기':'',s.bladeForge.armors.length>=120?'흉갑':''].filter(Boolean);
+    const modeNote = fullKinds.length && !powerHeld ? '<span class="watch-start-mode watch-capacity-note">'+fullKinds.join('·')+' 보관함 가득 참<br>이번 드롭 자동 분해</span>' : powerHeld ? '<span class="watch-start-mode">'+(power?.blocked === false ? '준비 완료 · 직접 시작' : '같은 상대 보존')+'</span>' :
       canToggle && (active || cleared(s) < 60 || endgameRepeatSelected) ? '<span class="watch-start-mode">' +
       (active ? (run.continuous ? '연속 사냥 중' : '이번 단계 자동사냥') : '1초 누르면 연속 사냥') + '</span>' : '';
     const start = '<button class="primary watch-start' + (active ? ' watch-active' : '') + '" ' + control + '><span class="watch-start-label">' +

@@ -1,6 +1,7 @@
 "use strict";
 const RegionalGear = (() => {
   const blades = typeof module !== "undefined" ? require("./blade-rules.js") : BladeRules;
+  const affixes = typeof module !== "undefined" ? require("./affix-craft.js") : AffixCraft;
   const trail = typeof module !== "undefined" ? require("./hunt-trail.js") : HuntTrail;
   const elements = {fire:"화염", cold:"냉기", lightning:"번개"};
   const elementKeys = Object.keys(elements);
@@ -34,6 +35,7 @@ const RegionalGear = (() => {
     return elementKeys.find(key => regional[key] < 0);
   }
   function name(i) {
+    if (i.unique) return affixes.uniqueNames[affixes.kinds.indexOf(i.kind)];
     return elements[i.element] + (i.mode === "expose" ? " 침식의 " : " 깃든 ") + kinds[i.kind];
   }
   function effect(i) {
@@ -45,7 +47,7 @@ const RegionalGear = (() => {
     return {cost:blades.cost(i),success:blades.rate(i),destroy:blades.destroyRate(i)};
   }
   const salvageOre = item => 1 + item.grade;
-  function build(s, override) {
+  function build(s, override, mainEquipment) {
     const kit = s.bladeForge?.outfit;
     const conversion = blank(), exposure = blank();
     const equipped = {...kit?.equipped};
@@ -56,6 +58,14 @@ const RegionalGear = (() => {
       const bonus = effect(i);
       conversion[i.element] += bonus.conversion;
       exposure[i.element] = Math.min(45, exposure[i.element] + bonus.exposure);
+    }
+    const weapons=s.bladeForge?.items||[];
+    const blade=s.affixWallet?.journeyId==="j:"+s.weapon?.recordId ? {...s.weapon,promotionGrade:s.weapon.grade} : weapons.find(i=>i.id===s.bladeForge?.equipped);
+    const armor=s.bladeForge?.armors?.find(i=>i.id===s.bladeForge.armorEquipped);
+    const parts=[...(mainEquipment||[blade,armor]),...(kit?.items||[]).filter(i=>Object.values(equipped).includes(i.id))];
+    for (const item of parts.filter(Boolean)) for (const mod of item.mods||[]) {
+      const k={S10:"fire",S11:"cold",S12:"lightning"}[mod.key];
+      if (k) exposure[k]=Math.min(45,exposure[k]+affixes.effectiveValue(item,mod));
     }
     const total = Object.values(conversion).reduce((a,b) => a+b,0);
     if (total > 80) {
@@ -117,6 +127,7 @@ const RegionalGear = (() => {
     const item = {id:"g"+(++kit.serial),kind:first ? "ring" : pick(Object.keys(kinds)),element,
       mode:first || rng()<.6 ? "infuse" : "expose",rank:h.rank,base:1+Math.floor((rank-1)/5),
       grade:blades.rollGrade(h.rank,rng),level:0};
+    if (h.affixRules===1) affixes.generateDrop(item,rng);
     kit.items.push(item);
     return {outfitDrop:{...item}};
   }
@@ -136,6 +147,7 @@ const RegionalGear = (() => {
         return ok(name(item)+" 해제");
       }
       if (Object.values(kit.equipped).includes(id)) return fail("이미 착용한 장비입니다.");
+      if (item.unique==="ring" && Object.entries(kit.equipped).some(([where,other])=>where!==pos && kit.items.find(i=>i.id===other)?.unique==="ring")) return fail("같은 유니크 반지는 하나만 착용할 수 있습니다.");
       kit.equipped[pos]=id;
       return ok(name(item)+" 착용");
     }
@@ -153,7 +165,7 @@ const RegionalGear = (() => {
   const between=(v,low,high)=>Number.isSafeInteger(v)&&v>=low&&v<=high;
   const record=v=>v!==null&&typeof v==="object"&&!Array.isArray(v);
   function validItem(i,serial) {
-    return record(i) && typeof i.id==="string" && /^g[1-9]\d*$/.test(i.id) &&
+    return record(i) && (i.mods===undefined || i.affixVersion===1) && affixes.validState(i) && typeof i.id==="string" && /^g[1-9]\d*$/.test(i.id) &&
       between(Number(i.id.slice(1)),1,serial) && typeof i.kind==="string" && Object.hasOwn(kinds,i.kind) &&
       typeof i.element==="string" && Object.hasOwn(elements,i.element) &&
       ["infuse","expose"].includes(i.mode) && between(i.level,0,20) && between(i.rank,1,60) &&
@@ -164,14 +176,14 @@ const RegionalGear = (() => {
         !Array.isArray(kit.items) || kit.items.length>capacity || !record(kit.equipped)) return false;
     if (!kit.items.every(i=>validItem(i,kit.serial)) || new Set(kit.items.map(i=>i.id)).size!==kit.items.length) return false;
     const ids=Object.values(kit.equipped);
-    return new Set(ids).size===ids.length && Object.entries(kit.equipped).every(([key,id])=>{
+    return new Set(ids).size===ids.length && ids.filter(id=>kit.items.find(i=>i.id===id)?.unique==="ring").length<=1 && Object.entries(kit.equipped).every(([key,id])=>{
       const slot=slots.find(v=>v.key===key && v.kind!=="armor");
       return slot && kit.items.some(i=>i.id===id && i.kind===slot.kind);
     });
   }
   function validBuild(v) {
     const vector=(o,max)=>record(o)&&Object.keys(o).length===3&&elementKeys.every(k=>between(o[k],0,max));
-    return record(v)&&vector(v.conversion,80)&&vector(v.exposure,45)&&Object.values(v.conversion).reduce((a,b)=>a+b,0)<=80;
+    return record(v)&&vector(v.conversion,80)&&record(v.exposure)&&Object.keys(v.exposure).length===3&&elementKeys.every(k=>Number.isFinite(v.exposure[k]) && v.exposure[k]>=0 && v.exposure[k]<=45)&&Object.values(v.conversion).reduce((a,b)=>a+b,0)<=80;
   }
   return {slots,elements,capacity,state,name,effect,quote,salvageOre,profile,preferredElement,build,preview,effective,multiplier,dropChance,reward,act,valid,validItem,validBuild};
 })();
