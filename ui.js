@@ -1526,7 +1526,10 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
   }
   if (e.key === "Tab" && modal) {
-    const items = [...(EmberScene.visible?EmberScene.host:el("shade")).querySelectorAll("button:not(:disabled),input,select")].filter(
+    const focusScope = EmberScene.visible
+      ? EmberScene.host.querySelector(".ember-game-detail") || EmberScene.host
+      : el("shade");
+    const items = [...focusScope.querySelectorAll("button:not(:disabled),input:not(:disabled),select:not(:disabled),summary,a[href]")].filter(
       (n) => n.offsetWidth,
     );
     if (!items.length) return;
