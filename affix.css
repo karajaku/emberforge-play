@@ -845,3 +845,430 @@ body[data-motion="on"] .watch-receipt:has(.ember-loot) .watch-receipt-head > * {
 #emberStage .ember-scene-supply {
   position: absolute;
 }
+
+/* BFF1: the live forge keeps its controls; embers are tools on the same bench. */
+.ember-home {
+  flex: none;
+  padding: 2px 7px 4px;
+  color: #ffe6af;
+  text-shadow: 0 2px 3px #17100a;
+}
+.ember-home > b {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+  line-height: 18px;
+}
+.ember-home > b small {
+  font-size: 10px;
+  font-weight: 400;
+}
+.ember-home-tray {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+.ember-home-item {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 48px;
+  padding: 0 4px;
+  color: #ffe8ba;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  line-height: 12px;
+}
+.ember-home-item:focus-visible {
+  outline: 2px solid #ffda85;
+  outline-offset: -2px;
+}
+.ember-home-item small {
+  font-size: 10px;
+}
+.forge-bench-home .stage-side {
+  min-height: 0;
+}
+.ui-game #screen > .forge-bench-home .stage-side .scene {
+  min-height: 120px;
+}
+.forge-bench-home .scene .caption > b {
+  font-size: 18px;
+}
+#emberStage {
+  bottom: calc(var(--bench-nav-height, 60px) + env(safe-area-inset-bottom));
+  grid-template-rows: 48px 40px minmax(80px, 1fr) minmax(58px, auto) 88px 78px;
+}
+body[data-ember-scene] #mobileNav {
+  position: relative;
+  z-index: 65;
+}
+#emberStage .ember-scene-gear canvas {
+  width: min(200px, 100%);
+  height: auto;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 6px 6px #080909);
+}
+#emberStage .ember-scene-info {
+  font-size: 13px;
+  line-height: 1.4;
+  align-self: center;
+}
+#emberStage .ember-scene-info small {
+  display: block;
+  font-size: 11px;
+}
+#emberStage[data-timing] .ember-scene-tray {
+  overflow: visible;
+}
+#emberStage[data-timing] .ember-scene-footer {
+  grid-template-columns: 1fr 1.6fr;
+}
+.ember-timing {
+  width: 100%;
+  display: grid;
+  gap: 6px;
+  align-content: center;
+  padding: 3px 10px;
+}
+.ember-timing > strong {
+  font-size: 15px;
+  text-align: center;
+}
+[data-ember-meter] {
+  position: relative;
+  width: 100%;
+  height: 22px;
+  border-radius: 8px;
+  background: #222b23;
+  box-shadow: inset 0 0 0 2px #a48451;
+  overflow: hidden;
+}
+.ember-timing-target {
+  position: absolute;
+  left: 38%;
+  width: 24%;
+  inset-block: 2px;
+  background: #70ad6f;
+  box-shadow:
+    inset 2px 0 #daecc0,
+    inset -2px 0 #daecc0;
+}
+[data-ember-marker] {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  background: #ffdc81;
+  transform: translateX(-50%);
+  box-shadow: 0 0 4px #0a0907;
+}
+.ember-timing-marks {
+  height: 17px;
+  text-align: center;
+  font-size: 12px;
+}
+#emberStage[data-timing-paused="true"] [data-ember-meter]::after {
+  content: "일시 정지 · 돌아오면 계속";
+  position: absolute;
+  inset: 0;
+  text-align: center;
+  background: #121e19d9;
+  font-size: 12px;
+}
+@media (max-height: 650px) {
+  .ui-game #screen > .forge-bench-home .stage-side .scene {
+    min-height: 108px;
+  }
+  .forge-bench-home .forge-item-summary {
+    font-size: 10px;
+    line-height: 1.15;
+  }
+  .forge-bench-home .forge-item-summary > span:first-child {
+    display: none;
+  }
+  .forge-bench-home .forge-console .forge-strike {
+    min-height: 72px;
+  }
+  .forge-bench-home .forge-actions > .action {
+    min-height: 52px;
+    margin-top: 8px;
+  }
+  #emberStage {
+    grid-template-rows: 44px 36px minmax(55px, 1fr) minmax(58px, auto) 80px 68px;
+  }
+  #emberStage .ember-scene-footer > button {
+    min-height: 60px;
+  }
+  #emberStage .ember-main-action .control-art {
+    --art-size: 26px;
+  }
+  #emberStage .ember-scene-gear canvas {
+    width: 160px;
+  }
+}
+
+.forge-bench-home .forge-actions {
+  grid-template-columns: 0.8fr 1.4fr 1fr 0.8fr;
+  gap: 4px;
+}
+.forge-bench-home .ember-home-forge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 60px;
+  min-width: 44px;
+  margin-top: 12px;
+  padding: 4px 2px;
+  border: 0;
+  border-image: var(--control-plate) 28 fill / 8px stretch;
+  background-color: #2d332b;
+  color: #f4dfac;
+  box-shadow: none;
+  font-size: 12px;
+}
+.forge-bench-home .ember-home-forge .control-art {
+  --art-size: 24px;
+}
+.forge-bench-home .ember-home-forge b {
+  font-size: 13px;
+}
+.forge-bench-home .ember-home-forge small {
+  font-size: 10px;
+}
+.ember-home-info {
+  font-size: 12px;
+  line-height: 1.3;
+}
+.ember-home-info small {
+  display: block;
+  font-size: 10px;
+}
+.ember-home-item[aria-pressed="true"] {
+  background: #344a36;
+  box-shadow: inset 0 -2px #f6d47b;
+}
+.ember-stop-pin {
+  position: absolute;
+  inset-block: 0;
+  width: 2px;
+  background: white;
+  opacity: 0.8;
+}
+.ember-final-marks {
+  color: #ffe2a4;
+}
+
+.ui-game .forge-bench-home .forge-actions > .ember-home-start {
+  height: 80px;
+  min-height: 80px;
+  max-height: 80px;
+  gap: 2px;
+  padding: 5px 3px;
+}
+.ui-game .forge-bench-home .forge-actions > .ember-home-start b {
+  font-size: 16px;
+  line-height: 19px;
+  white-space: nowrap;
+}
+.ui-game .forge-bench-home .forge-actions > .ember-home-start small {
+  font-size: 10px;
+  line-height: 12px;
+  white-space: nowrap;
+}
+.ui-game .forge-bench-home .forge-actions > .ember-home-start .control-art {
+  --art-size: 28px;
+}
+@keyframes ember-gear-idle {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -3px;
+  }
+}
+body[data-motion="on"]
+  :is(.forge-bench-home .forge-slide > .outfit-art, #emberStage .ember-scene-gear > .outfit-art) {
+  animation: ember-gear-idle 2.8s ease-in-out infinite;
+}
+
+.ui-game .forge-bench-home .forge-actions > .ember-home-start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 44px;
+  color: #fff1c9;
+  text-shadow: 0 2px #51351c;
+  border: 0 solid transparent;
+  border-image: var(--control-plate) 28 fill / 10px stretch;
+  background: #865521;
+  box-shadow: 0 3px 0 #211a10;
+}
+.ui-game .forge-bench-home .forge-actions > .ember-home-forge.forge-strike {
+  height: 60px;
+  min-height: 60px;
+  max-height: 72px;
+  gap: 2px;
+  margin-top: 10px;
+  padding: 4px 2px;
+  border-radius: 8px;
+  border: 0 solid transparent;
+  border-image: var(--control-plate) 28 fill / 8px stretch;
+  background: #2d332b;
+  box-shadow: none;
+}
+.ui-game .forge-bench-home .forge-actions > .ember-home-forge.forge-strike b {
+  font-size: 13px;
+  line-height: 16px;
+}
+.ui-game .forge-bench-home .forge-actions > .ember-home-forge.forge-strike small {
+  font-size: 10px;
+  line-height: 12px;
+}
+.ui-game .forge-bench-home .forge-actions > .ember-home-forge.forge-strike .control-art {
+  --art-size: 22px;
+}
+
+@media (max-height: 650px) {
+  .ui-game #screen > .forge-bench-home {
+    gap: 3px;
+  }
+  .forge-bench-home .ember-home {
+    padding: 1px 7px;
+  }
+  .forge-bench-home .ember-home > b {
+    line-height: 14px;
+    font-size: 12px;
+  }
+  .forge-bench-home .ember-home-tray {
+    scrollbar-width: none;
+  }
+  .forge-bench-home .ember-home-tray::-webkit-scrollbar {
+    display: none;
+  }
+  .forge-bench-home .ember-home-item {
+    min-height: 44px;
+  }
+  .forge-bench-home .ember-home-item .ember-art {
+    --ember-size: 28px !important;
+  }
+  .forge-bench-home .forge-console {
+    gap: 3px;
+  }
+  .forge-bench-home .forge-odds {
+    min-height: 40px;
+    padding: 2px 6px;
+    margin-top: 1px;
+  }
+  .ui-game .forge-bench-home .forge-actions > .ember-home-start {
+    height: 72px;
+    min-height: 72px;
+    max-height: 72px;
+  }
+  .ui-game .forge-bench-home .forge-actions > .ember-home-start .control-art {
+    --art-size: 24px;
+  }
+}
+
+.forge-bench-home .forge-item-summary.ember-home-info {
+  display: block;
+  font-size: 12px;
+  line-height: 1.3;
+  text-align: center;
+  white-space: normal;
+}
+.forge-bench-home .forge-item-summary.ember-home-info small {
+  display: block;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.forge-bench-home .forge-actions {
+  height: 90px;
+  min-height: 90px;
+}
+.ui-game .forge-bench-home .forge-actions > .ember-home-start {
+  height: 90px;
+  min-height: 90px;
+  max-height: 90px;
+}
+@media (max-height: 650px) {
+  .forge-bench-home .forge-actions {
+    height: 80px;
+    min-height: 80px;
+  }
+  .ui-game .forge-bench-home .forge-actions > .ember-home-start {
+    height: 72px;
+    min-height: 72px;
+    max-height: 72px;
+  }
+}
+
+.ui-game .forge-bench-home .forge-actions > .ember-home-forge.forge-strike {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-content: center;
+  align-items: center;
+  gap: 2px;
+  height: 80px;
+  min-height: 80px;
+  max-height: 80px;
+  margin-top: 4px;
+  padding: 4px;
+}
+.ui-game .forge-bench-home .ember-home-forge .control-art {
+  grid-column: 1;
+  --art-size: 18px;
+}
+.ui-game .forge-bench-home .ember-home-forge b {
+  grid-column: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.ui-game .forge-bench-home .forge-actions > .ember-home-forge.forge-strike small {
+  grid-column: 1/-1;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 10px;
+  line-height: 12px;
+}
+@media (max-height: 650px) {
+  .ui-game .forge-bench-home .forge-actions > .ember-home-forge.forge-strike {
+    height: 74px;
+    min-height: 74px;
+    max-height: 74px;
+    margin-top: 2px;
+  }
+}
+
+body[data-motion="on"]
+  :is(.forge-bench-home .forge-slide > .outfit-art, #emberStage .ember-scene-gear > .outfit-art) {
+  animation-timing-function: steps(3, end);
+}
+#emberStage[data-timing] .ember-scene-gear > .outfit-art {
+  animation: none;
+}
+
+@media (max-height: 650px) {
+  body:has(.forge-bench-home) #apprentice[data-place="forge"]:not([hidden]) {
+    top: calc(env(safe-area-inset-top) + 106px);
+  }
+  .forge-bench-home .forge-item-pager {
+    left: calc(50% + 76px);
+    top: 6px;
+    font-size: 11px;
+  }
+}

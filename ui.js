@@ -1525,7 +1525,7 @@ document.addEventListener("keydown", (e) => {
     dismissModal();
     e.preventDefault();
   }
-  if (e.key === "Tab" && modal) {
+  if (e.key === "Tab" && modal && (!EmberScene.visible || EmberScene.host.querySelector(".ember-game-detail"))) {
     const focusScope = EmberScene.visible
       ? EmberScene.host.querySelector(".ember-game-detail") || EmberScene.host
       : el("shade");
@@ -1657,6 +1657,7 @@ document.addEventListener("click", (e) => {
     return;
   }
   if ("newGame" in d) return startNewGame();
+  if (d.affixAct === "affixUse") return EmberScene.startTiming(JSON.parse(d.affixArg));
   if (d.affixAct) {
     b.disabled = true;
     return act(d.affixAct,JSON.parse(d.affixArg));
@@ -1980,7 +1981,10 @@ function animate(now) {
         delta = now - (actor ? Number(actor.dataset.attackAt ?? -1e6) : animationStart);
       let index = 0;
       if (motionEnabled()) {
-        if (equipment)
+        if(canvas.closest('#emberStage[data-timing]')) {
+          const strikeDelta=now-Number(canvas.dataset.emberStrikeAt ?? -1e6);
+          index=strikeDelta>=0&&strikeDelta<480?6+Math.floor(strikeDelta/80):0;
+        } else if (equipment)
           index =
             delta >= 0 && delta < 480 ? 6 + Math.floor(delta / 80) : Math.floor(now / 160) % 6;
         else if (id === "boar" && (actor ? delta : now - huntStart) < 360)

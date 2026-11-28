@@ -6,7 +6,13 @@ const EmberScene = (() => {
     selectedId = "",
     selectedN = 0,
     detail = "",
-    receipt = null;
+    receipt = null,
+    timing = null,
+    timingFrame = 0,
+    sending = false,
+    marks = [],
+    homeN = 0,
+    windowBlurred = false;
   const related = (key) => /^(blade(?:Armor)?(?:Work|Final|Lining)|soul:|craft$|final$)/.test(key);
   function isRoute(key) {
     return key.startsWith("affix:") || (active && related(key));
@@ -24,13 +30,20 @@ const EmberScene = (() => {
     host = document.createElement("section");
     host.id = "emberStage";
     host.hidden = true;
-    host.setAttribute("role", "dialog");
-    host.setAttribute("aria-modal", "true");
+    host.setAttribute("role", "region");
+
     host.setAttribute("aria-label", "불씨 세공 작업장");
     document.body.append(host);
     return host;
   }
-  function equipment(item) {
+  function equipment(item, idle = false) {
+    if (idle && (!item.kind || ["weapon", "armor"].includes(item.kind)))
+      return (
+        '<canvas width="128" height="144" data-sprite="' +
+        BladeView.sprite(item.kind === "armor" ? { ...item, type: "armor" } : item) +
+        '" aria-label="선택한 장비"></canvas>'
+      );
+
     return item.kind && !["weapon", "armor"].includes(item.kind)
       ? OutfitView.art(item.kind)
       : BladeView.artwork(item);
@@ -194,8 +207,11 @@ const EmberScene = (() => {
   }
   function display(s, key) {
     ensure();
+    if (timing && key !== currentKey) cancelTiming();
     active = true;
     host.hidden = false;
+    if (!timing) host.removeAttribute("data-timing");
+    el("screen").inert = true;
     document.body.dataset.emberScene = "on";
     document.body.append(el("noticeSlot"));
     const p = parse(s, key),
@@ -221,7 +237,7 @@ const EmberScene = (() => {
         "/3" +
         (item.corrupted ? " · 타락" : "")
       : "사냥에서 장비를 얻으세요";
-    const graphic = item ? '<div class="ember-scene-gear">' + equipment(item) + "</div>" : "";
+    const graphic = item ? '<div class="ember-scene-gear">' + equipment(item, true) + "</div>" : "";
     const delta =
       receipt?.item && receipt?.before
         ? (() => {
@@ -249,7 +265,15 @@ const EmberScene = (() => {
       : p.choosing
         ? "세공할 장비를 고르세요"
         : q
-          ? escapeHtml(q.reason || AffixView.effects[selectedN - 1])
+          ? "<b>" +
+            escapeHtml(Game.affixes.currency[selectedN - 1]) +
+            "</b> · " +
+            escapeHtml(AffixView.effects[selectedN - 1]) +
+            "<small>보유 " +
+            fmt(q.count || 0) +
+            "개 · 소모 1개" +
+            (q.reason ? " · " + escapeHtml(q.reason) : "") +
+            "</small>"
           : "불씨 그림을 눌러 효과와 수량을 확인하세요";
     const tray = risk
       ? '<div class="ember-risk-copy"><strong>' +
@@ -403,11 +427,24 @@ const EmberScene = (() => {
     else host.classList.remove("ember-result-destroyed");
     const selected = host.querySelector('.ember-scene-tray [aria-pressed="true"]');
     selected?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (p.result && receipt?.timingMarks?.length) {
+      host
+        .querySelector(".ember-scene-info")
+        ?.insertAdjacentHTML(
+          "beforeend",
+          '<small class="ember-final-marks">' +
+            receipt.timingMarks.map((hit, i) => i + 1 + "타 " + (hit ? "명중" : "비껴감")).join(" · ") +
+            "</small>",
+        );
+    }
+    if (timing) paintTiming();
     EmberView.afterRender();
     placeToast();
   }
   function hide() {
+    cancelTiming();
     if (host) host.hidden = true;
+    el("screen").inert = false;
     active = false;
     currentKey = "";
     detail = "";
@@ -422,7 +459,7 @@ const EmberScene = (() => {
     return true;
   }
   function result(r, arg) {
-    receipt = { ...r, id: arg.id, n: arg.n };
+    receipt = { ...r, id: arg.id, n: arg.n, timingMarks: [...marks] };
   }
   function focus() {
     (
@@ -431,12 +468,246 @@ const EmberScene = (() => {
       host?.querySelector("button")
     )?.focus({ preventScroll: true });
   }
+  function home(s, layout) {
+    const q = archiveBlade
+      ? gear === "weapon"
+        ? Game.affixList(s).find((x) => x.id === "j:" + s.weapon.recordId)
+        : null
+      : ForgeItemView.shown;
+    if (!q) return;
+    layout.classList.add("forge-bench-home");
+    const strip = document.createElement("section");
+    strip.className = "ember-home";
+    strip.setAttribute("aria-label", "불씨 세공대");
+    strip.innerHTML =
+      "<b>불씨 세공대 " +
+      "<small>불씨를 눌러 설명 보기</small>" +
+      '</b><div class="ember-home-tray">' +
+      Game.affixes.currency
+        .map((name, i) =>
+          button(
+            'data-home-ember="' +
+              (i + 1) +
+              '" aria-pressed="' +
+              (homeN === i + 1) +
+              '" aria-label="' +
+              escapeHtml(name) +
+              " · 보유 " +
+              fmt(s.affixWallet?.counts?.[i] || 0) +
+              '개"',
+            EmberView.art(i + 1, 32) + "<small>" + fmt(s.affixWallet?.counts?.[i] || 0) + "</small>",
+            "ember-home-item",
+          ),
+        )
+        .join("") +
+      "</div>";
+    layout.querySelector(".forge-console").before(strip);
+    const quote = homeN ? Game.affixQuote(s, q.id, homeN) : null,
+      arg = homeN ? { id: q.id, n: homeN, token: quote.token } : null;
+    if (homeN) {
+      const info =
+        "<b>" +
+        escapeHtml(Game.affixes.currency[homeN - 1]) +
+        "</b> · " +
+        escapeHtml(AffixView.effects[homeN - 1]) +
+        "<small>보유 " +
+        fmt(quote.count || 0) +
+        "개 · 소모1개" +
+        (quote.reason ? " · " + escapeHtml(quote.reason) : "") +
+        "</small>";
+      const summary = layout.querySelector(".forge-item-summary");
+      if (summary) {
+        summary.className = "forge-item-summary ember-home-info";
+        summary.innerHTML = info;
+      }
+    }
+    const previous = layout.querySelector(".forge-strike");
+    if (previous) {
+      const main = document.createElement("template");
+      main.innerHTML = homeN
+        ? button(
+            (homeN >= 9 ? "data-home-risk" : 'data-affix-act="affixUse"') +
+              ' data-affix-arg="' +
+              escapeHtml(JSON.stringify(arg)) +
+              '"' +
+              (quote.reason ? " disabled" : ""),
+            EmberView.art(homeN, 36) + "<b>세공</b><small>세 번 멈춤</small>",
+            "ember-home-start",
+          )
+        : button(
+            "data-home-pick",
+            controlArt("hammer") + "<b>불씨 선택</b><small>세공 준비</small>",
+            "ember-home-start",
+          );
+      previous.before(main.content);
+      previous.classList.add("ember-home-forge");
+      previous.dataset.homeForge = "";
+    }
+  }
+
+  function cancelTiming() {
+    timing?.cancel();
+    timing = null;
+    cancelAnimationFrame(timingFrame);
+    timingFrame = 0;
+    host?.removeAttribute("data-timing");
+  }
+  function startTiming(arg) {
+    if (timing || sending) return;
+    const quote = Game.affixQuote(state, arg.id, arg.n);
+    if (quote.reason || quote.token !== arg.token) {
+      notify(quote.reason || "장비 정보가 바뀌었습니다. 다시 선택해주세요.");
+      return;
+    }
+    if (!active) showModal("affix:item:" + arg.id + "|" + arg.n);
+    marks = [];
+    detail = "";
+    timing = EmberTiming.create({ ...arg }, performance.now());
+    syncTimingPause();
+    display(state, modal);
+    host.querySelector("[data-ember-stop]")?.focus({ preventScroll: true });
+  }
+  function paintTiming() {
+    host.dataset.timing = "on";
+    host.querySelector(".ember-scene-info").innerHTML =
+      "<b>" +
+      escapeHtml(Game.affixes.currency[selectedN - 1]) +
+      "</b> · 중앙에서 세 번 멈추세요<small>타이밍은 타격 연출에만 반영 · 결과 확률은 동일</small>";
+    host.querySelector(".ember-scene-tray").innerHTML =
+      '<div class="ember-timing"><strong data-ember-round aria-live="polite">' +
+      timing.round +
+      ' / 3</strong><div data-ember-meter role="img" aria-label="좌우로 이동하는 표식과 중앙 목표"><i class="ember-timing-target"></i><i data-ember-marker></i></div><span class="ember-timing-marks">' +
+      marks.map((hit, i) => "<b>" + (i + 1) + "타 " + (hit ? "명중" : "비껴감") + "</b>").join(" · ") +
+      "</span></div>";
+    host.querySelector(".ember-scene-footer").innerHTML =
+      button("data-ember-cancel", "취소 · 소모 없음") +
+      button("data-ember-stop", controlArt("hammer") + "<b>멈춤</b>", "ember-main-action");
+    host.querySelectorAll(".ember-scene-tools button").forEach((b) => (b.disabled = true));
+    cancelAnimationFrame(timingFrame);
+    tickTiming();
+  }
+  function tickTiming() {
+    if (!timing || !active) return;
+    const marker = host.querySelector("[data-ember-marker]");
+    if (marker) marker.style.left = timing.position(performance.now()) * 100 + "%";
+    const stop = host.querySelector("[data-ember-stop]");
+    if (stop) stop.disabled = timing.paused;
+    host.dataset.timingPaused = String(timing.paused);
+    timingFrame = requestAnimationFrame(tickTiming);
+  }
+  function stopTiming() {
+    if (!timing || sending) return;
+    const result = timing.stop(performance.now());
+    if (!result) return;
+    marks = result.marks;
+    const canvas = host.querySelector(".ember-scene-gear canvas");
+    if (canvas) canvas.dataset.emberStrikeAt = String(performance.now());
+    if (motionEnabled()) {
+      host
+        .querySelector(".ember-scene-gear")
+        ?.animate(
+          [{ transform: "translateY(0)" }, { transform: "translateY(5px)" }, { transform: "translateY(0)" }],
+          { duration: 180 },
+        );
+    }
+    if (result.complete) {
+      const request = result.request;
+      cancelTiming();
+      sending = true;
+      host.dataset.timing = "sending";
+      host.querySelectorAll("button").forEach((b) => (b.disabled = true));
+      Promise.resolve(act("affixUse", request)).finally(() => (sending = false));
+    } else {
+      paintTiming();
+      const meter = host.querySelector("[data-ember-meter]");
+      meter?.insertAdjacentHTML(
+        "beforeend",
+        '<i class="ember-stop-pin" style="left:' + result.position * 100 + '%"></i>',
+      );
+      host.querySelector("[data-ember-stop]")?.focus({ preventScroll: true });
+    }
+  }
+  function syncTimingPause() {
+    if (!timing) return;
+    if (windowBlurred || document.hidden) timing.pause(performance.now());
+    else timing.resume(performance.now());
+  }
+  window.addEventListener("blur", () => {
+    windowBlurred = true;
+    syncTimingPause();
+  });
+  window.addEventListener("focus", () => {
+    windowBlurred = false;
+    syncTimingPause();
+  });
+  document.addEventListener("visibilitychange", syncTimingPause);
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      if (e.repeat && timing && (e.key === " " || e.key === "Enter")) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      }
+    },
+    true,
+  );
+  document.addEventListener(
+    "click",
+    (e) => {
+      const b = e.target.closest("button");
+      if (!b || b.disabled) return;
+      const d = b.dataset;
+      if (timing && !("emberStop" in d || "emberCancel" in d || d.go || "close" in d)) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return;
+      }
+      if (d.homeEmber) {
+        const scroll = b.parentElement.scrollLeft;
+        homeN = Number(d.homeEmber);
+        render();
+        const tray = document.querySelector(".ember-home-tray");
+        if (tray) tray.scrollLeft = scroll;
+        document.querySelector('[data-home-ember="' + homeN + '"]')?.focus({ preventScroll: true });
+      } else if ("homeClear" in d) {
+        homeN = 0;
+        render();
+      } else if ("homePick" in d) {
+        document.querySelector("[data-home-ember]")?.focus();
+      } else if ("homeRisk" in d) {
+        const arg = JSON.parse(d.affixArg);
+        showModal("affix:item:" + arg.id + "|" + arg.n);
+        detail = "risk";
+        display(state, modal);
+        focus();
+      } else if (d.affixAct === "affixUse") {
+        startTiming(JSON.parse(d.affixArg));
+      } else if ("emberStop" in d) {
+        stopTiming();
+      } else if ("emberCancel" in d) {
+        cancelTiming();
+        display(state, modal);
+        focus();
+      } else if (timing) {
+        if (d.go || "close" in d) cancelTiming();
+        else {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
+        return;
+      } else return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    },
+    true,
+  );
   document.addEventListener("click", (e) => {
     const b = e.target.closest("#emberStage button");
     if (!b || b.disabled) return;
     const d = b.dataset;
     if (d.emberEquipmentId) {
       selectedId = d.emberEquipmentId;
+      if (!selectedId.startsWith("j:")) ForgeItemView.selectItem(state, selectedId);
       display(state, modal);
     } else if ("emberChooseEquipment" in d)
       showModal("affix:item:" + selectedId + (selectedN ? "|" + selectedN : ""), b);
@@ -457,6 +728,9 @@ const EmberScene = (() => {
   });
   return {
     isRoute,
+    home,
+    cancelTiming,
+    startTiming,
     route,
     display,
     hide,

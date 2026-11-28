@@ -39,6 +39,7 @@ const GameUI = (() => {
       support.insertBefore(primary, support.children[1]);
     } else support.classList.add('forge-actions--secondary');
     ForgeItemView.decorate(s,layout);
+    EmberScene.home(s,layout);
     return template.innerHTML;
   };
   function shell() {
