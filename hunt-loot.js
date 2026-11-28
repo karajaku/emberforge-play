@@ -19,8 +19,8 @@ const HuntLoot = (() => {
     { caps: [3, 3], min: 4, max: 6 },
   ];
   // Grade rolls use basis points. Equipment types roll independently.
-  function weights(rank) {
-    const boss = rank % 5 === 0;
+  function weights(rank, bossBonus=true) {
+    const boss = bossBonus && rank % 5 === 0;
     const rare = (400 + 20 * (rank - 1)) * (boss ? 1.5 : 1);
     const epic = rank < 11 ? 0 : (50 + 10 * (rank - 11)) * (boss ? 2 : 1);
     const legend = rank < 31 ? 0 : (2 + 2 * (rank - 31)) * (boss ? 2.5 : 1);
@@ -35,9 +35,9 @@ const HuntLoot = (() => {
       perWin: distribution.map((w) => (w * itemPercent) / 10000),
     };
   }
-  function rollGrade(rank, rng) {
+  function rollGrade(rank, rng, bossBonus=true) {
     let roll = Math.min(9999, Math.floor(rng() * 10000));
-    const chances = weights(rank);
+    const chances = weights(rank,bossBonus);
     for (let grade = 0; grade < 3; grade++) {
       if (roll < chances[grade]) return grade;
       roll -= chances[grade];

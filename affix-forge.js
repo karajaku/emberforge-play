@@ -17,7 +17,7 @@ function createAffixForge({
   function wallet(s) {
     return (s.affixWallet ??= { version: 1, counts: Array(10).fill(0), claimed: [], revision: 0 });
   }
-  function grant(s, rank, rng) {
+  function grant(s, rank, rng, monsterDrops) {
     const w = wallet(s),
       received = [];
     function credit(n, source) {
@@ -30,7 +30,12 @@ function createAffixForge({
         credit(materials[i], "milestone");
       }
     }
-    if (rng() < (rank % 5 === 0 ? 0.4 : 0.2)) credit(rules.weighted(weights, rng) + 1, "hunt");
+    if (monsterDrops) {
+      for (const drop of monsterDrops) {
+        w.counts[drop.n-1]++;
+        received.push({...drop,count:1,source:"hunt",sourceStage:rank});
+      }
+    } else if (rng() < (rank % 5 === 0 ? 0.4 : 0.2)) credit(rules.weighted(weights, rng) + 1, "hunt");
     return received;
   }
   function journeyEntry(s, source) {

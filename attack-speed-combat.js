@@ -96,7 +96,7 @@ const AttackSpeedCombat = (() => {
     h.playerAt = first;
     return h;
   }
-  const hasNext = h => h.wave + 1 < trail.lineup(h.territoryRank || h.rank, h.bonusEncounter).length;
+  const hasNext = h => h.wave + 1 < trail.pack(h).length;
   // Next encounter (§6.7): the change counts as one beat of the player's own interval, so a ready time
   // lands on the new clock as if the first attack came one interval after the last one.
   function advance(h) {

@@ -1,6 +1,7 @@
 "use strict";
 const HuntTrail = (() => {
   const journey = typeof module !== "undefined" ? require("./journey-rules.js") : JourneyRules;
+  const monsters = typeof module !== "undefined" ? require("./hunt-monsters.js") : HuntMonsters;
   const enemies = {
     boar:     { name: "이끼등 멧돼지", sprite: "boar", skill: "charge", first: 2, interval: 3, power: 3 },
     wolf:     { name: "불갈기 늑대", sprite: "wolf", skill: "fang", first: 2, interval: 2, power: 2 },
@@ -31,6 +32,8 @@ const HuntTrail = (() => {
     const area = region(rank);
     return { ...enemies[kind], kind, habitat: area.name, elite: kind === area.boss };
   }
+  const pack = h => h.encounterVersion===1 ? h.encounters.map(e=>e.kind) : lineup(h.territoryRank || h.rank,h.bonusEncounter);
+  const validEncounters = h => monsters.validEncounters(h,region(h.rank).pack);
   function opponent(rank, kind, journeyBattle = false) {
     if (journeyBattle) {
       const { enemyHp, enemyAttack } = journey.stageBalance(rank);
@@ -47,16 +50,21 @@ const HuntTrail = (() => {
     h.wave = wave;
     h.waveTurn = 1;
     const territory=h.territoryRank || h.rank;
-    h.enemyKind = lineup(territory, h.bonusEncounter)[wave];
+    h.enemyKind = pack(h)[wave];
+    if (h.encounterVersion===1) h.enemyGrade=h.encounters[wave].grade;
     const def = enemies[h.enemyKind];
     let stats;
     if (h.bladeCombat) {
       const blades=typeof module!=="undefined"?require("./blade-rules.js"):BladeRules;
-      const a=blades.area(h.rank), boss=h.enemyKind===region(territory).boss;
+      const a=blades.area(h.rank), boss=h.encounterVersion===1 ? h.enemyGrade==="boss" : h.enemyKind===region(territory).boss;
       const goblin=h.enemyKind==="goblin";
       const bossHealth=h.enemyKind==="wyrm"?2.7:h.enemyKind==="elder"?2.2:1.65;
       stats={hp:Math.round(a.enemyHp*(goblin?.36:boss?bossHealth:1)),attack:goblin?0:Math.round(a.enemyAttack*(boss?1.2:1))};
-      if (h.rank === 5 && boss) {
+      if (h.encounterVersion===1 && !boss && !goblin) {
+        stats.hp=Math.round(a.enemyHp*monsters.grades[h.enemyGrade].hp);
+        stats.attack=Math.round(a.enemyAttack*monsters.grades[h.enemyGrade].attack);
+      }
+      if (h.encounterVersion!==1 && h.rank === 5 && boss) {
         stats.hp = Math.round(a.enemyHp * 1.85);
         stats.attack = Math.round(a.enemyAttack * 1.6);
       }
@@ -71,6 +79,6 @@ const HuntTrail = (() => {
   function awaitingNext(h) {
     return h?.trailVersion === 1 && (h.enemyHp === 0 || h.lastDice?.enemySkill === "escape" || h.ended === "escape");
   }
-  return { region, lineup, enemy, opponent, enter, awaitingNext };
+  return { region, lineup, pack, validEncounters, enemy, opponent, enter, awaitingNext };
 })();
 if (typeof module !== "undefined") module.exports = HuntTrail;

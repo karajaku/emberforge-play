@@ -258,10 +258,12 @@ const AffixCraft = (() => {
     const grade = item.promotionGrade ?? (item.recordId ? item.grade : 0);
     return (mod.value * (10 + grade)) / (10 + (mod.migrationGrade || 0));
   }
-  function generateDrop(item, rng) {
-    const count = weighted([5000, 2100, 1400, 900, 450, 135, 15], rng);
+  function generateDrop(item, rng, rarity) {
+    const count = rarity===undefined ? weighted([5000, 2100, 1400, 900, 450, 135, 15], rng) :
+      rarity==="magic" ? 1+weighted([50,35,15],rng) : rarity==="rare" ? 4+weighted([70,25,5],rng) : 0;
     item.mods = [];
     item.affixVersion = 1;
+    if (rarity==="unique") { item.unique=kindOf(item); item.uniqueStats=[10,10,20]; }
     for (let i = 0; i < count; i++) add(item, rng);
     return item;
   }

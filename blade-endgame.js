@@ -69,7 +69,7 @@ const BladeEndgame = (() => {
     if (b.armors && b.soul.version === 1) {
       b.soul.version = 2;
       const last = s.lastHunt;
-      if (last?.rank === 60 && last.chestId && last.bladeCombat) markArmor(b, last);
+      if (last?.rank === 60 && last.encounterVersion!==1 && last.chestId && last.bladeCombat) markArmor(b, last);
     }
     if (!b.soul.first && (b.items.some((i) => i.level === 20) || b.armors?.some((i) => i.level === 20)))
       b.soul.first = true;
@@ -100,12 +100,13 @@ const BladeEndgame = (() => {
   function victory(s, h) {
     if (h.rank !== 60) return "";
     const b = blades.state(s),
-      item = b.items.find((i) => i.id === h.bladeId);
-    if (!item || !owns(transform, h.bladeCombat?.style)) return "";
+      item = b.items.find((i) => i.id === h.bladeId) || (h.encounterVersion===1 &&
+        [s.weapon,...s.bag,...s.field].find(i=>i.recordId && "j:"+i.recordId===h.bladeId));
+    if ((!item && h.encounterVersion!==1) || !owns(transform, h.bladeCombat?.style)) return "";
     const family = bossFamily(h);
     markArmor(b, h);
     const style = h.bladeCombat.style;
-    (item.proofs ??= {})[style] = (item.proofs?.[style] || 0) | (1 << family);
+    if (item) (item.proofs ??= {})[style] = (item.proofs?.[style] || 0) | (1 << family);
     record(s).bossSeals[family]++;
     return " · " + ["황금엄니", "잿불 무리어미", "안개 비늘용", "천년 고목왕"][family] + " 초월 인장 +1";
   }

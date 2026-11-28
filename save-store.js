@@ -124,6 +124,7 @@ const SaveStore = (() => {
   }
   // Format 9 marks exploration state; earlier builds compute at most 8 and reject it as future.
   function saveFormat(state) {
+    if (state?.monsterHunt !== undefined) return 15;
     if (state?._save?.format === 14 || state?.hunt?.bladeCombat?.affix?.live) return 14;
     if (state?.affixWallet) {
       const hasLive = item => Array.isArray(item?.mods) && item.mods.some(m=>game.affixes.defs[m?.key]?.live);
@@ -147,25 +148,60 @@ const SaveStore = (() => {
     if (forge?.soul?.version===1) return 3;
     return forge?.version===1 ? 2 : 1;
   }
+  const stage = value => Number.isSafeInteger(value) && value >= 1;
+  const modernHunt = value => value?.encounterVersion === 1;
+  function validEncounterSnapshot(value) {
+    const rank = value?.rank ?? value?.sourceStage;
+    const snapshot = { ...value, rank, wave: value?.wave ?? value?.encounters?.length - 1 };
+    if (!modernHunt(value) || !stage(rank) ||
+        !game.monsters?.validEncounters(snapshot, game.trail.region(rank).pack) || !Array.isArray(value.escapedWaves) ||
+        value.escapedWaves.length > 1 || new Set(value.escapedWaves).size !== value.escapedWaves.length) return false;
+    return value.escapedWaves.every(wave => Number.isInteger(wave) && wave >= 0 && wave < value.encounters.length &&
+      value.encounters[wave].kind === "goblin");
+  }
+  function validDropOrigin(drop, receipt) {
+    if (!modernHunt(receipt)) return true;
+    if (drop.sourceStage !== receipt.sourceStage || (drop.entryId !== undefined && drop.entryId !== receipt.entryId)) return false;
+    if (drop.source === "gift") return receipt.sourceStage === 1 && drop.sourceWave === undefined;
+    return Number.isInteger(drop.sourceWave) && drop.sourceWave >= 0 && drop.sourceWave < receipt.encounters.length &&
+      !receipt.escapedWaves.includes(drop.sourceWave);
+  }
+  function validModernReceipt(receipt) {
+    return validEncounterSnapshot(receipt) && stage(receipt.sourceStage) && typeof receipt.entryId === "string" && !!receipt.entryId &&
+      (receipt.rank === undefined || receipt.rank === receipt.sourceStage);
+  }
+  function validOutfitDrops(receipt, outfit) {
+    if (receipt.outfitDrops === undefined) return true;
+    return modernHunt(receipt) && !!outfit && receipt.outfitDrop === undefined &&
+      Array.isArray(receipt.outfitDrops) && receipt.outfitDrops.length <= 3 &&
+      new Set(receipt.outfitDrops.map(drop => drop?.id)).size === receipt.outfitDrops.length &&
+      receipt.outfitDrops.every(drop => game.outfit.validItem(drop, outfit.serial) && drop.level === 0 && validDropOrigin(drop, receipt));
+  }
   function validGearDrops(result) {
     const drops = result.gearDrops;
-    return validEmberDrops(result.emberDrops) && Array.isArray(drops) && drops.length <= 2 && typeof result.materialPrize === "string" &&
+    const modern = modernHunt(result);
+    return (!modern || validModernReceipt(result)) && validEmberDrops(result.emberDrops, result) && Array.isArray(drops) &&
+      drops.length <= (modern ? 6 : 2) && typeof result.materialPrize === "string" &&
       drops.every(d => d && ["weapon","armor"].includes(d.type) && typeof d.id === "string" &&
         (d.weaponKind === undefined || (d.type === "weapon" && game.blades.weaponKinds.includes(d.weaponKind))) &&
         (d.type === "armor" ? /^a[1-9]\d*$/ : /^b[1-9]\d*$/).test(d.id) && Number.isInteger(d.base) &&
         d.base > 0 && d.base < game.blades.bases.length && [0,1,2,3].includes(d.grade) && Number.isInteger(d.lines) &&
-        (d.affixVersion===1 ? d.lines>=0 && d.lines<=6 : d.lines >= game.blades.baseGradeRules[d.grade].min && d.lines <= game.blades.baseGradeRules[d.grade].max)) &&
-      new Set(drops.map(d => d.type)).size === drops.length;
+        (d.affixVersion===1 ? d.lines>=0 && d.lines<=6 : d.lines >= game.blades.baseGradeRules[d.grade].min && d.lines <= game.blades.baseGradeRules[d.grade].max) &&
+        (d.unique === undefined || (modern && d.unique === d.type && d.lines === 0 && d.affixVersion === 1)) && validDropOrigin(d, result)) &&
+      new Set(drops.map(d => modern ? d.id : d.type)).size === drops.length;
   }
-  function validEmberDrops(drops) {
+  function validEmberDrops(drops, receipt) {
     if (drops === undefined) return true; // Older receipts only have the material text.
-    if (!Array.isArray(drops) || !drops.length || drops.length > 5) return false;
+    const modern = modernHunt(receipt);
+    if (!Array.isArray(drops) || !drops.length || drops.length > (modern ? 7 : 5)) return false;
     const claimed = new Set();
-    let randomDrop = false;
+    const randomDrops = new Set();
     for (const drop of drops) {
       if (!object(drop) || !Number.isInteger(drop.n) || drop.n < 1 || drop.n > 10 || drop.count !== 1) return false;
-      if (drop.source === "hunt" && !randomDrop) randomDrop = true;
-      else if (drop.source === "milestone" && [1, 2, 3, 5].includes(drop.n) && !claimed.has(drop.n)) claimed.add(drop.n);
+      const wave = modern ? drop.sourceWave : 0;
+      if (drop.source === "hunt" && !randomDrops.has(wave) && (!modern || validDropOrigin(drop, receipt))) randomDrops.add(wave);
+      else if (drop.source === "milestone" && [1, 2, 3, 5].includes(drop.n) && !claimed.has(drop.n) &&
+          (!modern || drop.sourceWave === undefined)) claimed.add(drop.n);
       else return false;
     }
     return true;
@@ -175,21 +211,24 @@ const SaveStore = (() => {
     return chest.source === "forest" && object(loot) && validGearDrops(loot) && typeof loot.bladePrize === "string" &&
       (loot.firstGearChoice === undefined || (chest.rank === 1 && loot.firstGearChoice === true)) &&
       (loot.territoryRank === undefined || (chest.rank === 60 && [45,50,55,60].includes(loot.territoryRank))) &&
+      (!modernHunt(loot) || (loot.entryId === chest.entryId && loot.sourceStage === chest.rank)) &&
+      validOutfitDrops(loot, outfit) &&
       (loot.outfitDrop === undefined || (outfit && game.outfit.validItem(loot.outfitDrop,outfit.serial) && loot.outfitDrop.level === 0)) &&
       (loot.outfitSalvaged === undefined || (loot.outfitSalvaged === true && !loot.outfitDrop));
   }
   const count = n => Number.isSafeInteger(n) && n >= 0;
-  function validFoundChest(c, rank, entryId) {
+  function validFoundChest(c, rank, entryId, monsters = c?.exploration?.monsters === 1) {
     return object(c) && typeof c.id === "string" && !!c.id && c.source === "forest" && c.rank === rank &&
       [0,1,2].includes(c.tier) && count(c.base) && c.counter === 0 && count(c.extra) && count(c.gold) && count(c.shards) &&
       Array.isArray(c.charms) && c.charms.length === 3 && c.charms.every(count) && c.scrolls === 0 &&
-      c.materialRule === 1 && c.entryId === entryId && c.fiber === game.forestYield(rank);
+      c.materialRule === 1 && c.entryId === entryId && (monsters ? stage(rank) : rank <= 60) && c.fiber === game.forestYield(rank);
   }
   // The drawn event must be one this table can produce at this roll, with the region's own name.
   function validEvent(e, rank, kinds) {
     const rules = game.exploration;
     if (!object(e) || e.version !== 1 || !kinds.includes(e.kind) || typeof e.table !== "string" ||
-        !Object.hasOwn(rules.tables, e.table) || !Number.isInteger(rank) || rank < 1 || rank > 60) return false;
+        !Object.hasOwn(rules.tables, e.table) || !stage(rank) ||
+        (e.monsters === undefined ? rank > 60 : e.monsters !== 1)) return false;
     const range = rules.ranges(e.table)[e.kind];
     return !!range && Number.isInteger(e.roll) && e.roll >= range.lo && e.roll <= range.hi &&
       e.region === rules.region(rank) && e.name === rules.findName(e.kind, rank);
@@ -218,9 +257,9 @@ const SaveStore = (() => {
           h.hp !== h.maxHp || !object(h.blade) ||
           Object.keys(h).some(k => k.startsWith("enemy") || pendingForbidden.includes(k)) ||
           !validEvent(e, h.rank, ["cart"]) || !rules.cartTables.includes(e.table) ||
-          !rules.eligible({ explore: rules.version, combat: rules.combat, source: h.ticketSource, rank: h.rank, cleared: forge.cleared }) ||
+          !rules.eligible({ explore: rules.version, combat: rules.combat, source: h.ticketSource, rank: h.rank, cleared: forge.cleared, monsters: e.monsters }) ||
           (e.table.startsWith("first") ? h.rank !== forge.cleared + 1 : h.rank > forge.cleared) ||
-          !rules.validPlan(e.plan) || !validFoundChest(e.offer, h.rank, h.id) ||
+          !rules.validPlan(e.plan) || !validFoundChest(e.offer, h.rank, h.id, e.monsters === 1) ||
           e.offer.gold !== e.offer.base + e.offer.extra || e.saleGold !== e.offer.base ||
           ids.has(e.offer.id) || entries.has(h.id)) corrupt();
     }
@@ -240,7 +279,7 @@ const SaveStore = (() => {
     if (last?.exploration !== undefined) {
       const e = last.exploration, health = last.health;
       if (!validEntry(last.id) || !rules.sources.includes(last.ticketSource) || resultForbidden.some(k => last[k] !== undefined) ||
-          !validEvent(e, last.rank, ["treasure", "food", "cart"]) || last.rank % 5 === 0 || last.rank > forge.cleared ||
+          !validEvent(e, last.rank, ["treasure", "food", "cart"]) || (e.monsters !== 1 && last.rank % 5 === 0) || last.rank > forge.cleared ||
           (e.table.startsWith("first") && !(Array.isArray(data.huntRecord?.explored) && data.huntRecord.explored.includes(last.rank))) ||
           last.turns !== 0 || last.damageTaken !== 0 || last.ripostes !== 0 || last.bonus !== 0 || !count(last.reward) ||
           !object(health) || !Number.isSafeInteger(health.maxHp) || health.maxHp < 1 || health.hp !== health.maxHp ||
@@ -268,6 +307,19 @@ const SaveStore = (() => {
     let data;
     try { data = JSON.parse(raw); } catch { throw fault("corrupt"); }
     if (data?.heirloom !== undefined) throw fault("future");
+    const monsterMark = data?.monsterHunt;
+    if (monsterMark?.version > 1) throw fault("future");
+    if (monsterMark !== undefined && (!object(monsterMark) || monsterMark.version !== 1 || Object.keys(monsterMark).length !== 1))
+      throw fault("corrupt");
+    const hasMonsters = monsterMark !== undefined;
+    if (hasMonsters && (!Number.isSafeInteger(data.huntBest) || data.huntBest < 0)) throw fault("corrupt");
+    const allReceipts = [data?.hunt, data?.lastHunt, data?.lastChest, ...(Array.isArray(data?.chests) ? data.chests : [])];
+    if (allReceipts.some(value => value?.encounterVersion > 1 || value?.huntLoot?.encounterVersion > 1 || value?.exploration?.monsters > 1))
+      throw fault("future");
+    if (!hasMonsters && (data?.huntBest > 60 || data?.bladeForge?.cleared > 60 || data?.huntRecord?.version > 1 || allReceipts.some(value =>
+        value?.encounterVersion !== undefined || value?.encounters !== undefined || value?.enemyGrade !== undefined ||
+        value?.outfitDrops !== undefined || value?.exploration?.monsters !== undefined || value?.huntLoot?.encounterVersion !== undefined)))
+      throw fault("corrupt");
     const wallet=data?.affixWallet;
     if (wallet?.version>1) throw fault("future");
     if (wallet!==undefined && (!object(wallet) || wallet.version!==1 ||
@@ -308,6 +360,16 @@ const SaveStore = (() => {
     if (retry !== undefined && !["ready", "used"].includes(retry)) throw fault("corrupt");
     if (data?.lastHunt?.gearDrops !== undefined && !validGearDrops(data.lastHunt)) throw fault("corrupt");
     for (const h of [data?.hunt, data?.lastHunt]) {
+      if (h?.encounterVersion > 1) throw fault("future");
+      if (h?.encounterVersion !== undefined) {
+        if (!hasMonsters || !validEncounterSnapshot(h) || h.trailVersion !== 1 || h.diceVersion !== 3 ||
+            h.affixRules !== 1 || !Number.isInteger(h.wave) || h.wave < 0 || h.wave >= h.encounters.length ||
+            h.enemyKind !== h.encounters[h.wave].kind || h.enemyGrade !== h.encounters[h.wave].grade ||
+            h.escapedWaves.some(wave => wave > h.wave) ||
+            (h.challenge !== undefined && (!Number.isInteger(h.challenge) || h.challenge < 0 || h.challenge > 3 ||
+              h.rank !== 60 || data.bladeForge?.cleared < 60))) throw fault("corrupt");
+      } else if (h?.encounters !== undefined || h?.enemyGrade !== undefined || h?.escapedWaves !== undefined || h?.challenge !== undefined)
+        throw fault("corrupt");
       if (h?.bladeCombat?.affix!==undefined && (!wallet || !validAffixCombat(h.bladeCombat.affix))) throw fault("corrupt");
       if (h?.affixGearIds!==undefined && (!Array.isArray(h.affixGearIds) || h.affixRules!==1 ||
           h.affixGearIds.length>10 || h.affixGearIds.some(id=>typeof id!=="string") ||
@@ -315,7 +377,7 @@ const SaveStore = (() => {
       if (h?.strongestHit !== undefined) {
         const hit = h.strongestHit;
         if (!object(hit) || !h.bladeCombat || h.rank !== 5 ||
-            !game.trail.lineup(5, !!h.bonusEncounter).includes(hit.kind) ||
+            !(modernHunt(h) ? game.trail.pack(h) : game.trail.lineup(5, !!h.bonusEncounter)).includes(hit.kind) ||
             !(hit.skill === null || hit.skill === game.trail.enemy(5, hit.kind).skill) ||
             !Number.isSafeInteger(hit.taken) || hit.taken <= 0) throw fault("corrupt");
       }
@@ -343,10 +405,10 @@ const SaveStore = (() => {
           h.enemyKind === "goblin" || h.enemyHp !== h.enemyMax || game.trail.awaitingNext(h))) throw fault("corrupt");
       if ([2,3].includes(h?.diceVersion) && (h.trailVersion !== 1 || !object(h.bladeCombat))) throw fault("corrupt");
       if (timed && h === data.hunt && h.powerVersion !== 2) throw fault("corrupt");
-      const skillVersion = h?.powerVersion !== undefined ? 3 : h?.trailVersion === 1 ? 2 : 1;
+      const skillVersion = modernHunt(h) ? 4 : h?.powerVersion !== undefined ? 3 : h?.trailVersion === 1 ? 2 : 1;
       if (h?.skillVersion > skillVersion) throw fault("future");
       if (h?.trailVersion !== undefined) {
-        if (h.trailVersion !== 1 || ![1,2,3].includes(h.diceVersion) || !Number.isInteger(h.rank) || h.rank < 1 || h.rank > 60 ||
+        if (h.trailVersion !== 1 || ![1,2,3].includes(h.diceVersion) || !stage(h.rank) || (!modernHunt(h) && h.rank > 60) ||
             typeof h.bonusEncounter !== "boolean" || !Number.isInteger(h.wave)) throw fault("corrupt");
         if (h.territoryRank!==undefined && (!h.bladeCombat || h.rank!==60 || ![45,50,55,60].includes(h.territoryRank))) throw fault("corrupt");
         if (h.bladeCombat && (!data.bladeForge || !Object.hasOwn(game.blades.styles,h.bladeCombat.style) ||
@@ -357,7 +419,7 @@ const SaveStore = (() => {
             (h.armorId!==undefined && (typeof h.armorId!=="string" || !/^a[1-9]\d*$/.test(h.armorId) || (h===data.hunt && !data.bladeForge.armors?.some(i=>i.id===h.armorId)))) ||
             (h===data.hunt && !data.bladeForge.items.some(i=>i.id===h.bladeId) && !(h.bladeId?.startsWith("j:") && [data.weapon,...data.bag,...data.field].some(i=>"j:"+i.recordId===h.bladeId))) ||
             !Number.isInteger(h.wounds) || h.wounds<0 || h.wounds>(timed ? h.bladeCombat.ruptureAt + 1 : 4))) throw fault("corrupt");
-        const pack = game.trail.lineup(h.territoryRank || h.rank, h.bonusEncounter);
+        const pack = modernHunt(h) ? game.trail.pack(h) : game.trail.lineup(h.territoryRank || h.rank, h.bonusEncounter);
         if (h.wave < 0 || h.wave >= pack.length || pack[h.wave] !== h.enemyKind) throw fault("corrupt");
         if (h === data.hunt) {
           if (h.skillVersion !== skillVersion || (timed ? !validTimedHunt(h) : !Number.isInteger(h.waveTurn) || h.waveTurn < 1 || h.waveTurn > 40) ||
@@ -386,6 +448,7 @@ const SaveStore = (() => {
     const result=data?.lastHunt;
     // Battles prove an outfit drop with fieldKit+chestId; exploration finds prove it with their receipt.
     const outfitReceipt = !!result && (result.exploration !== undefined ? !!result.receiptId : !!result.fieldKit && !!result.chestId);
+    if (result?.outfitDrops !== undefined && (!outfitReceipt || !validOutfitDrops(result, outfit))) throw fault("corrupt");
     if (result?.outfitDrop!==undefined && (!outfit || !outfitReceipt ||
         !game.outfit.validItem(result.outfitDrop,outfit.serial) || result.outfitDrop.level!==0)) throw fault("corrupt");
     if (result?.outfitSalvaged!==undefined && (result.outfitSalvaged!==true || !outfitReceipt || result.outfitDrop)) throw fault("corrupt");
@@ -464,7 +527,7 @@ const SaveStore = (() => {
       if (w.serial === 0 ? w.lastStart !== null :
           !object(w.lastStart) || w.lastStart.request !== w.serial ||
           w.lastStart.id !== w.id + "-" + w.serial ||
-          !Number.isInteger(w.lastStart.rank) || w.lastStart.rank < 1 || w.lastStart.rank > 60 ||
+          !stage(w.lastStart.rank) || (!hasMonsters && w.lastStart.rank > 60) ||
           !(["free", "purchased"].includes(w.lastStart.source) ||
             (w.lastStart.source === "retry" && w.lastStart.rank === 5 &&
               (retry === "used" || previousJourneyRetry)))) throw fault("corrupt");
@@ -479,7 +542,7 @@ const SaveStore = (() => {
     const cache = data.artisanCache;
     if (cache !== undefined) {
       if (!object(cache) || Object.keys(cache).length !== 4 || cache.version !== 1 || !validEntry(cache.id) || !data.hunting.exploration ||
-          !Number.isInteger(cache.rank) || cache.rank < 1 || cache.rank > 60 || cache.rank % 5 === 0 ||
+          !stage(cache.rank) || (!hasMonsters && (cache.rank > 60 || cache.rank % 5 === 0)) ||
           !["pending", "claimed", "passed", "spent"].includes(cache.status)) throw fault("corrupt");
       if (cache.status === "pending" && (h || data.hunting.lastStart?.id !== cache.id ||
           data.hunting.lastStart.rank !== cache.rank || !game.exploration.sources.includes(data.hunting.lastStart.source) ||
@@ -494,14 +557,19 @@ const SaveStore = (() => {
     for (const c of [...(data.chests || []), ...(data.lastChest ? [data.lastChest] : [])]) {
       if (!object(c)) throw fault("corrupt");
       if (c.huntLoot !== undefined && !validHuntLoot(c, outfit)) throw fault("corrupt");
+      if (modernHunt(c.huntLoot) && (!hasMonsters || !validEntry(c.huntLoot.entryId) ||
+          !Number.isSafeInteger(c.fiber) || c.fiber < 0 || c.fiber % game.forestYield(c.rank) !== 0 ||
+          c.fiber > (c.huntLoot.encounters.length - c.huntLoot.escapedWaves.length) * game.forestYield(c.rank))) throw fault("corrupt");
       if (c.materialRule > 1) throw fault("future");
       if (c.id !== undefined) {
         if (ids.has(c.id)) throw fault("corrupt");
         ids.add(c.id);
       }
       if (c.materialRule === undefined && c.fiber === undefined && c.entryId === undefined) continue;
-      if (data.version !== 2 || c.materialRule !== 1 || c.source !== "forest" || !Number.isInteger(c.rank) ||
-          c.rank < 1 || c.rank > 60 || c.fiber !== game.forestYield(c.rank) || !validEntry(c.entryId) ||
+      const monsterChest = modernHunt(c.huntLoot);
+      const monsterFind = c.exploration?.monsters === 1;
+      if (data.version !== 2 || c.materialRule !== 1 || c.source !== "forest" || !stage(c.rank) ||
+          (!(monsterChest || monsterFind) && c.rank > 60) || (!monsterChest && c.fiber !== game.forestYield(c.rank)) || !validEntry(c.entryId) ||
           typeof c.id !== "string" || !c.id || entries.has(c.entryId) ||
           (data.lastHunt?.chestId === c.id && (data.lastHunt.id !== c.entryId || data.lastHunt.rank !== c.rank))) throw fault("corrupt");
       entries.add(c.entryId);

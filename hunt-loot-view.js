@@ -29,7 +29,7 @@ const HuntLootView = (() => {
   }
 
   function drops(result) {
-    return [...(result.gearDrops || []), ...(result.outfitDrop ? [result.outfitDrop] : [])];
+    return [...(result.gearDrops || []), ...(result.outfitDrops || (result.outfitDrop ? [result.outfitDrop] : []))];
   }
 
   function select(s, id, source) {
@@ -71,12 +71,12 @@ const HuntLootView = (() => {
       !Array.isArray(result.gearDrops) && result.bladePrize,
       result.materialPrize,
       result.outfitSalvaged && "착용 장비 자동 분해 · 각인석 +1",
-      chest.fiber && "숲결 섬유 +"+fmt(chest.fiber),
+      chest.fiber && "숲결 섬유 · 보통 +"+fmt(chest.fiber),
       chest.goblinGold && "고블린 +"+fmt(chest.goblinGold)+" G 포함",
       chest.exploration?.saleGold && "금속 판매 +"+fmt(chest.exploration.saleGold)+" G 포함",
-      chest.shards && "별의 파편 +"+fmt(chest.shards),
+      chest.shards && "별의 파편 · 희귀 +"+fmt(chest.shards),
       chest.scrolls && "주문서 +"+fmt(chest.scrolls),
-      ...(chest.charms || []).map((n,i) => n && Game.blessings[i]+" +"+fmt(n)),
+      ...(chest.charms || []).map((n,i) => n && Game.blessings[i]+" · "+["희귀","매우 희귀","최희귀"][i]+" +"+fmt(n)),
     ].filter(Boolean);
     return EmberView.loot(receipt,detailed) + (equipment ? '<div class="loot-gear-list">'+equipment+'</div>' : '')+
       (materials.length || chest.counter ? '<div class="loot-materials">'+materials.map(text => '<span>'+escapeHtml(text)+'</span>').join("")+

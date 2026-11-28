@@ -281,6 +281,11 @@ const BladeRules = (() => {
     [60, 125, 290, 31, 11000],
   ];
   function area(rank) {
+    if (!Number.isSafeInteger(rank) || rank<1) throw RangeError("Invalid hunting stage");
+    if (rank>60) {
+      const x=Math.log2(1+(rank-60)/20);
+      return {rank,attack:125,enemyHp:Math.round(290*(1+.35*x)),enemyAttack:Math.round(31*(1+.20*x)),g:Math.round(11000*(1+.15*x))};
+    }
     const i = anchors.findIndex((row) => rank <= row[0]),
       hi = anchors[i],
       lo = anchors[Math.max(0, i - 1)];
@@ -337,7 +342,7 @@ const BladeRules = (() => {
     return {gearDrops,materialPrize:[materialPrize,...overflow].join(" · ")};
   }
   // Forest victories and exploration share one roll. Overflow converts only the incoming item.
-  function rollGear(s, rank, territoryRank, rng, types, firstWeaponChoice, itemPercent = 100, newAffixes = false, overflow = []) {
+  function rollGear(s, rank, territoryRank, rng, types, firstWeaponChoice, itemPercent = 100, newAffixes = false, overflow = [], options = {}) {
     const b = state(s);
     const base = 1 + Math.floor(((territoryRank || rank) - 1) / 5);
     const rolled=[];
@@ -349,9 +354,9 @@ const BladeRules = (() => {
       const item=blade(id,base,rank);
       if (isArmor) item.type="armor";
       item.lootVersion=1;
-      item.grade=loot.rollGrade(rank,rng);
+      item.grade=loot.rollGrade(rank,rng,!options.monsterRules);
       const rule=loot.baseGradeRules[item.grade];
-      if (newAffixes) affixes.generateDrop(item,rng);
+      if (newAffixes) affixes.generateDrop(item,rng,options.rarity);
       else {
         const count=integer(rule.min,rule.max,rng);
         for (let i=0;i<count;i++) addMod(item,null,rng);
@@ -371,7 +376,8 @@ const BladeRules = (() => {
       }
       rack.push(item);
       gearDrops.push({id:item.id,type,base,grade:item.grade,lines:item.mods.length,
-        ...(item.weaponKind?{weaponKind:item.weaponKind}:{}),...(newAffixes?{affixVersion:1}:{})});
+        ...(item.weaponKind?{weaponKind:item.weaponKind}:{}),...(newAffixes?{affixVersion:1}:{}),
+        ...(item.unique?{unique:item.unique}:{}),...options.source});
     }
     return gearDrops;
   }
@@ -515,7 +521,6 @@ const BladeRules = (() => {
       !nat(b.serial) ||
       !nat(b.ore) ||
       !nat(b.cleared) ||
-      b.cleared > 60 ||
       !nat(b.master) ||
       b.master > 3 ||
       !Object.hasOwn(styles, b.style) ||

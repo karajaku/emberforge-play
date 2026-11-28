@@ -49,9 +49,11 @@ const ExplorationRules = (() => {
   function protectedStage(rank, cleared) {
     return rank % 5 === 0 || (rank > cleared && rank % 5 === 1);
   }
-  function eligible({ explore, combat: model, source, rank, cleared }) {
+  function eligible({ explore, combat: model, source, rank, cleared, monsters, challenge }) {
     return explore === version && combats.includes(model) && sources.includes(source) &&
-      validRank(rank) && Number.isInteger(cleared) && rank <= cleared + 1 && !protectedStage(rank, cleared);
+      (monsters===1 ? Number.isSafeInteger(rank) && rank>=1 : validRank(rank)) &&
+      Number.isSafeInteger(cleared) && rank <= cleared + 1 &&
+      (monsters===1 ? challenge===undefined && !(rank===1 && cleared===0) : !protectedStage(rank, cleared));
   }
   function tableKey(stagePhase, foodOK, cooling) {
     const key = foodOK ? (cooling ? "cooldown" : "base") : (cooling ? "noFoodCooldown" : "noFood");
@@ -119,9 +121,9 @@ const ExplorationRules = (() => {
   }
 
   function validRecord(record, cleared) {
-    if (!object(record) || record.version !== 1 || !Array.isArray(record.explored) ||
+    if (!object(record) || ![1,2].includes(record.version) || !Array.isArray(record.explored) ||
         record.explored.length > recordLimit || !Number.isInteger(cleared)) return false;
-    return record.explored.every((rank, i) => Number.isInteger(rank) && [2, 3, 4].includes(rank % 5) &&
+    return record.explored.every((rank, i) => Number.isSafeInteger(rank) && (record.version===2 || [2, 3, 4].includes(rank % 5)) &&
       rank >= 1 && rank <= cleared && (i === 0 || rank > record.explored[i - 1]));
   }
 

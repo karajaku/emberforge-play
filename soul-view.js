@@ -104,7 +104,7 @@ const SoulView = (() => {
       return ["초월 "+kind(item),line("완성한 장비",identity(item))+line("초월",def.name)+desc(def.detail)];
     }
     const def=defs[style], m=def && item.mods.find(m=>m.key===def.key && !m.ascended);
-    if(!def) return ["초월 공정",line("대상 "+kind(item),identity(item)) + desc(armor(item)?"이 흉갑을 착용한 채 60단계 우두머리를 잡으세요. 같은 우두머리의 인장 3개로 접두 한 줄을 바꿉니다.":"이 무기에 맞는 검술을 장착하고 60단계 우두머리를 잡으세요. 초월에는 같은 우두머리의 인장 3개가 필요합니다.") +
+    if(!def) return ["초월 공정",line("대상 "+kind(item),identity(item)) + desc(armor(item)?"이 흉갑을 착용한 채 60단계 이상 우두머리를 잡으세요. 사냥 구역에서 지정 우두머리 재도전도 가능합니다. 같은 우두머리의 인장 3개로 접두 한 줄을 바꿉니다.":"이 무기에 맞는 검술을 장착하고 60단계 이상 우두머리를 잡으세요. 사냥 구역에서 지정 우두머리 재도전도 가능합니다. 초월에는 같은 우두머리의 인장 3개가 필요합니다.") +
       Object.entries(defs).map(([key,d])=>row((armor(item)?AffixView.compatibility(d.key).name:Game.blades.styles[key])+" · "+d.name,d.detail,open("ascend:"+item.id+":"+key,"조건","mini"))).join("")];
     const mask=(armor(item) ? item.bossProofs : item.proofs?.[style]) || 0;
     const condition = armor(item) ? "이 흉갑으로" : "이 검술로";

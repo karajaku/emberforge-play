@@ -158,30 +158,22 @@ const BladeView = (() => {
       '<button class="action" data-archive-blade="armor">기록 방어구 대장간</button>'];
   }
   function lootPreview(s, rank) {
-    const b=rules();
-    if (!Number.isInteger(rank) || rank<1 || rank>60) rank=1;
-    const odds=Game.huntGearOdds(s,rank);
-    const {grades}=b.dropOdds(rank);
-    const percent=value=>Number(value.toFixed(5))+"%";
-    const first=b.state(s).cleared<rank;
-    const stageText=rank%5===0
-      ? (first ? "우두머리 첫 승리" : "우두머리 반복 승리")
-      : first && rank%5===1 ? "구간 첫 승리" : "일반 승리";
-    const count=odds.min===odds.max ? odds.min+"개" : odds.min+"~"+odds.max+"개";
-    const opts=Array.from({length:60},(_,i)=>'<option value="'+(i+1)+'"'+(i+1===rank?' selected':'')+'>'+(i+1)+'단계</option>').join("");
-    const chances=[odds.weapon,odds.armor,odds.outfit];
-    const table='<table class="loot-table"><caption>승리 한 번 · 부위별 확률</caption><thead><tr><th>베이스 등급</th><th>무기</th><th>흉갑</th><th>속성 장비</th></tr></thead><tbody>'+
-      grades.map((p,i)=>'<tr><th scope="row">'+b.baseGradeNames[i]+'</th>'+
-        chances.map(chance=>'<td>'+percent(p*chance/100)+'</td>').join("")+'</tr>').join("")+'</tbody></table>';
-    const affixes='<details class="loot-rules"><summary>베이스별 접두·접미</summary><table class="loot-table"><thead><tr><th>베이스 등급</th><th>획득 시</th><th>최대 접두 / 접미</th></tr></thead><tbody>'+
-      b.baseGradeRules.map((r,i)=>'<tr><th scope="row">'+b.baseGradeNames[i]+'</th><td>'+r.min+'~'+r.max+'줄</td><td>'+r.caps.join(' / ')+'</td></tr>').join("")+'</tbody></table>'+
-      desc("접두·접미가 0개면 일반 장비입니다. 1~3개인 매직 장비는 이름과 테두리가 하늘색이고, 4~6개인 레어 장비는 금색입니다. 높은 단계에서는 한 줄의 수치 등급도 높아질 수 있습니다.")+'</details>';
-    return ["장비 획득 확률",'<label for="lootRank">사냥 단계</label><select id="lootRank">'+opts+'</select>'+
-      line(stageText+" · 장비",count) +
-      line("무기",percent(odds.weapon)) + line("흉갑",percent(odds.armor)) + line("속성 장비",percent(odds.outfit)) +
-      (odds.outfitSalvaged ? line("속성 장비 대신 각인석",percent(odds.outfitSalvaged)) : "") + table +
-      desc("1단계 첫 승리에는 도끼·철퇴·단검 중 하나를 얻습니다. 이후 무기가 떨어지면 한손검·도끼·철퇴·단검이 각각 25%입니다.") +
-      openBtn("outfit:enemy:" + rank + ":" + Game.trail.lineup(rank,false)[0],"이 단계의 적 저항") + affixes];
+    if (!Number.isSafeInteger(rank) || rank<1) rank=1;
+    const m=Game.monsters, percent=n=>Number(n.toFixed(5))+'%', keys=Object.keys(m.grades);
+    const head='<thead><tr><th>적 등급</th>'+keys.map(k=>'<th>'+m.grades[k].name+'</th>').join('')+'</tr></thead>';
+    const row=(name,values)=>'<tr><th scope="row">'+name+'</th>'+values.map(v=>'<td>'+v+'</td>').join('')+'</tr>';
+    const rates=label=>keys.map(k=>percent(m.grades[k][label]));
+    const table='<table class="loot-table"><caption>적 1마리 처치당 지급률</caption>'+head+'<tbody>'+row('주 조우 등장률',rates('chance'))+row('장비 1개',rates('gear'))+row('불씨 1개',rates('ember'))+row('각인석 · 보통',keys.map(k=>percent(m.grades[k].ore)+' · '+m.grades[k].oreCount+'개'))+row('섬유 · 보통',rates('fiber'))+row('파편 · 희귀',rates('shards'))+row('가호 1개',rates('charm'))+'</tbody></table>';
+    const rarities='<table class="loot-table"><caption>장비가 나왔을 때 · 희귀도 조건부 확률</caption>'+head+'<tbody>'+['일반','매직','레어','유니크'].map((name,i)=>row(name,keys.map(k=>percent(m.grades[k].rarities[i])))).join('')+'</tbody></table>';
+    const embers='<table class="loot-table"><caption>처치당 개별 불씨 지급률</caption>'+head+'<tbody>'+Game.affixes.currency.map((name,i)=>row(name+' · '+m.emberRarity(i+1).name,keys.map(k=>{const weights=m.emberWeights(k);return percent(m.grades[k].ember*weights[i]/weights.reduce((a,b)=>a+b,0));}))).join('')+'</tbody></table>';
+    const materialNames=m.materialRarities;
+    return ['몬스터 등급별 획득 확률','<label for="lootRank">사냥 단계</label><input id="lootRank" type="number" inputmode="numeric" min="1" max="'+Number.MAX_SAFE_INTEGER+'" step="1" value="'+rank+'">'+
+      desc('다음 새 출발 기준입니다. 주 조우 2회는 각각 독립 추첨하며, 우두머리는 네 종류가 각각 25%입니다. 레어 고블린 15%는 별도 추가 조우입니다. 재접속해도 상대는 바뀌지 않습니다.')+table+rarities+
+      desc('장비가 나오면 무기 35% · 흉갑 30% · 기타 35%이며 기타 7부위는 균등합니다. 일반 0줄, 매직 1~3줄, 레어 4~6줄이며 유니크는 고유 효과를 가집니다. 장비 생성레벨은 60까지이고, 획득 단계는 별도로 남습니다.')+
+      '<details class="loot-rules"><summary>불씨별 고유 희귀도와 지급률</summary>'+embers+'</details>'+
+      '<details class="loot-rules"><summary>재료 · 가호 · 인장</summary>'+desc('섬유 수량은 이 단계에서 '+Game.forestYield(Math.min(60,rank))+'개입니다. 가호가 나왔을 때 정령 60% · 대장장이 30% · 신 10%입니다.')+
+      line('정령 가호',materialNames.spirit)+line('대장장이 가호',materialNames.smith)+line('신 가호',materialNames.god)+line('우두머리 인장',materialNames.seal+' · 실제 우두머리 처치당 1개')+line('초월 인장',materialNames.ascensionSeal+' · 60단계 이상 실제 우두머리 처치당 해당 종류 1개')+'</details>'+
+      desc('단계 전체를 승리해야 처치별 전리품을 합산해 한 번 받습니다. 패배·퇴각과 달아난 고블린은 전리품을 주지 않습니다. 첫 1단계 장비와 첫 1·2·3·5단계 불씨는 별도 학습 선물입니다. 보물함·수레는 이 전투 드롭표와 다른 획득처입니다. 우두머리 재도전은 일반 2회와 선택한 우두머리 1회이며 단계 진척은 없습니다. 이전 저장의 진행 중 전투는 당시 규칙으로 끝납니다.')];
   }
   function styles(s) {
     const b = rules(), st=b.skills(s), chosen=b.state(s).style, hints=styleHints(st.ruptureAt ?? 3);

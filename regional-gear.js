@@ -139,15 +139,16 @@ const RegionalGear = (() => {
       return {outfitSalvaged:true};
     }
     const rank = h.territoryRank || h.rank;
+    const level = h.encounterVersion===1 || h.monsters===1 ? Math.min(60,h.rank) : h.rank;
     const weak = preferredElement(rank);
     const pick = keys => keys[blades.integer(0,keys.length-1,rng)];
     const element = first || rng()<.35 ? weak : pick(elementKeys);
     const item = {id:"g"+(++kit.serial),kind:first ? "ring" : pick(Object.keys(kinds)),element,
-      mode:first || rng()<.6 ? "infuse" : "expose",rank:h.rank,base:1+Math.floor((rank-1)/5),
-      grade:blades.rollGrade(h.rank,rng),level:0};
-    if (h.affixRules===1) affixes.generateDrop(item,rng);
+      mode:first || rng()<.6 ? "infuse" : "expose",rank:level,base:1+Math.floor((Math.min(60,rank)-1)/5),
+      grade:blades.rollGrade(level,rng,!(h.encounterVersion===1 || h.monsters===1)),level:0};
+    if (h.affixRules===1) affixes.generateDrop(item,rng,h.dropRarity);
     kit.items.push(item);
-    return {outfitDrop:{...item}};
+    return {outfitDrop:{...item,...h.dropSource}};
   }
   function act(s, action, arg, rng, pay) {
     const kit = state(s);

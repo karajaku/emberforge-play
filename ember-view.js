@@ -58,7 +58,7 @@ const EmberView = (() => {
             art(drop.n, detailed || drops.length > 1 ? 64 : 96) +
             "<span><b>" +
             escapeHtml(Game.affixes.currency[drop.n - 1]) +
-            "</b><strong>×" +
+            "</b><small class=\"ember-rarity\">" + Game.monsters.emberRarity(drop.n).name + "</small><strong>×" +
             fmt(drop.count) +
             "</strong>" +
             (detailed
@@ -66,7 +66,7 @@ const EmberView = (() => {
                 [...drop.sources]
                   .map(
                     (source) =>
-                      (source === "milestone" ? "첫 토벌 지급 " : "사냥 발견 ") +
+                      (["milestone","gift"].includes(source) ? "학습 선물 " : "사냥 발견 ") +
                       fmt(drop.sourceCounts[source]) +
                       "개",
                   )
