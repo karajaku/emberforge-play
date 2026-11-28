@@ -61,13 +61,20 @@ const AttackSpeedCombat = (() => {
     h.lastStrikes = { player: null, enemy: null };
     delete h.ended;
   }
+  function scheduledInterval(h, hp = h.hp) {
+    const st = h.bladeCombat;
+    const lowHaste = st.affix?.applied.SN105;
+    if (!lowHaste || hp > h.maxHp / 2) return h.interval;
+    const percent = Math.min(hasteCap, (st.mods.haste || 0) + lowHaste);
+    return Math.max(minInterval, Math.round((st.hitScale || 1) * baseInterval / (1 + percent / 100)));
+  }
   // Put a freshly started forest hunt (HuntTrail.enter already ran for wave 0) on the rule clock.
   function begin(h, bind = bound(h)) {
     h.diceVersion = diceVersion;
     h.interval = bind.interval;
     h.enemyInterval = enemyInterval;
     h.bladeCombat = { ...h.bladeCombat, hitScale: bind.hitScale };
-    const first = Math.round(h.interval / 2);
+    const first = Math.round(scheduledInterval(h) / 2);
     h.skillReady = { heavyStrike: first, counter: first }; // no cooldown: ready at the first attack
     schedule(h, first);
     return h;
@@ -82,9 +89,9 @@ const AttackSpeedCombat = (() => {
       h.interval = bind.interval;
       return h;
     }
-    const first = Math.round(bind.interval / 2), shift = first - h.playerAt;
     h.interval = bind.interval;
     h.bladeCombat = { ...h.bladeCombat, hitScale: bind.hitScale };
+    const first = Math.round(scheduledInterval(h) / 2), shift = first - h.playerAt;
     h.skillReady = { heavyStrike: h.skillReady.heavyStrike + shift, counter: h.skillReady.counter + shift };
     h.playerAt = first;
     return h;
@@ -94,8 +101,9 @@ const AttackSpeedCombat = (() => {
   // lands on the new clock as if the first attack came one interval after the last one.
   function advance(h) {
     if ((h.ended !== "enemy" && h.ended !== "escape") || !hasNext(h)) throw Error("No encounter follows");
-    const last = h.lastAttackAt, first = Math.round(h.interval / 2);
-    const carry = ready => first + (ready - last - h.interval);
+    const interval = scheduledInterval(h);
+    const last = h.lastAttackAt, first = Math.round(interval / 2);
+    const carry = ready => first + (ready - last - interval);
     trail.enter(h, h.wave + 1);
     h.skillReady = { heavyStrike: carry(h.skillReady.heavyStrike), counter: carry(h.skillReady.counter) };
     schedule(h, first);
@@ -122,7 +130,7 @@ const AttackSpeedCombat = (() => {
   }
 
   // Element resistance of the opponent against the worn kit: fixed for the whole encounter.
-  const elementalOf = h => (h.fieldKit ? outfit.multiplier(outfit.profile(h.territoryRank || h.rank, h.enemyKind), h.fieldKit) : 1);
+  const elementalOf = h => outfit.damageProfile(h);
 
   // The first half of the shipped d20 turn, in the same order and with the same random draws.
   function playerAttack(h, at, rng, rules, elemental = elementalOf(h)) {
@@ -156,7 +164,7 @@ const AttackSpeedCombat = (() => {
       counter = false;
     } else if (st.style === "wound" && wounds >= ruptureAt) {
       skill = "rupture";
-      raw = st.attack + st.rupture * layers(wounds);
+      raw = st.attack * (1+Math.min(120,st.affix?.live?.PN12||0)/100) + st.rupture * layers(wounds);
       if (ascended && !ruptured) raw *= .75;
     } else if (st.style === "heavy" && momentum >= 2 && usable("heavyStrike")) {
       skill = "heavyStrike";
@@ -193,11 +201,13 @@ const AttackSpeedCombat = (() => {
         const rolled = st.minDamage + Math.min(st.maxDamage - st.minDamage, Math.floor(rng() * (st.maxDamage - st.minDamage + 1)));
         raw *= rolled / st.attack;
       }
-      if (check.outcome === "hit") critical = rng() * 100 < (skill ? st.critChance : Math.min(50,st.critChance+(st.affix?.critBonus||0)));
+      if (check.outcome === "hit") critical = rng() * 100 < af.critChance(h,skill);
     }
     raw *= af.attackFactor(h,skill);
     if (critical) {
-      raw *= st.affix?.critScale ?? 1.5;
+      raw *= af.critMultiplier(h);
+      if (landed && !skill && st.style==="wound" && st.affix?.live?.SN106 && rng()*100<Math.min(100,st.affix.live.SN106))
+        wounds = Math.min(ruptureAt+1,wounds+1);
       check.outcome = "critical";
     }
     const blocked = partial ? (st.blockedDamagePercent ?? 25) / 100 : 1;
@@ -205,23 +215,26 @@ const AttackSpeedCombat = (() => {
     const mode = rules.skillHitScale;
     const scale = !skill || mode === true || hitScale === 1 ? hitScale :
       mode === "strike" && skillBase > 0 ? (skillBase - st.strike + st.strike * hitScale) / skillBase : 1;
-    const damage = Math.min(h.enemyHp, Math.round(raw * elemental * blocked * scale) + bleed);
+    const hit = af.directHit(raw,blocked*scale,landed,elemental,h.enemyHp);
+    const damage = Math.min(h.enemyHp, hit.damage + bleed);
     const defeated = damage >= h.enemyHp;
-    let healed = 0;
+    let recovery = af.hitRecovery(h,hit,landed);
     if (defeated) {
       let percent = mods.recovery || 0;
       if (st.armorAscension === "vitality") percent += h.hp <= h.maxHp / 2 ? 10 : 4;
-      percent=af.cap(percent,st.affix?.killHeal||0,12);
-      healed = Math.min(h.maxHp - h.hp, Math.round(h.maxHp * percent / 100));
+      percent=af.cap(percent,af.killRecovery(h),12);
+      recovery += h.maxHp * percent / 100;
     }
+    const healed = af.heal(h,h.hp,recovery);
+    const nextInterval = scheduledInterval(h, h.hp + healed);
     const fortified = !!h.fortified || (skill === "counter" && (!!mods.fortify || (ascended && st.style === "counter")));
     return {
       event: { actor: "player", at, move: skill || "strike", check, damage, bleed, partial, critical, taken: 0, healed,
         guarded: false, defeated: defeated ? "enemy" : null },
       patch: { enemyHp: h.enemyHp - damage, hp: h.hp + healed, wounds, ruptured, momentum, counter,
-        ...(st.affix?.unique.includes("helm") ? {usedAffixSkill:!!(h.usedAffixSkill || skill)}:{}),
+        ...(st.affix?.unique.includes("helm") || st.affix?.live?.PN103 ? {usedAffixSkill:!!(h.usedAffixSkill || skill)}:{}),
         firstHit: h.firstHit !== false && !landed && !partial, fortified, skillReady: ready,
-        lastMove: skill || "strike", lastAttackAt: at, playerAt: at + h.interval,
+        lastMove: skill || "strike", lastAttackAt: at, playerAt: at + nextInterval,
         ...(skill === "counter" ? { ripostes: (h.ripostes || 0) + 1 } : {}),
         ...(defeated && h.enemyKind === "goblin" ? { goblinCaught: true } : {}),
         ...(defeated ? { ended: "enemy" } : {}) },
@@ -266,7 +279,7 @@ const AttackSpeedCombat = (() => {
     let percent = guarded ? mods.guard || 0 : 0;
     if (armorEffect === "bracing" && guarded) percent += 6;
     if (guarded && skill) percent=af.cap(percent,st.affix?.guardHeal||0,8);
-    const healed = taken < h.hp ? Math.min(h.maxHp - h.hp + taken, Math.round(h.maxHp * percent / 100)) : 0;
+    const healed = af.heal(h,h.hp-taken,h.maxHp*percent/100);
     const hp = Math.max(0, h.hp - taken + healed);
     return {
       event: { actor: "enemy", at, move: skill || "attack", check, damage: 0, bleed: 0, partial: false,
@@ -283,11 +296,15 @@ const AttackSpeedCombat = (() => {
   function step(h, rng = Math.random, rules = defaults, sample = null) {
     const next = upcoming(h);
     if (!next) throw Error("The encounter is over");
+    const seconds = Math.floor(next.at / 1000) - Math.floor(h.clock / 1000);
+    const regen = af.heal(h,h.hp,seconds * (h.bladeCombat.affix?.live?.SN09 || 0));
+    if (regen) h.hp += regen;
     const { event, patch } =
       next.actor === "player" ? playerAttack(h, next.at, rng, rules, sample ? sample.elemental : undefined) :
       next.actor === "enemy" ? enemyAttack(h, next.at, rng) :
       next.actor === "escape" ? { event: { actor: "escape", at: next.at, escaped: true, defeated: null }, patch: { ended: "escape" } } :
       { event: { actor: "limit", at: next.at, defeated: "player" }, patch: { hp: 0, ended: "player" } };
+    if (regen) event.healed = (event.healed || 0) + regen;
     Object.assign(h, patch);
     h.clock = next.at;
     h.events++;

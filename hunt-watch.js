@@ -233,7 +233,7 @@ const HuntWatch=(()=>{
         numbers = value(BladeView.hitMark(current),BladeView.hitMark(item))+' · 치명타 '+
           value(pct(worn.critChance),pct(stats.critChance));
       }
-      const mods = item.mods.map(m => b.modDefs[m.key].name+' +'+m.value+(m.key === 'plating' ? '%p' : '%'));
+      const mods = item.mods.map(m => escapeHtml(AffixView.summary(m,item)));
       return row(GearGradeView.colored(item,BladeView.label(item)), numbers+(mods.length ? '<br>'+mods.join(' · ') : ''),
         btn(armor ? 'bladeArmorEquip' : 'bladeEquip',equipped ? '장착 중' : '장착',item.id,'mini',equipped),'',BladeView.artwork(item));
     }).join('');
@@ -382,7 +382,7 @@ const HuntWatch=(()=>{
         key==='counter'?'방어 대기':'기세 '+(h.momentum??1)+' / 2';
       const filled=locked?0:s.cooldown>1?Math.max(0,def.cooldown-s.cooldown):def.cooldown;
       const label=def.name+' · '+status;
-      return '<span class="watch-skill" data-skill="'+key+'" data-ready="'+ready+'" data-state="'+(locked?'locked':ready?'ready':s.cooldown>1?'cooldown':'condition')+'" aria-label="'+label+'"><span class="watch-skill-heading">'+icon(def.icon)+'<b>'+def.name+'</b><em>'+status+'</em></span><span class="watch-skill-clock" aria-hidden="true">'+Array.from({length:def.cooldown},(_,i)=>'<i'+(i<filled?' class="filled"':'')+'></i>').join('')+'</span></span>';
+      return '<span class="watch-skill" data-skill="'+key+'" data-ready="'+ready+'" data-state="'+(locked?'locked':ready?'ready':s.cooldown>1?'cooldown':'condition')+'" aria-label="'+label+'"><span class="watch-skill-heading">'+icon(def.icon)+'<b>'+def.name+'</b><em>'+(element?element+' · ':'')+status+'</em></span><span class="watch-skill-clock" aria-hidden="true">'+Array.from({length:def.cooldown},(_,i)=>'<i'+(i<filled?' class="filled"':'')+'></i>').join('')+'</span></span>';
     }).join('')+'</div>';
   }
   // Enemy skill hints of a fight on the rule clock: seconds and attack counts instead of turns.
@@ -396,6 +396,7 @@ const HuntWatch=(()=>{
     if(!h?.enemySkillState)return '';
     const timed=timedHunt(h);
     const s=h.enemySkillState,def=DiceCombat.enemySkills[s.key || 'charge'],ready=s.cooldown<=1;
+    const element=({fang:'화염',breath:'냉기',crush:'냉기',dust:'번개',bind:'번개'})[s.key], skillName=def.name+(element?' · '+element:'');
     const fired=!motionEnabled() && (timed ? h.lastStrikes?.enemy?.move===s.key : h.diceVersion===2 && h.lastDice?.enemySkill===s.key);
     // The enemy's skill is counted in its own attacks (M3); the goblin leaves on the rule clock (M3-a).
     const status=fired ? '발동' : s.key==='escape' ? (timed ? HuntStrikes.goblinEscape(h.clock) : h.waveTurn>=2?'이번 턴':'2턴째 도주') :
@@ -405,7 +406,7 @@ const HuntWatch=(()=>{
       dust:'적중하면 기세를 1 잃습니다.',
       bind:'적중하면 일격의 대기시간이 늘어납니다.',
     }[s.key] || def.hint : def.hint;
-    return '<span class="watch-enemy-skill" data-ready="'+ready+'" title="'+hint+'" aria-label="적 '+def.name+' · '+status+'"><span>'+icon(def.icon)+'<b>'+def.name+'</b><em>'+status+'</em></span><span class="watch-skill-clock" aria-hidden="true">'+Array.from({length:s.interval},(_,i)=>'<i'+(i<(ready?s.interval:s.interval-s.cooldown)?' class="filled"':'')+'></i>').join('')+'</span></span>';
+    return '<span class="watch-enemy-skill" data-ready="'+ready+'" title="'+hint+'" aria-label="적 '+skillName+' · '+status+'"><span>'+icon(def.icon)+'<b>'+def.name+'</b><em>'+(element?element+' · ':'')+status+'</em></span><span class="watch-skill-clock" aria-hidden="true">'+Array.from({length:s.interval},(_,i)=>'<i'+(i<(ready?s.interval:s.interval-s.cooldown)?' class="filled"':'')+'></i>').join('')+'</span></span>';
   }
   // Readouts are corrected in place: the scene's elements stay the same elements for the whole encounter (M1-a).
   const ownKids = node => [...node.childNodes].filter(kid => !kid.classList?.contains('watch-skill-flare'));

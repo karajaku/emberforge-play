@@ -1,6 +1,7 @@
 "use strict";
 
 const AffixCraft = (() => {
+  const live = typeof module !== "undefined" ? require("./live-affixes.js") : LiveAffixes;
   const kinds = ["weapon", "armor", "helm", "shoulder", "legs", "gloves", "neck", "ring", "cloak"];
   const prefixes = [
     "날카로운",
@@ -72,7 +73,14 @@ const AffixCraft = (() => {
       names.map((name, i) => [side + (i + 1), { name, side, group: groups[i] }]),
     ),
   );
+  const statFamilyCounts = {
+    PN02: "P1", PN04: "P9", PN06: "P8", PN11: "P2", PN13: "P3", PN14: "P4", PN18: "P11",
+    SN01: "S1", SN02: "S2", SN03: "S3", SN08: "P10", SN12: "S7",
+    SN13: "S10", SN14: "S11", SN15: "S12", PN101: "P7", PN102: "P12",
+    SN102: "S6", SN104: "S8", PN108: "P6",
+  };
   const family = {
+    ...statFamilyCounts,
     power: "P1",
     strike: "P2",
     heavy: "P3",
@@ -95,8 +103,9 @@ const AffixCraft = (() => {
     wounds: "S9",
     bracing: "legacyBracing",
   };
+  Object.assign(defs, live.defs);
   const familyOf = (mod) => family[mod.key] || mod.key;
-  const sideOf = (mod) => (mod.key === "bracing" ? "P" : mod.key === "lastWard" ? "S" : familyOf(mod)[0]);
+  const sideOf = (mod) => defs[mod.key]?.side || (mod.key === "bracing" ? "P" : mod.key === "lastWard" ? "S" : familyOf(mod)[0]);
   const kindOf = (item) => item.kind || item.type || "weapon";
   const lines = (item) => item.mods || [];
   const rarity = (item) =>
@@ -107,9 +116,16 @@ const AffixCraft = (() => {
     return min + Math.floor(r * (max - min + 1));
   }
   function pool(item) {
-    return pools[kinds.indexOf(kindOf(item))] || [];
+    return live.pools[kindOf(item)] || [];
   }
   function bounds(key, t) {
+    const def = defs[key];
+    if (def.step) {
+      const scale = Math.round(1 / def.step);
+      const first = Math.round(def.low * scale);
+      const points = Math.round(def.high * scale) - first + 1;
+      return [first + Math.floor((t - 1) * points / 10), first + Math.floor(t * points / 10) - 1, scale];
+    }
     const g = defs[key].group;
     if (g === "B") return [4 * t - 2, 4 * t, 1];
     if (g === "D") return [10 * t - 5, 10 * t, 10];
@@ -119,8 +135,8 @@ const AffixCraft = (() => {
     const used = new Set(lines(item).map(familyOf));
     const p = lines(item).filter((m) => sideOf(m) === "P").length;
     const s = lines(item).length - p;
-    return pools[kinds.indexOf(kindOf(item))].filter(
-      (key) => !used.has(key) && key !== excluded && (key[0] === "P" ? p : s) < 3,
+    return pool(item).filter(
+      (key) => !used.has(familyOf({key})) && familyOf({key}) !== excluded && (defs[key].side === "P" ? p : s) < 3,
     );
   }
   function weighted(weights, rng) {
@@ -235,7 +251,10 @@ const AffixCraft = (() => {
     return { ok: true, item };
   }
   function effectiveValue(item, mod) {
-    if (kindOf(item) !== "weapon") return mod.value;
+    if (kindOf(item) !== "weapon") {
+      if (!live.defs[mod.key]) return mod.value;
+      return mod.value * (100 + 5 * Math.min(3, Math.floor((item.level || 0) / 5))) / 100;
+    }
     const grade = item.promotionGrade ?? (item.recordId ? item.grade : 0);
     return (mod.value * (10 + grade)) / (10 + (mod.migrationGrade || 0));
   }
@@ -255,7 +274,7 @@ const AffixCraft = (() => {
       const def = defs[mod.key];
       if (def) {
         if (
-          !pools[kinds.indexOf(kindOf(item))].includes(mod.key) ||
+          !(def.live ? pool(item) : pools[kinds.indexOf(kindOf(item))]).includes(mod.key) ||
           mod.tier > Math.ceil(item.rank / 6) ||
           mod.ascended !== undefined ||
           mod.migrationGrade !== undefined
@@ -263,7 +282,7 @@ const AffixCraft = (() => {
           return false;
         const [lo, hi, scale] = bounds(mod.key, mod.tier);
         const raw = mod.value * scale;
-        if (!Number.isInteger(raw) || raw < lo || raw > hi) return false;
+        if (!Number.isFinite(mod.value) || Math.abs(raw - Math.round(raw)) > 1e-8 || Math.round(raw) < lo || Math.round(raw) > hi) return false;
       } else {
         const range = legacyDefs[mod.key]?.ranges?.[mod.tier - 1];
         if (kindOf(item) !== "weapon" && kindOf(item) !== "armor") return false;
@@ -350,6 +369,7 @@ const AffixCraft = (() => {
     );
   }
   return {
+    statFamilyCounts,
     pool,
     currency,
     kinds,

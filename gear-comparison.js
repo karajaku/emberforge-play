@@ -7,6 +7,8 @@ const gearHits = typeof module !== "undefined" ? require("./hunt-strikes.js") : 
 
 function createGearComparison({blades, outfit, endgame, craft, dice, stats, battleWeapon=blades.current}) {
   const affixes=typeof module!=="undefined"?require("./affix-craft.js"):AffixCraft;
+  const affixUnit = key => affixes.defs[key]?.unit ?? (["P10","S2","S3","S4","S5","S9","S10","S11","S12"].includes(key) ? "%p" : "%");
+  const slotNames={weapon:"무기",armor:"흉갑",helm:"투구",shoulder:"어깨",legs:"다리",gloves:"장갑",neck:"목걸이",ring:"반지",cloak:"망토"};
   const starter = {base:0, grade:0, level:0, mods:[]};
   const starterArmor = {...starter, type:"armor"};
   const round = value => Math.round(value * 100) / 100;
@@ -105,7 +107,7 @@ function createGearComparison({blades, outfit, endgame, craft, dice, stats, batt
       const derivedKeys = weapon ? ["power", "strike", "heavy", "counter", "rupture"] : ["vitality", "plating", "bracing"];
       for (const mod of item.mods) {
         if (derivedKeys.includes(mod.key)) {
-          stat("affix-" + mod.key, blades.modDefs[mod.key].name + " 각인", mod.value, 0, mod.key === "plating" ? "%p" : "%");
+          stat("affix-" + mod.key, blades.modDefs[mod.key].name + " 각인 · 기존", mod.value, 0, mod.key === "plating" ? "%p" : "%");
         }
       }
       if (item.ascended) {
@@ -116,7 +118,7 @@ function createGearComparison({blades, outfit, endgame, craft, dice, stats, batt
     }
     for (const mod of item.mods||[]) {
       const def=affixes.defs[mod.key];
-      if (def) stat("affix-"+mod.key,def.name,affixes.effectiveValue(item,mod),type==="outfit"?2:1,"%");
+      if (def) stat("affix-"+mod.key,def.name+" · "+(def.live?"":"기존 ")+"T"+mod.tier+(def.exclusiveSlot?" · "+slotNames[def.exclusiveSlot]+" 전용":""),affixes.effectiveValue(item,mod),type==="outfit"?2:1,affixUnit(mod.key));
     }
     return {rows, score:Math.round(points)};
   }
@@ -143,10 +145,16 @@ function createGearComparison({blades, outfit, endgame, craft, dice, stats, batt
     const stats=blades.skills(view,weapon,chest);
     const known=stats.affix?.applied||{};
     const exposure=outfit.build(view,undefined,[weapon,chest]).exposure;
-    return {P10:stats.defense,P11:stats.skillWard,P12:stats.lastWard,S1:stats.mods.haste||0,
+    const result = {P10:stats.defense,P11:stats.skillWard,P12:stats.lastWard,S1:stats.mods.haste||0,
       S2:stats.critChance,S3:150,S4:stats.mods.momentum||0,S5:stats.mods.cooldown||0,S6:stats.mods.guard||0,
       S7:stats.mods.recovery||0,S8:stats.mods.fortify||0,S9:stats.mods.wounds||0,...known,
       S10:exposure.fire,S11:exposure.cold,S12:exposure.lightning};
+    for (const [key,old] of Object.entries(affixes.statFamilyCounts || {})) {
+      if (!(key in result)) result[key] = result[old] || 0;
+    }
+    // Regional conversion/exposure is part of the actual worn contribution, too.
+    result.SN13=exposure.fire;result.SN14=exposure.cold;result.SN15=exposure.lightning;
+    return result;
   }
   return function compareGear(s, item, type, preferredSlot) {
     let slot = type, current;
@@ -172,7 +180,7 @@ function createGearComparison({blades, outfit, endgame, craft, dice, stats, batt
       const now=totals(s,current,type,slot), next=equipped?now:totals(s,item,type,slot);
       for (const key of keysToCompare) {
         const value=round(next[key]||0),before=round(now[key]||0);
-        rows.push({key:"total-"+key,label:affixes.defs[key].name+" · 착용 합계",value,before,delta:round(value-before),unit:"%",deltaUnit:"%p"});
+        rows.push({key:"total-"+key,label:affixes.defs[key].name+" · 착용 합계",value,before,delta:round(value-before),unit:affixUnit(key),deltaUnit:affixUnit(key) === "%" ? "%p" : affixUnit(key)});
       }
     }
     return {slot, current, equipped, score:candidate.score, currentScore:worn.score, delta:candidate.score - worn.score, rows};

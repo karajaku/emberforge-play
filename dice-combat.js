@@ -42,6 +42,8 @@ const DiceCombat=(()=>{
     return bladeTurn(h, face20(rng), null, rng, true);
   }
   function bladeTurn(h, playerFace, enemyFace, rng, d20 = false) {
+    const regen = af.heal(h,h.hp,2*(h.bladeCombat.affix?.live?.SN09 || 0));
+    if (regen) h = {...h,hp:h.hp+regen};
     const st = h.bladeCombat,
       mods = st.mods;
     let player = d20 ? "strike" : actions[playerFace - 1];
@@ -79,7 +81,7 @@ const DiceCombat=(()=>{
         counter = false;
       } else if (st.style === "wound" && wounds >= (st.ruptureAt||3)) {
         skill = "rupture";
-        raw = st.attack + st.rupture * wounds;
+        raw = st.attack * (1 + Math.min(120,st.affix?.live?.PN12 || 0)/100) + st.rupture * wounds;
         if (ascended && !ruptured) raw *= .75;
         if (!d20) {
           ruptured = true;
@@ -105,7 +107,7 @@ const DiceCombat=(()=>{
     // A rupture ignores a defensive face. Bleeding continues even during a block.
     const bleed = st.style === "wound" ? Math.round((h.wounds || 0) * (st.affix?.bleedPower ?? st.rupture) * 0.14) : 0;
     const pierces = skill==="rupture" || (ascended && skill==="heavyStrike");
-    const elemental = h.fieldKit ? outfit.multiplier(outfit.profile(h.territoryRank || h.rank,h.enemyKind),h.fieldKit) : 1;
+    const elemental = outfit.damageProfile(h);
     const attack = d20 ? attackCheck(playerFace, face(rng), 2, pierces ? 2 : 0) : null;
     const landed = d20 && hits(attack);
     const partial = d20 && attack.outcome === "blocked" && st.blockedDamagePercent === 40;
@@ -130,15 +132,22 @@ const DiceCombat=(()=>{
         const rolled = st.minDamage + Math.min(st.maxDamage-st.minDamage, Math.floor(rng()*(st.maxDamage-st.minDamage+1)));
         raw *= rolled/st.attack;
       }
-      if (!d20 || attack.outcome === "hit") critical = rng()*100 < (skill ? st.critChance : Math.min(50,st.critChance+(st.affix?.critBonus||0)));
+      if (!d20 || attack.outcome === "hit") critical = rng()*100 < af.critChance(h,skill);
     }
     raw *= af.attackFactor(h,skill);
     if (critical) {
-      raw *= st.affix?.critScale ?? 1.5;
+      raw *= af.critMultiplier(h);
+      if (!skill && !block && (d20 ? landed : !enemyBlocks) && st.style==="wound" && st.affix?.live?.SN106 && rng()*100<Math.min(100,st.affix.live.SN106))
+        wounds=Math.min(4,wounds+1);
       if (d20) attack.outcome = "critical";
     }
     const blocked = partial || (enemyBlocks && !pierces) ? (st.blockedDamagePercent ?? 25)/100 : 1;
-    const damage = Math.min(h.enemyHp, Math.round(raw * elemental * blocked) + bleed);
+    const connected = d20 ? landed : !block && !enemyBlocks;
+    const direct = af.directHit(raw,blocked,connected,elemental,h.enemyHp);
+    const damage = Math.min(h.enemyHp,direct.damage+bleed);
+    const killBonus = af.killRecovery(h);
+    const onHit = af.heal(h,h.hp,af.hitRecovery(h,direct,connected));
+    if (onHit) h = {...h,hp:h.hp+onHit};
     const enemySkillState = { ...h.enemySkillState, cooldown: Math.max(0, h.enemySkillState.cooldown - 1) };
     const key = enemySkillState.key;
     const fires = key === "escape" ? h.waveTurn >= 2 : !enemyBlocks && !enemySkillState.cooldown;
@@ -188,8 +197,8 @@ const DiceCombat=(()=>{
     if (armorEffect==="vitality" && defeated) healPercent+=h.hp<=h.maxHp/2 ? 10 : 4;
     if (armorEffect==="bracing" && guarded) healPercent+=6;
     if (guarded && enemySkill) healPercent=af.cap(healPercent,st.affix?.guardHeal||0,8);
-    if (defeated) healPercent=af.cap(healPercent,st.affix?.killHeal||0,12);
-    const healed = taken < h.hp ? Math.min(h.maxHp - h.hp + taken, Math.round((h.maxHp * healPercent) / 100)) : 0;
+    if (defeated) healPercent=af.cap(healPercent,killBonus,12);
+    const healed = regen + onHit + af.heal(h,h.hp-taken,h.maxHp*healPercent/100);
     return {
       playerFace,
       enemyFace,
@@ -201,7 +210,7 @@ const DiceCombat=(()=>{
       healed,
       wounds,
       ruptured,
-      ...(st.affix?.unique.includes("helm") ? {usedAffixSkill:!!(h.usedAffixSkill || skill)}:{}),
+      ...(st.affix?.unique.includes("helm") || st.affix?.live?.PN103 ? {usedAffixSkill:!!(h.usedAffixSkill || skill)}:{}),
         firstHit: h.firstHit !== false && (d20 ? !landed && !partial : block),
       fortified: fortified && !taken,
       skill,

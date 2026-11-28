@@ -140,7 +140,9 @@ const EmberScene = (() => {
       );
     }
     if (detail === "currency") {
-      const keys = Game.affixes.pool(item);
+      const keys = [...Game.affixes.pool(item)].sort(
+        (a, b) => Number(!!Game.affixes.defs[b].exclusiveSlot) - Number(!!Game.affixes.defs[a].exclusiveSlot),
+      );
       return (
         "<h2>불씨·티어 안내</h2><p>일반 단계 승리 20%, 우두머리 승리 40%로 불씨 1개를 발견합니다. 최초 1·2·3·5단계에서는 첫불씨·겹불씨·도약 불씨·별금 불씨를 한 번 받습니다.</p><p>시스템이 옵션 종류 → 티어 → 값을 무작위 결정합니다. T1이 최저, T10이 최고이며 해금된 티어 가중치는 10·9·8·7·6·5·4·3·2·1입니다.</p>" +
         Game.affixes.currency
@@ -161,11 +163,19 @@ const EmberScene = (() => {
           .map(
             (k) =>
               "<details><summary>" +
-              escapeHtml(Game.affixes.defs[k].name) +
+              escapeHtml(
+                Game.affixes.defs[k].name +
+                  (Game.affixes.defs[k].kind ? " · " + Game.affixes.defs[k].kind : "") +
+                  (Game.affixes.defs[k].exclusiveSlot ? " · 이 부위 전용" : ""),
+              ) +
               "</summary>" +
+              desc(Game.affixes.defs[k].description || "") +
               Array.from({ length: 10 }, (_, i) => {
                 const [a, b, scale] = Game.affixes.bounds(k, i + 1);
-                return line("T" + (i + 1), a / scale + "~" + b / scale);
+                return line(
+                  "T" + (i + 1),
+                  "+" + a / scale + AffixView.units(k) + "~" + b / scale + AffixView.units(k),
+                );
               }).join("") +
               "</details>",
           )

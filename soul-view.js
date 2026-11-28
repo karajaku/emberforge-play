@@ -18,7 +18,7 @@ const SoulView = (() => {
   const tokensFor = (s,item) => Game.endgame.info(s).tokens.filter(t=>t.id.startsWith("a")===armor(item));
   const unit = key => key==="plating" ? "%p" : "%";
   const prop = m => m.ascended ? (Game.endgame.armorTransform[m.ascended] || Game.endgame.transform[m.ascended]).name :
-    grade(m.tier) + " " + AffixView.compatibility(m.key).name + " +" + m.value + unit(m.key);
+    AffixView.summary(m);
   function where(s,item) {
     const b=Game.blades.state(s);
     if (item.id===b.equipped || item.id===b.armorEquipped) return "장착 중";

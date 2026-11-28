@@ -50,7 +50,8 @@ const AffixView = (() => {
     "처치 시 HP 8% 회복, 최대 HP −10%",
   ];
   const units = (key) =>
-    ["P10", "S2", "S3", "S4", "S5", "S9", "S10", "S11", "S12", "plating"].includes(key) ? "%p" : "%";
+    Game.affixes?.defs[key]?.unit ??
+    (["P10", "S2", "S3", "S4", "S5", "S9", "S10", "S11", "S12", "plating"].includes(key) ? "%p" : "%");
   const number = (v) => Number(v).toLocaleString("ko-KR", { maximumFractionDigits: 2 });
   function compatibility(key) {
     const def = Game.affixes?.defs[key];
@@ -83,6 +84,29 @@ const AffixView = (() => {
     const v = item && Game.affixes?.effectiveValue ? Game.affixes.effectiveValue(item, m) : m.value;
     return Number.isFinite(v) ? number(v) + units(m.key) : "—";
   }
+  const slotNames = {
+    weapon: "무기",
+    armor: "흉갑",
+    helm: "투구",
+    shoulder: "어깨",
+    legs: "다리",
+    gloves: "장갑",
+    neck: "목걸이",
+    ring: "반지",
+    cloak: "망토",
+  };
+  function marker(m) {
+    const def = Game.affixes?.defs[m.key];
+    return (
+      (!def?.live ? "기존 · " : "") +
+      "T" +
+      m.tier +
+      (def?.exclusiveSlot ? " · " + (slotNames[def.exclusiveSlot] || def.exclusiveSlot) + " 전용" : "")
+    );
+  }
+  function summary(m, item) {
+    return modName(m) + " +" + value(m, item) + " · " + marker(m);
+  }
   function options(item) {
     const mods = item.mods || [];
     let body = item.unique
@@ -110,13 +134,14 @@ const AffixView = (() => {
             (m) =>
               '<div class="affix-option"><span>' +
               escapeHtml(modName(m)) +
-              (meanings[m.key] ? "<small>" + escapeHtml(meanings[m.key]) + "</small>" : "") +
-              "<small>" +
-              (Game.affixes?.defs[m.key] ? "T" + m.tier : "기존 T" + m.tier) +
-              "</small></span><b>" +
-              (item.promotionGrade > (m.migrationGrade || 0) && !m.ascended
-                ? "<small>원값 " + value(m) + "</small>→ "
+              (meanings[m.key] || optionDef(m).exclusiveSlot
+                ? "<small>" + escapeHtml(meanings[m.key] || optionDef(m).description) + "</small>"
                 : "") +
+              "<small>" +
+              escapeHtml(marker(m)) +
+              "</small></span><b>" +
+              (value(m, item) !== value(m) && !m.ascended ? "<small>원값 +" + value(m) + "</small>→ " : "") +
+              "+" +
               value(m, item) +
               "</b></div>",
           )
@@ -176,7 +201,7 @@ const AffixView = (() => {
         rows.push(line("제거", escapeHtml(modName(m)) + " " + value(m, before)));
     for (const m of now) {
       const was = old.find((n) => n.key === m.key && n.ascended === m.ascended);
-      if (!was) rows.push(line("추가", escapeHtml(modName(m)) + " T" + m.tier + " · " + value(m, after)));
+      if (!was) rows.push(line("추가", escapeHtml(summary(m, after))));
       else if (was.value !== m.value || was.tier !== m.tier)
         rows.push(
           line(
@@ -265,6 +290,9 @@ const AffixView = (() => {
   }
   return {
     options,
+    units,
+    marker,
+    summary,
     link,
     modName,
     optionDef,

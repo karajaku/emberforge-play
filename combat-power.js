@@ -26,7 +26,7 @@ const CombatPower = (() => {
       h.hp = Math.min(h.maxHp, h.hp - roll.taken + roll.healed);
       if (h.hp <= 0) return false;
       Object.assign(h, {
-        wounds: roll.wounds, ruptured: roll.ruptured, firstHit: roll.firstHit,
+        wounds: roll.wounds, ruptured: roll.ruptured, firstHit: roll.firstHit, usedAffixSkill: roll.usedAffixSkill,
         fortified: roll.fortified, momentum: roll.momentum, counter: roll.counter,
         skillCooldowns: roll.skillCooldowns, enemySkillState: roll.enemySkillState,
       });
@@ -36,7 +36,7 @@ const CombatPower = (() => {
 
   function estimate(h) {
     const { rank, territoryRank, enemyKind, waveTurn, hp, maxHp, enemyHp, enemyMax, enemyAttack,
-      wounds, ruptured, firstHit, fortified, momentum, counter, skillCooldowns, enemySkillState,
+      wounds, ruptured, firstHit, usedAffixSkill, fortified, momentum, counter, skillCooldowns, enemySkillState,
       bladeCombat, fieldKit } = h;
     if (![hp, maxHp, enemyHp, enemyMax, enemyAttack].every(n => Number.isFinite(n) && n > 0) ||
         !Number.isInteger(waveTurn) || waveTurn < 1 || waveTurn > 40 || !bladeCombat || !enemySkillState)
@@ -45,7 +45,7 @@ const CombatPower = (() => {
     if (!Number.isSafeInteger(enemy)) return unavailable;
 
     const input = { rank, territoryRank, enemyKind, waveTurn, hp, maxHp, enemyHp, enemyMax, enemyAttack,
-      wounds, ruptured, firstHit, fortified, momentum, counter, skillCooldowns, enemySkillState,
+      wounds, ruptured, firstHit, usedAffixSkill, fortified, momentum, counter, skillCooldowns, enemySkillState,
       bladeCombat, fieldKit };
     const key = JSON.stringify(input);
     if (key === cachedKey) return cachedResult;

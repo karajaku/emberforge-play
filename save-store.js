@@ -57,7 +57,10 @@ const SaveStore = (() => {
       a.exposure.every(positive) && a.critScale>=1.5 && a.critScale<=2.5 &&
       ["critBonus","critScale","baseMomentum","guardHeal","killHeal","bleedPower","baseRating","baseDefense",
         "baseSkillWard","baseLastWard","baseFortify"].every(k=>positive(a[k])) &&
-      object(a.applied) && Object.values(a.applied).every(positive);
+      object(a.applied) && Object.values(a.applied).every(positive) &&
+      (a.live === undefined || (object(a.live) && !Array.isArray(a.live) &&
+        Object.entries(a.live).every(([key,value]) => game.affixes.defs[key]?.live && positive(value)) &&
+        ["SN04","SN05","SN06","SN11","SN107","PN105","SN105"].every(k=>positive(a.applied[k]))));
   }
   function validKindTraits(stats) {
     const haste = stats.mods?.haste;
@@ -121,6 +124,12 @@ const SaveStore = (() => {
   }
   // Format 9 marks exploration state; earlier builds compute at most 8 and reject it as future.
   function saveFormat(state) {
+    if (state?._save?.format === 14 || state?.hunt?.bladeCombat?.affix?.live) return 14;
+    if (state?.affixWallet) {
+      const hasLive = item => Array.isArray(item?.mods) && item.mods.some(m=>game.affixes.defs[m?.key]?.live);
+      const inventories = [state.bag,state.field,state.bladeForge?.items,state.bladeForge?.armors,state.bladeForge?.outfit?.items];
+      if (hasLive(state.weapon) || inventories.some(items=>Array.isArray(items) && items.some(hasLive))) return 14;
+    }
     // Format 12 marks a save that has met the rule-clock forest combat or an attack-speed affix.
     if (state?.affixWallet!==undefined) return 13;
     if (state?.attackSpeed !== undefined) return 12;

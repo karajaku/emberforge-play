@@ -64,8 +64,10 @@ const RegionalGear = (() => {
     const armor=s.bladeForge?.armors?.find(i=>i.id===s.bladeForge.armorEquipped);
     const parts=[...(mainEquipment||[blade,armor]),...(kit?.items||[]).filter(i=>Object.values(equipped).includes(i.id))];
     for (const item of parts.filter(Boolean)) for (const mod of item.mods||[]) {
-      const k={S10:"fire",S11:"cold",S12:"lightning"}[mod.key];
-      if (k) exposure[k]=Math.min(45,exposure[k]+affixes.effectiveValue(item,mod));
+      const k={S10:"fire",SN13:"fire",S11:"cold",SN14:"cold",S12:"lightning",SN15:"lightning"}[mod.key];
+      const value = affixes.effectiveValue(item,mod);
+      if (k) exposure[k]=Math.min(45,exposure[k]+value);
+      if (mod.key==="SN108") for (const element of elementKeys) exposure[element]=Math.min(45,exposure[element]+value);
     }
     const total = Object.values(conversion).reduce((a,b) => a+b,0);
     if (total > 80) {
@@ -106,6 +108,22 @@ const RegionalGear = (() => {
   function multiplier(resistances, kit) {
     const resistance = effective(resistances, kit);
     return 1 - elementKeys.reduce((sum,k) => sum + kit.conversion[k]*resistance[k],0)/10000;
+  }
+  function damageProfile(h) {
+    const a = h.bladeCombat.affix, n = a?.live;
+    if (!n) return h.fieldKit ? multiplier(profile(h.territoryRank || h.rank,h.enemyKind),h.fieldKit) : 1;
+    const kit = h.fieldKit || {conversion:blank(),exposure:Object.fromEntries(elementKeys.map((key,i)=>[key,a.exposure[i]]))};
+    const resist = effective(profile(h.territoryRank || h.rank || 1,h.enemyKind),kit);
+    const converted = elementKeys.reduce((sum,key)=>sum + kit.conversion[key],0);
+    const parts = {
+      physical:(1-converted/100)*(1+(n.PN15||0)/100), element:0, flatPhysical:n.PN07||0, flatElement:0
+    };
+    for (const [i,key] of elementKeys.entries()) {
+      const resistance = 1-resist[key]/100;
+      parts.element += kit.conversion[key]/100 * resistance * (1+Math.min(80,(n.PN16||0)+(n.PN107||0))/100);
+      parts.flatElement += (n[["PN08","PN09","PN10"][i]]||0) * resistance * (1+Math.min(80,n.PN107||0)/100);
+    }
+    return parts;
   }
   const capacity = 64;
   function dropChance(s, rank) {
@@ -185,6 +203,6 @@ const RegionalGear = (() => {
     const vector=(o,max)=>record(o)&&Object.keys(o).length===3&&elementKeys.every(k=>between(o[k],0,max));
     return record(v)&&vector(v.conversion,80)&&record(v.exposure)&&Object.keys(v.exposure).length===3&&elementKeys.every(k=>Number.isFinite(v.exposure[k]) && v.exposure[k]>=0 && v.exposure[k]<=45)&&Object.values(v.conversion).reduce((a,b)=>a+b,0)<=80;
   }
-  return {slots,elements,capacity,state,name,effect,quote,salvageOre,profile,preferredElement,build,preview,effective,multiplier,dropChance,reward,act,valid,validItem,validBuild};
+  return {slots,elements,capacity,state,name,effect,quote,salvageOre,profile,preferredElement,build,preview,effective,multiplier,damageProfile,dropChance,reward,act,valid,validItem,validBuild};
 })();
 if (typeof module !== "undefined") module.exports = RegionalGear;

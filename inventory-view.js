@@ -197,7 +197,7 @@ const InventoryView = (() => {
       if (!entry.gearItem || counts.get(entry.rarity.key+entry.name+entry.mark)<2) continue;
       const mod = entry.gearItem.mods[0];
       entry.affix = mod?.ascended ? SoulView.recipes(entry.gearItem)[mod.ascended].name :
-        mod ? AffixView.modName(mod)+" +"+AffixView.value(mod) : "옵션 없음";
+        mod ? AffixView.summary(mod,entry.gearItem) : "옵션 없음";
     }
   }
   function grid(items) {
